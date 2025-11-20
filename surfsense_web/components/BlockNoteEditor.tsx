@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
+import { useTheme } from "next-themes";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import { useCreateBlockNote } from "@blocknote/react";
@@ -18,6 +19,21 @@ export default function BlockNoteEditor({
   // Track the initial content to prevent re-initialization
   const initialContentRef = useRef<any>(null);
   const isInitializedRef = useRef(false);
+  
+  const { resolvedTheme, theme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration issues
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Determine BlockNote theme based on current theme
+  const blockNoteTheme = useMemo(() => {
+    if (!mounted) return "light"; // Default to light during SSR
+    const isDark = resolvedTheme === "dark" || theme === "dark";
+    return isDark ? "dark" : "light";
+  }, [mounted, resolvedTheme, theme]);
   
   // Creates a new editor instance - only use initialContent on first render
   const editor = useCreateBlockNote({
@@ -48,6 +64,6 @@ export default function BlockNoteEditor({
     };
   }, [editor, onChange]);
 
-  // Renders the editor instance
-  return <BlockNoteView editor={editor} />;
+  // Renders the editor instance with theme support
+  return <BlockNoteView editor={editor} theme={blockNoteTheme} />;
 }
