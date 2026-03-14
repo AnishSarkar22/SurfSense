@@ -167,7 +167,7 @@ export const AssistantMessage: FC = () => {
 	return (
 		<MessagePrimitive.Root
 			ref={messageRef}
-			className="aui-assistant-message-root group fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-(--thread-max-width) animate-in py-3 duration-150"
+			className="aui-assistant-message-root group fade-in slide-in-from-bottom-2 relative mx-auto w-full max-w-(--thread-max-width) animate-in py-4 md:py-5 duration-200"
 			data-role="assistant"
 		>
 			{/* Comment trigger — right-aligned, just below user query on all screen sizes */}

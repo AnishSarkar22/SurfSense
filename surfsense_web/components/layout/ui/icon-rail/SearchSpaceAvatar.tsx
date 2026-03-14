@@ -126,10 +126,10 @@ export function SearchSpaceAvatar({
 			type="button"
 			onClick={onClick}
 			className={cn(
-				"relative flex items-center justify-center rounded-lg font-semibold text-white transition-all select-none",
-				"hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+				"relative flex items-center justify-center rounded-lg font-semibold text-white transition-all duration-150 select-none",
+				"hover:opacity-90 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 				sizeClasses,
-				isActive && "ring-2 ring-primary ring-offset-1 ring-offset-background"
+				isActive && "ring-2 ring-primary/60 ring-offset-2 ring-offset-background scale-105"
 			)}
 			style={{ backgroundColor: bgColor }}
 		>

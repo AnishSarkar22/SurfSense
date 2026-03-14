@@ -50,7 +50,7 @@ export const UserMessage: FC = () => {
 
 	return (
 		<MessagePrimitive.Root
-			className="aui-user-message-root fade-in slide-in-from-bottom-1 mx-auto grid w-full max-w-(--thread-max-width) animate-in auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 py-3 duration-150 [&:where(>*)]:col-start-2"
+			className="aui-user-message-root fade-in slide-in-from-bottom-2 mx-auto grid w-full max-w-(--thread-max-width) animate-in auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] content-start gap-y-2 px-2 py-4 md:py-5 duration-200 [&:where(>*)]:col-start-2"
 			data-role="user"
 		>
 			<div className="aui-user-message-content-wrapper col-start-2 min-w-0 flex items-end gap-2">

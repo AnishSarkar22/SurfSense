@@ -2,7 +2,7 @@
 
 import { FolderOpen, PenSquare } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -15,6 +15,10 @@ import { PageUsageDisplay } from "./PageUsageDisplay";
 import { SidebarCollapseButton } from "./SidebarCollapseButton";
 import { SidebarHeader } from "./SidebarHeader";
 import { SidebarSection } from "./SidebarSection";
+import {
+	SLIDEOUT_PANEL_CLOSED_EVENT,
+	SLIDEOUT_PANEL_OPENED_EVENT,
+} from "./SidebarSlideOutPanel";
 import { SidebarUserProfile } from "./SidebarUserProfile";
 
 function ChatListItemSkeleton() {
@@ -91,13 +95,26 @@ export function Sidebar({
 }: SidebarProps) {
 	const t = useTranslations("sidebar");
 	const [openDropdownChatId, setOpenDropdownChatId] = useState<number | null>(null);
+	const [slideoutOpen, setSlideoutOpen] = useState(false);
+
+	useEffect(() => {
+		const handleOpen = () => setSlideoutOpen(true);
+		const handleClose = () => setSlideoutOpen(false);
+		window.addEventListener(SLIDEOUT_PANEL_OPENED_EVENT, handleOpen);
+		window.addEventListener(SLIDEOUT_PANEL_CLOSED_EVENT, handleClose);
+		return () => {
+			window.removeEventListener(SLIDEOUT_PANEL_OPENED_EVENT, handleOpen);
+			window.removeEventListener(SLIDEOUT_PANEL_CLOSED_EVENT, handleClose);
+		};
+	}, []);
 
 	return (
 		<div
 			className={cn(
-				"relative flex h-full flex-col bg-sidebar text-sidebar-foreground overflow-hidden select-none",
-				isCollapsed ? "w-[60px] transition-all duration-200" : "",
-				!isCollapsed && !isResizing ? "transition-all duration-200" : "",
+				"relative flex h-full flex-col bg-panel text-sidebar-foreground overflow-hidden select-none",
+				isCollapsed ? "w-[60px] transition-all duration-300" : "",
+				!isCollapsed && !isResizing ? "transition-all duration-300" : "",
+				slideoutOpen && "!rounded-r-none",
 				className
 			)}
 			style={!isCollapsed ? { width: sidebarWidth } : undefined}
@@ -117,7 +134,7 @@ export function Sidebar({
 			)}
 			{/* Header - search space name or collapse button when collapsed */}
 			{isCollapsed ? (
-				<div className="flex h-14 shrink-0 items-center justify-center border-b">
+				<div className="flex h-14 shrink-0 items-center justify-center border-b border-border/40">
 					<SidebarCollapseButton
 						isCollapsed={isCollapsed}
 						onToggle={onToggleCollapse ?? (() => {})}
@@ -125,7 +142,7 @@ export function Sidebar({
 					/>
 				</div>
 			) : (
-				<div className="flex h-14 shrink-0 items-center gap-0 px-1 border-b">
+				<div className="flex h-14 shrink-0 items-center gap-0 px-1 border-b border-border/40">
 					<SidebarHeader
 						searchSpace={searchSpace}
 						isCollapsed={isCollapsed}
@@ -234,7 +251,7 @@ export function Sidebar({
 								</div>
 								{/* Gradient fade indicator when more than 4 items */}
 								{sharedChats.length > 4 && (
-									<div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-sidebar via-sidebar/90 to-transparent" />
+									<div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-panel via-panel/90 to-transparent" />
 								)}
 							</div>
 						) : (
@@ -308,7 +325,7 @@ export function Sidebar({
 								</div>
 								{/* Gradient fade indicator when more than 4 items */}
 								{chats.length > 4 && (
-									<div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-sidebar via-sidebar/90 to-transparent" />
+									<div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-panel via-panel/90 to-transparent" />
 								)}
 							</div>
 						) : (
@@ -319,7 +336,7 @@ export function Sidebar({
 			)}
 
 			{/* Footer */}
-			<div className="mt-auto border-t">
+			<div className="mt-auto border-t border-border/40">
 				{/* Platform navigation */}
 				{navItems.length > 0 && (
 					<NavSection items={navItems} onItemClick={onNavItemClick} isCollapsed={isCollapsed} />

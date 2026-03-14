@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useSidebarContextSafe } from "../../hooks";
 
 export const SLIDEOUT_PANEL_OPENED_EVENT = "slideout-panel-opened";
+export const SLIDEOUT_PANEL_CLOSED_EVENT = "slideout-panel-closed";
 
 const SIDEBAR_COLLAPSED_WIDTH = 60;
 
@@ -42,6 +43,8 @@ export function SidebarSlideOutPanel({
 	useEffect(() => {
 		if (open) {
 			window.dispatchEvent(new Event(SLIDEOUT_PANEL_OPENED_EVENT));
+		} else {
+			window.dispatchEvent(new Event(SLIDEOUT_PANEL_CLOSED_EVENT));
 		}
 	}, [open]);
 
@@ -77,8 +80,8 @@ export function SidebarSlideOutPanel({
 							exit={{ x: "-100%" }}
 							transition={{ type: "tween", duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
 							className={cn(
-								"h-full w-full bg-sidebar text-sidebar-foreground flex flex-col pointer-events-auto select-none",
-								"sm:border-r sm:shadow-xl"
+								"h-full w-full bg-panel text-sidebar-foreground flex flex-col pointer-events-auto select-none",
+								"sm:rounded-r-xl sm:border-y sm:border-r sm:border-border/40 sm:shadow-xl"
 							)}
 							role="dialog"
 							aria-modal="true"

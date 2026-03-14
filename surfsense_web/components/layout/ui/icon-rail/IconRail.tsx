@@ -28,7 +28,7 @@ export function IconRail({
 	className,
 }: IconRailProps) {
 	return (
-		<div className={cn("flex h-full w-14 flex-col items-center", className)}>
+		<div className={cn("flex h-full w-14 flex-col items-center rounded-xl bg-background border border-border/40 shadow-sm", className)}>
 			<ScrollArea className="w-full">
 				<div className="flex flex-col items-center gap-2 px-1.5 py-3">
 					{searchSpaces.map((searchSpace) => (
@@ -53,7 +53,7 @@ export function IconRail({
 								variant="ghost"
 								size="icon"
 								onClick={onAddSearchSpace}
-								className="h-10 w-10 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-muted-foreground/50"
+								className="h-10 w-10 rounded-lg border border-dashed border-muted-foreground/20 hover:border-muted-foreground/40 transition-colors duration-150"
 							>
 								<Plus className="h-5 w-5 text-muted-foreground" />
 								<span className="sr-only">Add search space</span>

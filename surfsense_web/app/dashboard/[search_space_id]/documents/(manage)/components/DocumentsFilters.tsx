@@ -66,7 +66,7 @@ export function DocumentsFilters({
 						<Button
 							variant="outline"
 							size="icon"
-							className="h-9 w-9 shrink-0 border-dashed border-sidebar-border text-sidebar-foreground/60 hover:text-sidebar-foreground hover:border-sidebar-border bg-sidebar"
+							className="h-9 w-9 shrink-0 border-dashed border-sidebar-border text-sidebar-foreground/60 hover:text-sidebar-foreground hover:border-sidebar-border bg-panel"
 						>
 							<ListFilter size={14} />
 							{activeTypes.length > 0 && (
@@ -172,7 +172,7 @@ export function DocumentsFilters({
 					<Input
 						id={`${id}-input`}
 						ref={inputRef}
-						className="peer h-9 w-full pl-9 pr-9 text-sm bg-sidebar border-border/60 focus-visible:ring-1 focus-visible:ring-ring/30 select-none focus:select-text"
+						className="peer h-9 w-full pl-9 pr-9 text-sm bg-panel border-border/60 focus-visible:ring-1 focus-visible:ring-ring/30 select-none focus:select-text"
 						value={searchValue}
 						onChange={(e) => onSearch(e.target.value)}
 						placeholder="Search docs"

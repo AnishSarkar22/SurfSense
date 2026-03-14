@@ -119,8 +119,8 @@ export function NavSection({ items, onItemClick, isCollapsed = false }: NavSecti
 						type="button"
 						onClick={() => onItemClick?.(item)}
 						className={cn(
-							"flex items-center gap-2 rounded-md mx-2 px-2 py-1.5 text-sm transition-colors text-left",
-							"hover:bg-accent hover:text-accent-foreground",
+					"flex items-center gap-2 rounded-lg mx-2 px-3 py-2 text-sm transition-colors duration-150 text-left",
+						"hover:bg-accent hover:text-accent-foreground",
 							"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 						)}
 						{...joyrideAttr}

@@ -554,7 +554,7 @@ export function DocumentsTableShell({
 	}, [deletableSelectedIds, bulkDeleteDocuments, deleteDocument]);
 
 	return (
-		<div className="bg-sidebar overflow-hidden select-none border-t border-border/50 flex-1 flex flex-col min-h-0">
+		<div className="bg-panel overflow-hidden select-none border-t border-border/50 flex-1 flex flex-col min-h-0">
 			{/* Desktop Table View */}
 			<div className="hidden md:flex md:flex-col flex-1 min-h-0">
 				<Table className="table-fixed w-full">
@@ -704,8 +704,8 @@ export function DocumentsTableShell({
 											onEditNavigate={onEditNavigate}
 										>
 											<tr
-												className={`border-b border-border/50 transition-colors ${
-													isMentioned ? "bg-primary/5 hover:bg-primary/8" : "hover:bg-muted/30"
+												className={`border-b border-border/30 transition-colors duration-150 ${
+													isMentioned ? "bg-primary/5 hover:bg-primary/8" : "hover:bg-accent/50"
 												} ${canInteract && hasChatMode ? "cursor-pointer" : ""}`}
 												onClick={handleRowClick}
 											>

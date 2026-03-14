@@ -38,14 +38,14 @@ export function SidebarSection({
 			)}
 		>
 			<div className="flex items-center group/section shrink-0">
-				<CollapsibleTrigger className="flex flex-1 items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors min-w-0">
+				<CollapsibleTrigger className="flex flex-1 items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium text-muted-foreground/60 hover:text-muted-foreground transition-colors duration-150 min-w-0">
 					<ChevronRight
 						className={cn(
-							"h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+							"h-3 w-3 shrink-0 transition-transform duration-200",
 							isOpen && "rotate-90"
 						)}
 					/>
-					<span className="uppercase tracking-wider truncate">{title}</span>
+					<span className="uppercase tracking-widest truncate">{title}</span>
 				</CollapsibleTrigger>
 
 				{/* Action button - visible on hover (always visible on mobile) */}

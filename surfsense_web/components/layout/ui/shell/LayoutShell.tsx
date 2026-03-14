@@ -261,8 +261,9 @@ export function LayoutShell({
 		<SidebarProvider value={sidebarContextValue}>
 			<TooltipProvider delayDuration={0}>
 				<div
-					className={cn("flex h-screen w-full gap-2 p-2 overflow-hidden bg-muted/40", className)}
+					className={cn("flex h-screen w-full gap-2 p-2 overflow-hidden bg-muted/30", className)}
 				>
+					{/* Icon Rail — its own rounded column */}
 					<div className="hidden md:flex overflow-hidden">
 						<IconRail
 							searchSpaces={searchSpaces}
@@ -274,8 +275,9 @@ export function LayoutShell({
 						/>
 					</div>
 
-					{/* Main container with sidebar and content - relative for inbox positioning */}
-					<div className="relative flex flex-1 rounded-xl border bg-background overflow-hidden">
+					{/* Columns wrapper — relative for slide-out panels */}
+					<div className="relative flex flex-1 gap-2 overflow-hidden">
+						{/* Left column — Sidebar */}
 						<Sidebar
 							searchSpace={searchSpace}
 							isCollapsed={isCollapsed}
@@ -300,14 +302,15 @@ export function LayoutShell({
 							pageUsage={pageUsage}
 							theme={theme}
 							setTheme={setTheme}
-							className="hidden md:flex border-r shrink-0"
+							className="hidden md:flex rounded-xl border border-border/40 shadow-sm shrink-0"
 							isLoadingChats={isLoadingChats}
 							sidebarWidth={sidebarWidth}
 							onResizeMouseDown={onResizeMouseDown}
 							isResizing={isResizing}
 						/>
 
-						<main className="flex-1 flex flex-col min-w-0">
+						{/* Center column — Main content */}
+						<main className="flex-1 flex flex-col min-w-0 rounded-xl border border-border/40 shadow-sm bg-background overflow-hidden">
 							<Header />
 
 							<div className={cn("flex-1", isChatPage ? "overflow-hidden" : "overflow-auto")}>
@@ -315,7 +318,7 @@ export function LayoutShell({
 							</div>
 						</main>
 
-						{/* Right panel — tabbed Sources/Report (desktop only) */}
+						{/* Right column — Documents/Report panel */}
 						{documentsPanel && (
 							<RightPanel
 								documentsPanel={{
@@ -325,7 +328,7 @@ export function LayoutShell({
 							/>
 						)}
 
-						{/* Inbox Sidebar - slide-out panel */}
+						{/* Slide-out overlays (positioned over the columns) */}
 						{inbox && (
 							<InboxSidebar
 								open={inbox.isOpen}
@@ -336,7 +339,6 @@ export function LayoutShell({
 							/>
 						)}
 
-						{/* Announcements Sidebar */}
 						{announcementsPanel && (
 							<AnnouncementsSidebar
 								open={announcementsPanel.open}
@@ -344,7 +346,6 @@ export function LayoutShell({
 							/>
 						)}
 
-						{/* All Shared Chats - slide-out panel */}
 						{allSharedChatsPanel && (
 							<AllSharedChatsSidebar
 								open={allSharedChatsPanel.open}
@@ -353,7 +354,6 @@ export function LayoutShell({
 							/>
 						)}
 
-						{/* All Private Chats - slide-out panel */}
 						{allPrivateChatsPanel && (
 							<AllPrivateChatsSidebar
 								open={allPrivateChatsPanel.open}

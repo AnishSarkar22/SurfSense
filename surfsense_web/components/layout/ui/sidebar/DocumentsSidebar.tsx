@@ -227,7 +227,7 @@ export function DocumentsSidebar({
 								<span className="sr-only">{tSidebar("close") || "Close"}</span>
 							</Button>
 						)}
-						<h2 className="select-none text-lg font-semibold">{t("title") || "Documents"}</h2>
+						<h2 className="select-none text-lg font-semibold tracking-tight">{t("title") || "Documents"}</h2>
 					</div>
 					<div className="flex items-center gap-1">
 						{!isMobile && onDockedChange && (
@@ -265,7 +265,7 @@ export function DocumentsSidebar({
 			</div>
 
 			{/* Connected tools strip */}
-			<div className="shrink-0 mx-4 mt-2 mb-3 flex select-none items-center gap-2 rounded-lg border bg-muted/50 transition-colors hover:bg-muted/80">
+			<div className="shrink-0 mx-4 mt-2 mb-3 flex select-none items-center gap-2 rounded-xl border border-border/50 bg-muted/50 shadow-xs transition-colors duration-150 hover:bg-muted/80">
 				<button
 					type="button"
 					onClick={() => setConnectorDialogOpen(true)}
@@ -367,7 +367,7 @@ export function DocumentsSidebar({
 
 	if (embedded) {
 		return (
-			<div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+			<div className="flex h-full flex-col bg-panel text-sidebar-foreground">
 				{documentsContent}
 			</div>
 		);
@@ -376,7 +376,7 @@ export function DocumentsSidebar({
 	if (isDocked && open && !isMobile) {
 		return (
 			<aside
-				className="h-full w-[380px] shrink-0 bg-sidebar text-sidebar-foreground flex flex-col border-r"
+				className="h-full w-[380px] shrink-0 bg-panel text-sidebar-foreground flex flex-col border-r border-border/40"
 				aria-label={t("title") || "Documents"}
 			>
 				{documentsContent}

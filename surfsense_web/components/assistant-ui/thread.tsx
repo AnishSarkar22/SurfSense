@@ -115,7 +115,7 @@ const ThreadContent: FC = () => {
 		>
 			<ThreadPrimitive.Viewport
 				turnAnchor="top"
-				className="aui-thread-viewport relative flex flex-1 min-h-0 flex-col overflow-y-auto px-4 pt-4"
+				className="aui-thread-viewport relative flex flex-1 min-h-0 flex-col overflow-y-auto px-4 pt-6 md:px-8"
 			>
 				<AssistantIf condition={({ thread }) => thread.isEmpty}>
 					<ThreadWelcome />
@@ -130,12 +130,12 @@ const ThreadContent: FC = () => {
 				/>
 
 				<ThreadPrimitive.ViewportFooter
-					className="aui-thread-viewport-footer sticky bottom-0 z-10 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6"
-					style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+					className="aui-thread-viewport-footer sticky bottom-0 z-10 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-3 overflow-visible rounded-t-3xl bg-background pb-6 md:pb-8"
+					style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
 				>
 					<ThreadScrollToBottom />
 					<AssistantIf condition={({ thread }) => !thread.isEmpty}>
-						<div className="fade-in slide-in-from-bottom-4 animate-in duration-500 ease-out fill-mode-both">
+						<div className="fade-in slide-in-from-bottom-3 animate-in duration-300 ease-out fill-mode-both">
 							<Composer />
 						</div>
 					</AssistantIf>
@@ -221,8 +221,9 @@ const ThreadWelcome: FC = () => {
 	return (
 		<div className="aui-thread-welcome-root mx-auto flex w-full max-w-(--thread-max-width) grow flex-col items-center px-4 relative">
 			{/* Greeting positioned above the composer */}
-			<div className="aui-thread-welcome-message absolute bottom-[calc(50%+5rem)] left-0 right-0 flex flex-col items-center text-center">
-				<h1 className="aui-thread-welcome-message-inner text-3xl md:text-5xl">{greeting}</h1>
+			<div className="aui-thread-welcome-message absolute bottom-[calc(50%+5rem)] left-0 right-0 flex flex-col items-center text-center gap-2">
+				<h1 className="aui-thread-welcome-message-inner text-3xl md:text-4xl font-medium tracking-tight">{greeting}</h1>
+				<p className="text-sm text-muted-foreground/70">Ask anything about your documents</p>
 			</div>
 			{/* Composer - top edge fixed, expands downward only */}
 			<div className="w-full flex items-start justify-center absolute top-[calc(50%-3.5rem)] left-0 right-0">
@@ -505,7 +506,7 @@ const Composer: FC = () => {
 				currentUserId={currentUser?.id ?? null}
 				members={members ?? []}
 			/>
-			<div className="aui-composer-attachment-dropzone flex w-full flex-col overflow-hidden rounded-2xl border-input bg-muted pt-2 outline-none transition-shadow">
+			<div className="aui-composer-attachment-dropzone flex w-full flex-col overflow-hidden rounded-2xl border border-border/40 bg-muted shadow-sm pt-2 outline-none transition-all duration-200 focus-within:shadow-md focus-within:border-border/70">
 				{/* Inline editor with @mention support */}
 				<div ref={editorContainerRef} className="aui-composer-input-wrapper px-4 pt-3 pb-6">
 					<InlineMentionEditor
