@@ -18,14 +18,45 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { baseApiService } from "@/lib/apis/base-api.service";
 import { authenticatedFetch } from "@/lib/auth-utils";
 
+function ReportPanelSkeleton() {
+	return (
+		<div className="space-y-6 p-6">
+			<div className="h-6 w-3/4 rounded-md bg-muted/60 animate-pulse" />
+			<div className="space-y-2.5">
+				<div className="h-3 w-full rounded-md bg-muted/60 animate-pulse" />
+				<div className="h-3 w-[95%] rounded-md bg-muted/60 animate-pulse [animation-delay:100ms]" />
+				<div className="h-3 w-[88%] rounded-md bg-muted/60 animate-pulse [animation-delay:200ms]" />
+				<div className="h-3 w-[60%] rounded-md bg-muted/60 animate-pulse [animation-delay:300ms]" />
+			</div>
+			<div className="h-5 w-2/5 rounded-md bg-muted/60 animate-pulse [animation-delay:400ms]" />
+			<div className="space-y-2.5">
+				<div className="h-3 w-full rounded-md bg-muted/60 animate-pulse [animation-delay:500ms]" />
+				<div className="h-3 w-[92%] rounded-md bg-muted/60 animate-pulse [animation-delay:600ms]" />
+				<div className="h-3 w-[97%] rounded-md bg-muted/60 animate-pulse [animation-delay:700ms]" />
+			</div>
+			<div className="h-5 w-1/3 rounded-md bg-muted/60 animate-pulse [animation-delay:800ms]" />
+			<div className="space-y-2.5">
+				<div className="h-3 w-[90%] rounded-md bg-muted/60 animate-pulse [animation-delay:900ms]" />
+				<div className="h-3 w-full rounded-md bg-muted/60 animate-pulse [animation-delay:1000ms]" />
+				<div className="h-3 w-[75%] rounded-md bg-muted/60 animate-pulse [animation-delay:1100ms]" />
+			</div>
+		</div>
+	);
+}
+
 const PlateEditor = dynamic(
 	() => import("@/components/editor/plate-editor").then((m) => ({ default: m.PlateEditor })),
-	{ ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
+	{ ssr: false, loading: () => <ReportPanelSkeleton /> }
+);
+
+const PdfViewer = dynamic(
+	() => import("@/components/report-panel/pdf-viewer").then((m) => ({ default: m.PdfViewer })),
+	{ ssr: false, loading: () => <ReportPanelSkeleton /> }
 );
 
 /**
@@ -43,6 +74,7 @@ const ReportContentResponseSchema = z.object({
 	id: z.number(),
 	title: z.string(),
 	content: z.string().nullish(),
+	content_type: z.string().default("markdown"),
 	report_metadata: z
 		.object({
 			status: z.enum(["ready", "failed"]).nullish(),
@@ -58,46 +90,6 @@ const ReportContentResponseSchema = z.object({
 
 type ReportContentResponse = z.infer<typeof ReportContentResponseSchema>;
 type VersionInfo = z.infer<typeof VersionInfoSchema>;
-
-/**
- * Shimmer loading skeleton for report panel
- */
-function ReportPanelSkeleton() {
-	return (
-		<div className="space-y-6 p-6">
-			{/* Title skeleton */}
-			<div className="h-6 w-3/4 rounded-md bg-muted/60 animate-pulse" />
-
-			{/* Paragraph 1 */}
-			<div className="space-y-2.5">
-				<div className="h-3 w-full rounded-md bg-muted/60 animate-pulse" />
-				<div className="h-3 w-[95%] rounded-md bg-muted/60 animate-pulse [animation-delay:100ms]" />
-				<div className="h-3 w-[88%] rounded-md bg-muted/60 animate-pulse [animation-delay:200ms]" />
-				<div className="h-3 w-[60%] rounded-md bg-muted/60 animate-pulse [animation-delay:300ms]" />
-			</div>
-
-			{/* Heading */}
-			<div className="h-5 w-2/5 rounded-md bg-muted/60 animate-pulse [animation-delay:400ms]" />
-
-			{/* Paragraph 2 */}
-			<div className="space-y-2.5">
-				<div className="h-3 w-full rounded-md bg-muted/60 animate-pulse [animation-delay:500ms]" />
-				<div className="h-3 w-[92%] rounded-md bg-muted/60 animate-pulse [animation-delay:600ms]" />
-				<div className="h-3 w-[97%] rounded-md bg-muted/60 animate-pulse [animation-delay:700ms]" />
-			</div>
-
-			{/* Heading */}
-			<div className="h-5 w-1/3 rounded-md bg-muted/60 animate-pulse [animation-delay:800ms]" />
-
-			{/* Paragraph 3 */}
-			<div className="space-y-2.5">
-				<div className="h-3 w-[90%] rounded-md bg-muted/60 animate-pulse [animation-delay:900ms]" />
-				<div className="h-3 w-full rounded-md bg-muted/60 animate-pulse [animation-delay:1000ms]" />
-				<div className="h-3 w-[75%] rounded-md bg-muted/60 animate-pulse [animation-delay:1100ms]" />
-			</div>
-		</div>
-	);
-}
 
 /**
  * Inner content component used by desktop panel, mobile drawer, and the layout right panel
@@ -295,47 +287,63 @@ export function ReportPanelContent({
 	}, [activeReportId, currentMarkdown]);
 
 	const activeVersionIndex = versions.findIndex((v) => v.id === activeReportId);
+	const isPublic = !!shareToken;
+	const btnBg = isPublic ? "bg-main-panel" : "bg-sidebar";
 
 	return (
 		<>
 			{/* Action bar — always visible; buttons are disabled while loading */}
-			<div className="flex items-center justify-between px-4 py-2 shrink-0">
+			<div className="flex h-14 items-center justify-between px-4 shrink-0">
 				<div className="flex items-center gap-2">
-					{/* Copy button */}
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={handleCopy}
-						disabled={isLoading || !reportContent?.content}
-						className="h-8 min-w-[80px] px-3.5 py-4 text-[15px] bg-sidebar select-none"
-					>
-						{copied ? "Copied" : "Copy"}
-					</Button>
-
-					{/* Export dropdown */}
-					<DropdownMenu modal={insideDrawer ? false : undefined}>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={isLoading || !reportContent?.content}
-								className="h-8 px-3.5 py-4 text-[15px] gap-1.5 bg-sidebar select-none"
-							>
-								Export
-								<ChevronDownIcon className="size-3" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent
-							align="start"
-							className={`min-w-[200px] select-none${insideDrawer ? " z-[100]" : ""}`}
+					{/* Copy button — hidden for Typst (resume) */}
+					{reportContent?.content_type !== "typst" && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={handleCopy}
+							disabled={isLoading || !reportContent?.content}
+							className={`h-8 min-w-[80px] px-3.5 py-4 text-[15px] ${btnBg} select-none`}
 						>
-							<ExportDropdownItems
-								onExport={handleExport}
-								exporting={exporting}
-								showAllFormats={!shareToken}
-							/>
-						</DropdownMenuContent>
-					</DropdownMenu>
+							{copied ? "Copied" : "Copy"}
+						</Button>
+					)}
+
+					{/* Export — plain button for resume (typst), dropdown for others */}
+					{reportContent?.content_type === "typst" ? (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => handleExport("pdf")}
+							disabled={isLoading || !reportContent?.content || exporting !== null}
+							className={`h-8 min-w-[100px] px-3.5 py-4 text-[15px] ${btnBg} select-none`}
+						>
+							{exporting === "pdf" ? <Spinner size="xs" /> : "Download"}
+						</Button>
+					) : (
+						<DropdownMenu modal={insideDrawer ? false : undefined}>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="outline"
+									size="sm"
+									disabled={isLoading || !reportContent?.content}
+									className={`h-8 px-3.5 py-4 text-[15px] gap-1.5 ${btnBg} select-none`}
+								>
+									Export
+									<ChevronDownIcon className="size-3" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent
+								align="start"
+								className={`min-w-[200px] select-none${insideDrawer ? " z-[100]" : ""}`}
+							>
+								<ExportDropdownItems
+									onExport={handleExport}
+									exporting={exporting}
+									showAllFormats={!shareToken}
+								/>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
 
 					{/* Version switcher — only shown when multiple versions exist */}
 					{versions.length > 1 && (
@@ -344,7 +352,7 @@ export function ReportPanelContent({
 								<Button
 									variant="outline"
 									size="sm"
-									className="h-8 px-3.5 py-4 text-[15px] gap-1.5 bg-sidebar select-none"
+									className={`h-8 px-3.5 py-4 text-[15px] gap-1.5 ${btnBg} select-none`}
 								>
 									v{activeVersionIndex + 1}
 									<ChevronDownIcon className="size-3" />
@@ -380,12 +388,17 @@ export function ReportPanelContent({
 				{isLoading ? (
 					<ReportPanelSkeleton />
 				) : error || !reportContent ? (
-					<div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+					<div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center select-none">
 						<div>
 							<p className="font-medium text-foreground">Failed to load report</p>
 							<p className="text-sm text-red-500 mt-1">{error || "An unknown error occurred"}</p>
 						</div>
 					</div>
+				) : reportContent.content_type === "typst" ? (
+					<PdfViewer
+						pdfUrl={`${process.env.NEXT_PUBLIC_FASTAPI_BACKEND_URL}${shareToken ? `/api/v1/public/${shareToken}/reports/${activeReportId}/preview` : `/api/v1/reports/${activeReportId}/preview`}`}
+						isPublic={isPublic}
+					/>
 				) : reportContent.content ? (
 					isReadOnly ? (
 						<div className="h-full overflow-y-auto px-5 py-4">
@@ -436,10 +449,12 @@ function DesktopReportPanel() {
 
 	if (!panelState.isOpen || !panelState.reportId) return null;
 
+	const isPublic = !!panelState.shareToken;
+
 	return (
 		<div
 			ref={panelRef}
-			className="flex w-[50%] max-w-[700px] min-w-[380px] flex-col border-l bg-sidebar text-sidebar-foreground animate-in slide-in-from-right-4 duration-300 ease-out"
+			className={`flex w-[50%] max-w-[700px] min-w-[380px] flex-col border-l animate-in slide-in-from-right-4 duration-300 ease-out ${isPublic ? "bg-main-panel text-foreground" : "bg-sidebar text-sidebar-foreground"}`}
 		>
 			<ReportPanelContent
 				reportId={panelState.reportId}
@@ -460,6 +475,8 @@ function MobileReportDrawer() {
 
 	if (!panelState.reportId) return null;
 
+	const isPublic = !!panelState.shareToken;
+
 	return (
 		<Drawer
 			open={panelState.isOpen}
@@ -469,7 +486,7 @@ function MobileReportDrawer() {
 			shouldScaleBackground={false}
 		>
 			<DrawerContent
-				className="h-[90vh] max-h-[90vh] z-80 bg-sidebar overflow-hidden"
+				className={`h-[90vh] max-h-[90vh] z-80 overflow-hidden ${isPublic ? "bg-main-panel" : "bg-sidebar"}`}
 				overlayClassName="z-80"
 			>
 				<DrawerHandle />

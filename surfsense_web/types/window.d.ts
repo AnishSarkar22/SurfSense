@@ -34,6 +34,13 @@ interface LocalFileData {
 	size: number;
 }
 
+interface FolderFileEntry {
+	relativePath: string;
+	fullPath: string;
+	size: number;
+	mtimeMs: number;
+}
+
 interface ElectronAPI {
 	versions: {
 		electron: string;
@@ -82,6 +89,8 @@ interface ElectronAPI {
 	signalRendererReady: () => Promise<void>;
 	getPendingFileEvents: () => Promise<FolderSyncFileChangedEvent[]>;
 	acknowledgeFileEvents: (eventIds: string[]) => Promise<{ acknowledged: number }>;
+	listFolderFiles: (config: WatchedFolderConfig) => Promise<FolderFileEntry[]>;
+	seedFolderMtimes: (folderPath: string, mtimes: Record<string, number>) => Promise<void>;
 	// Browse files/folders via native dialogs
 	browseFiles: () => Promise<string[] | null>;
 	readLocalFiles: (paths: string[]) => Promise<LocalFileData[]>;
@@ -93,9 +102,29 @@ interface ElectronAPI {
 	setShortcuts: (
 		config: Partial<{ generalAssist: string; quickAsk: string; autocomplete: string }>
 	) => Promise<{ generalAssist: string; quickAsk: string; autocomplete: string }>;
+	// Launch on system startup
+	getAutoLaunch: () => Promise<{
+		enabled: boolean;
+		openAsHidden: boolean;
+		supported: boolean;
+	}>;
+	setAutoLaunch: (
+		enabled: boolean,
+		openAsHidden?: boolean
+	) => Promise<{ enabled: boolean; openAsHidden: boolean; supported: boolean }>;
 	// Active search space
 	getActiveSearchSpace: () => Promise<string | null>;
 	setActiveSearchSpace: (id: string) => Promise<void>;
+	// Analytics bridge (PostHog mirror into the Electron main process)
+	analyticsIdentify: (userId: string, properties?: Record<string, unknown>) => Promise<void>;
+	analyticsReset: () => Promise<void>;
+	analyticsCapture: (event: string, properties?: Record<string, unknown>) => Promise<void>;
+	getAnalyticsContext: () => Promise<{
+		distinctId: string;
+		machineId: string;
+		appVersion: string;
+		platform: string;
+	}>;
 }
 
 declare global {

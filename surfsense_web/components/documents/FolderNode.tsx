@@ -4,6 +4,7 @@ import {
 	AlertCircle,
 	ChevronDown,
 	ChevronRight,
+	Download,
 	Eye,
 	EyeOff,
 	Folder,
@@ -49,6 +50,7 @@ export interface FolderDisplay {
 	position: string;
 	parentId: number | null;
 	searchSpaceId: number;
+	metadata?: Record<string, unknown> | null;
 }
 
 interface FolderNodeProps {
@@ -79,6 +81,7 @@ interface FolderNodeProps {
 	isWatched?: boolean;
 	onRescan?: (folder: FolderDisplay) => void | Promise<void>;
 	onStopWatching?: (folder: FolderDisplay) => void;
+	onExportFolder?: (folder: FolderDisplay) => void;
 }
 
 function getDropZone(
@@ -119,6 +122,7 @@ export const FolderNode = React.memo(function FolderNode({
 	isWatched,
 	onRescan,
 	onStopWatching,
+	onExportFolder,
 }: FolderNodeProps) {
 	const [renameValue, setRenameValue] = useState(folder.name);
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -354,7 +358,7 @@ export const FolderNode = React.memo(function FolderNode({
 									className="hidden sm:inline-flex h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
 									onClick={(e) => e.stopPropagation()}
 								>
-									<MoreHorizontal className="h-3.5 w-3.5" />
+									<MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end" className="w-40">
@@ -407,6 +411,17 @@ export const FolderNode = React.memo(function FolderNode({
 									<Move className="mr-2 h-4 w-4" />
 									Move to...
 								</DropdownMenuItem>
+								{onExportFolder && (
+									<DropdownMenuItem
+										onClick={(e) => {
+											e.stopPropagation();
+											onExportFolder(folder);
+										}}
+									>
+										<Download className="mr-2 h-4 w-4" />
+										Export folder
+									</DropdownMenuItem>
+								)}
 								<DropdownMenuItem
 									onClick={(e) => {
 										e.stopPropagation();
@@ -448,6 +463,12 @@ export const FolderNode = React.memo(function FolderNode({
 						<Move className="mr-2 h-4 w-4" />
 						Move to...
 					</ContextMenuItem>
+					{onExportFolder && (
+						<ContextMenuItem onClick={() => onExportFolder(folder)}>
+							<Download className="mr-2 h-4 w-4" />
+							Export folder
+						</ContextMenuItem>
+					)}
 					<ContextMenuItem onClick={() => onDelete(folder)}>
 						<Trash2 className="mr-2 h-4 w-4" />
 						Delete

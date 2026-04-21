@@ -30,6 +30,8 @@ export const IPC_CHANNELS = {
   FOLDER_SYNC_RENDERER_READY: 'folder-sync:renderer-ready',
   FOLDER_SYNC_GET_PENDING_EVENTS: 'folder-sync:get-pending-events',
   FOLDER_SYNC_ACK_EVENTS: 'folder-sync:ack-events',
+  FOLDER_SYNC_LIST_FILES: 'folder-sync:list-files',
+  FOLDER_SYNC_SEED_MTIMES: 'folder-sync:seed-mtimes',
   BROWSE_FILES: 'browse:files',
   READ_LOCAL_FILES: 'browse:read-local-files',
   // Auth token sync across windows
@@ -41,4 +43,12 @@ export const IPC_CHANNELS = {
   // Active search space
   GET_ACTIVE_SEARCH_SPACE: 'search-space:get-active',
   SET_ACTIVE_SEARCH_SPACE: 'search-space:set-active',
+  // Launch on system startup
+  GET_AUTO_LAUNCH: 'auto-launch:get',
+  SET_AUTO_LAUNCH: 'auto-launch:set',
+  // Analytics (PostHog) bridge: renderer <-> main
+  ANALYTICS_IDENTIFY: 'analytics:identify',
+  ANALYTICS_RESET: 'analytics:reset',
+  ANALYTICS_CAPTURE: 'analytics:capture',
+  ANALYTICS_GET_CONTEXT: 'analytics:get-context',
 } as const;

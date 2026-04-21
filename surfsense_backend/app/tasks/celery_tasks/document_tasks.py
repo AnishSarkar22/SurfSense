@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import time
 from uuid import UUID
 
 from app.celery_app import celery_app
@@ -11,7 +12,10 @@ from app.config import config
 from app.services.notification_service import NotificationService
 from app.services.task_logging_service import TaskLoggingService
 from app.tasks.celery_tasks import get_celery_session_maker
-from app.tasks.connector_indexers.local_folder_indexer import index_local_folder
+from app.tasks.connector_indexers.local_folder_indexer import (
+    index_local_folder,
+    index_uploaded_files,
+)
 from app.tasks.document_processors import (
     add_extension_received_document,
     add_youtube_video_document,
@@ -775,6 +779,8 @@ def process_file_upload_with_document_task(
     search_space_id: int,
     user_id: str,
     should_summarize: bool = False,
+    use_vision_llm: bool = False,
+    processing_mode: str = "basic",
 ):
     """
     Celery task to process uploaded file with existing pending document.
@@ -830,6 +836,8 @@ def process_file_upload_with_document_task(
                 search_space_id,
                 user_id,
                 should_summarize=should_summarize,
+                use_vision_llm=use_vision_llm,
+                processing_mode=processing_mode,
             )
         )
         logger.info(
@@ -866,6 +874,8 @@ async def _process_file_with_document(
     search_space_id: int,
     user_id: str,
     should_summarize: bool = False,
+    use_vision_llm: bool = False,
+    processing_mode: str = "basic",
 ):
     """
     Process file and update existing pending document status.
@@ -968,6 +978,8 @@ async def _process_file_with_document(
                 log_entry=log_entry,
                 notification=notification,
                 should_summarize=should_summarize,
+                use_vision_llm=use_vision_llm,
+                processing_mode=processing_mode,
             )
 
             # Update notification on success
@@ -1411,3 +1423,258 @@ async def _index_local_folder_async(
                 heartbeat_task.cancel()
             if notification_id is not None:
                 _stop_heartbeat(notification_id)
+
+
+# ===== Upload-based folder indexing task =====
+
+
+@celery_app.task(name="index_uploaded_folder_files", bind=True)
+def index_uploaded_folder_files_task(
+    self,
+    search_space_id: int,
+    user_id: str,
+    folder_name: str,
+    root_folder_id: int,
+    enable_summary: bool,
+    file_mappings: list[dict],
+    use_vision_llm: bool = False,
+    processing_mode: str = "basic",
+):
+    """Celery task to index files uploaded from the desktop app."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(
+            _index_uploaded_folder_files_async(
+                search_space_id=search_space_id,
+                user_id=user_id,
+                folder_name=folder_name,
+                root_folder_id=root_folder_id,
+                enable_summary=enable_summary,
+                file_mappings=file_mappings,
+                use_vision_llm=use_vision_llm,
+                processing_mode=processing_mode,
+            )
+        )
+    finally:
+        loop.close()
+
+
+async def _index_uploaded_folder_files_async(
+    search_space_id: int,
+    user_id: str,
+    folder_name: str,
+    root_folder_id: int,
+    enable_summary: bool,
+    file_mappings: list[dict],
+    use_vision_llm: bool = False,
+    processing_mode: str = "basic",
+):
+    """Run upload-based folder indexing with notification + heartbeat."""
+    file_count = len(file_mappings)
+    doc_name = f"{folder_name} ({file_count} file{'s' if file_count != 1 else ''})"
+
+    notification = None
+    notification_id: int | None = None
+    heartbeat_task = None
+
+    async with get_celery_session_maker()() as session:
+        try:
+            notification = (
+                await NotificationService.document_processing.notify_processing_started(
+                    session=session,
+                    user_id=UUID(user_id),
+                    document_type="LOCAL_FOLDER_FILE",
+                    document_name=doc_name,
+                    search_space_id=search_space_id,
+                )
+            )
+            notification_id = notification.id
+            _start_heartbeat(notification_id)
+            heartbeat_task = asyncio.create_task(_run_heartbeat_loop(notification_id))
+        except Exception:
+            logger.warning(
+                "Failed to create notification for uploaded folder indexing",
+                exc_info=True,
+            )
+
+        async def _heartbeat_progress(completed_count: int) -> None:
+            if notification:
+                with contextlib.suppress(Exception):
+                    await NotificationService.document_processing.notify_processing_progress(
+                        session=session,
+                        notification=notification,
+                        stage="indexing",
+                        stage_message=f"Syncing files ({completed_count}/{file_count})",
+                    )
+
+        try:
+            _indexed, _failed, err = await index_uploaded_files(
+                session=session,
+                search_space_id=search_space_id,
+                user_id=user_id,
+                folder_name=folder_name,
+                root_folder_id=root_folder_id,
+                enable_summary=enable_summary,
+                file_mappings=file_mappings,
+                on_heartbeat_callback=_heartbeat_progress,
+                use_vision_llm=use_vision_llm,
+                processing_mode=processing_mode,
+            )
+
+            if notification:
+                try:
+                    await session.refresh(notification)
+                    if err:
+                        await NotificationService.document_processing.notify_processing_completed(
+                            session=session,
+                            notification=notification,
+                            error_message=err,
+                        )
+                    else:
+                        await NotificationService.document_processing.notify_processing_completed(
+                            session=session,
+                            notification=notification,
+                        )
+                except Exception:
+                    logger.warning(
+                        "Failed to update notification after uploaded folder indexing",
+                        exc_info=True,
+                    )
+
+        except Exception as e:
+            logger.exception(f"Uploaded folder indexing failed: {e}")
+            if notification:
+                try:
+                    await session.refresh(notification)
+                    await NotificationService.document_processing.notify_processing_completed(
+                        session=session,
+                        notification=notification,
+                        error_message=str(e)[:200],
+                    )
+                except Exception:
+                    pass
+            raise
+        finally:
+            if heartbeat_task:
+                heartbeat_task.cancel()
+            if notification_id is not None:
+                _stop_heartbeat(notification_id)
+
+
+# ===== AI File Sort tasks =====
+
+AI_SORT_LOCK_TTL_SECONDS = 600  # 10 minutes
+_ai_sort_redis = None
+
+
+def _get_ai_sort_redis():
+    import redis
+
+    global _ai_sort_redis
+    if _ai_sort_redis is None:
+        _ai_sort_redis = redis.from_url(config.REDIS_APP_URL, decode_responses=True)
+    return _ai_sort_redis
+
+
+def _ai_sort_lock_key(search_space_id: int) -> str:
+    return f"ai_sort:search_space:{search_space_id}:lock"
+
+
+@celery_app.task(name="ai_sort_search_space", bind=True, max_retries=1)
+def ai_sort_search_space_task(self, search_space_id: int, user_id: str):
+    """Full AI sort for all documents in a search space."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(_ai_sort_search_space_async(search_space_id, user_id))
+    finally:
+        loop.close()
+
+
+async def _ai_sort_search_space_async(search_space_id: int, user_id: str):
+    r = _get_ai_sort_redis()
+    lock_key = _ai_sort_lock_key(search_space_id)
+
+    if not r.set(lock_key, "running", nx=True, ex=AI_SORT_LOCK_TTL_SECONDS):
+        logger.info(
+            "AI sort already running for search_space=%d, skipping",
+            search_space_id,
+        )
+        return
+
+    t_start = time.perf_counter()
+    try:
+        from app.services.ai_file_sort_service import ai_sort_all_documents
+        from app.services.llm_service import get_document_summary_llm
+
+        async with get_celery_session_maker()() as session:
+            llm = await get_document_summary_llm(
+                session, search_space_id, disable_streaming=True
+            )
+            if llm is None:
+                logger.warning(
+                    "No LLM configured for search_space=%d, skipping AI sort",
+                    search_space_id,
+                )
+                return
+
+            sorted_count, failed_count = await ai_sort_all_documents(
+                session, search_space_id, llm
+            )
+            elapsed = time.perf_counter() - t_start
+            logger.info(
+                "AI sort search_space=%d done in %.1fs: sorted=%d failed=%d",
+                search_space_id,
+                elapsed,
+                sorted_count,
+                failed_count,
+            )
+    finally:
+        r.delete(lock_key)
+
+
+@celery_app.task(
+    name="ai_sort_document", bind=True, max_retries=2, default_retry_delay=10
+)
+def ai_sort_document_task(self, search_space_id: int, user_id: str, document_id: int):
+    """Incremental AI sort for a single document after indexing."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(
+            _ai_sort_document_async(search_space_id, user_id, document_id)
+        )
+    finally:
+        loop.close()
+
+
+async def _ai_sort_document_async(search_space_id: int, user_id: str, document_id: int):
+    from app.db import Document
+    from app.services.ai_file_sort_service import ai_sort_document
+    from app.services.llm_service import get_document_summary_llm
+
+    async with get_celery_session_maker()() as session:
+        document = await session.get(Document, document_id)
+        if document is None:
+            logger.warning("Document %d not found, skipping AI sort", document_id)
+            return
+
+        llm = await get_document_summary_llm(
+            session, search_space_id, disable_streaming=True
+        )
+        if llm is None:
+            logger.warning(
+                "No LLM for search_space=%d, skipping AI sort of doc=%d",
+                search_space_id,
+                document_id,
+            )
+            return
+
+        await ai_sort_document(session, document, llm)
+        await session.commit()
+        logger.info(
+            "AI sorted document=%d into search_space=%d",
+            document_id,
+            search_space_id,
+        )

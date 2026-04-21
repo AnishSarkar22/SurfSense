@@ -43,17 +43,12 @@ export function PublicChatSnapshotsManager({
 
 	// Permissions
 	const { data: access } = useAtomValue(myAccessAtom);
-	const canView = useMemo(() => {
-		if (!access) return false;
-		if (access.is_owner) return true;
-		return access.permissions?.includes("public_sharing:view") ?? false;
-	}, [access]);
+	const canView =
+		!!access && (access.is_owner || (access.permissions?.includes("public_sharing:view") ?? false));
 
-	const canDelete = useMemo(() => {
-		if (!access) return false;
-		if (access.is_owner) return true;
-		return access.permissions?.includes("public_sharing:delete") ?? false;
-	}, [access]);
+	const canDelete =
+		!!access &&
+		(access.is_owner || (access.permissions?.includes("public_sharing:delete") ?? false));
 
 	// Mutations
 	const { mutateAsync: deleteSnapshot } = useAtomValue(deletePublicChatSnapshotMutationAtom);
@@ -74,6 +69,7 @@ export function PublicChatSnapshotsManager({
 				});
 			} catch (error) {
 				console.error("Failed to delete snapshot:", error);
+				toast.error("Failed to delete snapshot");
 			} finally {
 				setDeletingId(undefined);
 			}

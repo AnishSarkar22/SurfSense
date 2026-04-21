@@ -1,0 +1,10 @@
+{
+	"id": "surfsense",
+	"name": "SurfSense",
+	"version": "0.1.1-beta.1",
+	"minAppVersion": "1.5.4",
+	"description": "Turn your vault into a searchable second brain with SurfSense.",
+	"author": "SurfSense",
+	"authorUrl": "https://github.com/MODSetter/SurfSense",
+	"isDesktopOnly": false
+}

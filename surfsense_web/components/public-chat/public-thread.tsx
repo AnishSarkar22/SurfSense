@@ -18,9 +18,13 @@ import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button
 import { GenerateImageToolUI } from "@/components/tool-ui/generate-image";
 import { GeneratePodcastToolUI } from "@/components/tool-ui/generate-podcast";
 import { GenerateReportToolUI } from "@/components/tool-ui/generate-report";
+import { GenerateResumeToolUI } from "@/components/tool-ui/generate-resume";
 
 const GenerateVideoPresentationToolUI = dynamic(
-	() => import("@/components/tool-ui/video-presentation").then((m) => ({ default: m.GenerateVideoPresentationToolUI })),
+	() =>
+		import("@/components/tool-ui/video-presentation").then((m) => ({
+			default: m.GenerateVideoPresentationToolUI,
+		})),
 	{ ssr: false }
 );
 
@@ -157,6 +161,7 @@ const PublicAssistantMessage: FC = () => {
 								by_name: {
 									generate_podcast: GeneratePodcastToolUI,
 									generate_report: GenerateReportToolUI,
+									generate_resume: GenerateResumeToolUI,
 									generate_video_presentation: GenerateVideoPresentationToolUI,
 									display_image: GenerateImageToolUI,
 									generate_image: GenerateImageToolUI,

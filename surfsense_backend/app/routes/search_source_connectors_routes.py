@@ -636,8 +636,15 @@ async def delete_search_source_connector(
             )
 
         # Delete the connector record
+        search_space_id = db_connector.search_space_id
+        is_mcp = db_connector.connector_type == SearchSourceConnectorType.MCP_CONNECTOR
         await session.delete(db_connector)
         await session.commit()
+
+        if is_mcp:
+            from app.agents.new_chat.tools.mcp_tool import invalidate_mcp_tools_cache
+
+            invalidate_mcp_tools_cache(search_space_id)
 
         logger.info(
             f"Connector {connector_id} ({connector_name}) deleted successfully. "
@@ -1149,25 +1156,6 @@ async def index_connector_content(
                     indexing_to,
                 )
                 response_message = "Web page indexing started in the background."
-
-        elif connector.connector_type == SearchSourceConnectorType.OBSIDIAN_CONNECTOR:
-            from app.config import config as app_config
-            from app.tasks.celery_tasks.connector_tasks import index_obsidian_vault_task
-
-            # Obsidian connector only available in self-hosted mode
-            if not app_config.is_self_hosted():
-                raise HTTPException(
-                    status_code=400,
-                    detail="Obsidian connector is only available in self-hosted mode",
-                )
-
-            logger.info(
-                f"Triggering Obsidian vault indexing for connector {connector_id} into search space {search_space_id} from {indexing_from} to {indexing_to}"
-            )
-            index_obsidian_vault_task.delay(
-                connector_id, search_space_id, str(user.id), indexing_from, indexing_to
-            )
-            response_message = "Obsidian vault indexing started in the background."
 
         elif (
             connector.connector_type
@@ -3041,59 +3029,6 @@ async def run_bookstack_indexing(
     )
 
 
-# Add new helper functions for Obsidian indexing
-async def run_obsidian_indexing_with_new_session(
-    connector_id: int,
-    search_space_id: int,
-    user_id: str,
-    start_date: str,
-    end_date: str,
-):
-    """Wrapper to run Obsidian indexing with its own database session."""
-    logger.info(
-        f"Background task started: Indexing Obsidian connector {connector_id} into space {search_space_id} from {start_date} to {end_date}"
-    )
-    async with async_session_maker() as session:
-        await run_obsidian_indexing(
-            session, connector_id, search_space_id, user_id, start_date, end_date
-        )
-    logger.info(f"Background task finished: Indexing Obsidian connector {connector_id}")
-
-
-async def run_obsidian_indexing(
-    session: AsyncSession,
-    connector_id: int,
-    search_space_id: int,
-    user_id: str,
-    start_date: str,
-    end_date: str,
-):
-    """
-    Background task to run Obsidian vault indexing.
-
-    Args:
-        session: Database session
-        connector_id: ID of the Obsidian connector
-        search_space_id: ID of the search space
-        user_id: ID of the user
-        start_date: Start date for indexing
-        end_date: End date for indexing
-    """
-    from app.tasks.connector_indexers import index_obsidian_vault
-
-    await _run_indexing_with_notifications(
-        session=session,
-        connector_id=connector_id,
-        search_space_id=search_space_id,
-        user_id=user_id,
-        start_date=start_date,
-        end_date=end_date,
-        indexing_function=index_obsidian_vault,
-        update_timestamp_func=_update_connector_timestamp_by_id,
-        supports_heartbeat_callback=True,
-    )
-
-
 async def run_composio_indexing_with_new_session(
     connector_id: int,
     search_space_id: int,
@@ -3623,4 +3558,115 @@ async def get_drive_picker_token(
         raise HTTPException(
             status_code=500,
             detail="Failed to retrieve access token. Check server logs for details.",
+        ) from e
+
+
+# =============================================================================
+# MCP Tool Trust (Allow-List) Routes
+# =============================================================================
+
+
+class MCPTrustToolRequest(BaseModel):
+    tool_name: str
+
+
+@router.post("/connectors/mcp/{connector_id}/trust-tool")
+async def trust_mcp_tool(
+    connector_id: int,
+    body: MCPTrustToolRequest,
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+):
+    """Add a tool to the MCP connector's trusted (always-allow) list.
+
+    Once trusted, the tool executes without HITL approval on subsequent calls.
+    """
+    try:
+        result = await session.execute(
+            select(SearchSourceConnector).filter(
+                SearchSourceConnector.id == connector_id,
+                SearchSourceConnector.connector_type
+                == SearchSourceConnectorType.MCP_CONNECTOR,
+            )
+        )
+        connector = result.scalars().first()
+        if not connector:
+            raise HTTPException(status_code=404, detail="MCP connector not found")
+
+        config = dict(connector.config or {})
+        trusted: list[str] = list(config.get("trusted_tools", []))
+        if body.tool_name not in trusted:
+            trusted.append(body.tool_name)
+        config["trusted_tools"] = trusted
+        connector.config = config
+
+        from sqlalchemy.orm.attributes import flag_modified
+
+        flag_modified(connector, "config")
+        await session.commit()
+
+        from app.agents.new_chat.tools.mcp_tool import invalidate_mcp_tools_cache
+
+        invalidate_mcp_tools_cache(connector.search_space_id)
+
+        return {"status": "ok", "trusted_tools": trusted}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to trust MCP tool: {e!s}", exc_info=True)
+        await session.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Failed to trust tool: {e!s}"
+        ) from e
+
+
+@router.post("/connectors/mcp/{connector_id}/untrust-tool")
+async def untrust_mcp_tool(
+    connector_id: int,
+    body: MCPTrustToolRequest,
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+):
+    """Remove a tool from the MCP connector's trusted list.
+
+    The tool will require HITL approval again on subsequent calls.
+    """
+    try:
+        result = await session.execute(
+            select(SearchSourceConnector).filter(
+                SearchSourceConnector.id == connector_id,
+                SearchSourceConnector.connector_type
+                == SearchSourceConnectorType.MCP_CONNECTOR,
+            )
+        )
+        connector = result.scalars().first()
+        if not connector:
+            raise HTTPException(status_code=404, detail="MCP connector not found")
+
+        config = dict(connector.config or {})
+        trusted: list[str] = list(config.get("trusted_tools", []))
+        if body.tool_name in trusted:
+            trusted.remove(body.tool_name)
+        config["trusted_tools"] = trusted
+        connector.config = config
+
+        from sqlalchemy.orm.attributes import flag_modified
+
+        flag_modified(connector, "config")
+        await session.commit()
+
+        from app.agents.new_chat.tools.mcp_tool import invalidate_mcp_tools_cache
+
+        invalidate_mcp_tools_cache(connector.search_space_id)
+
+        return {"status": "ok", "trusted_tools": trusted}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to untrust MCP tool: {e!s}", exc_info=True)
+        await session.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Failed to untrust tool: {e!s}"
         ) from e

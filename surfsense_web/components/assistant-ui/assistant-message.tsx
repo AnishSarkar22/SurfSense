@@ -1,4 +1,5 @@
 import {
+	ActionBarMorePrimitive,
 	ActionBarPrimitive,
 	AuiIf,
 	ErrorPrimitive,
@@ -15,23 +16,34 @@ import {
 	ExternalLink,
 	Globe,
 	MessageSquare,
+	MoreHorizontalIcon,
 	RefreshCwIcon,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { FC } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { commentsEnabledAtom, targetCommentIdAtom } from "@/atoms/chat/current-thread.atom";
+import {
+	globalNewLLMConfigsAtom,
+	newLLMConfigsAtom,
+} from "@/atoms/new-llm-config/new-llm-config-query.atoms";
 import { activeSearchSpaceIdAtom } from "@/atoms/search-spaces/search-space-query.atoms";
 import {
 	CitationMetadataProvider,
 	useAllCitationMetadata,
 } from "@/components/assistant-ui/citation-metadata-context";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import { useTokenUsage } from "@/components/assistant-ui/token-usage-context";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { CommentPanelContainer } from "@/components/chat-comments/comment-panel-container/comment-panel-container";
 import { CommentSheet } from "@/components/chat-comments/comment-sheet/comment-sheet";
 import type { SerializableCitation } from "@/components/tool-ui/citation";
+import {
+	openSafeNavigationHref,
+	resolveSafeNavigationHref,
+} from "@/components/tool-ui/shared/media";
+import { Button } from "@/components/ui/button";
 import {
 	Drawer,
 	DrawerContent,
@@ -39,9 +51,11 @@ import {
 	DrawerHeader,
 	DrawerTitle,
 } from "@/components/ui/drawer";
+import { DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { useComments } from "@/hooks/use-comments";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useElectronAPI } from "@/hooks/use-platform";
+import { getProviderIcon } from "@/lib/provider-icons";
 import { cn } from "@/lib/utils";
 
 // Captured once at module load — survives client-side navigations that strip the query param.
@@ -51,131 +65,175 @@ const IS_QUICK_ASSIST_WINDOW =
 
 // Dynamically import tool UI components to avoid loading them in main bundle
 const GenerateReportToolUI = dynamic(
-	() => import("@/components/tool-ui/generate-report").then(m => ({ default: m.GenerateReportToolUI })),
+	() =>
+		import("@/components/tool-ui/generate-report").then((m) => ({
+			default: m.GenerateReportToolUI,
+		})),
+	{ ssr: false }
+);
+const GenerateResumeToolUI = dynamic(
+	() =>
+		import("@/components/tool-ui/generate-resume").then((m) => ({
+			default: m.GenerateResumeToolUI,
+		})),
 	{ ssr: false }
 );
 const GeneratePodcastToolUI = dynamic(
-	() => import("@/components/tool-ui/generate-podcast").then(m => ({ default: m.GeneratePodcastToolUI })),
+	() =>
+		import("@/components/tool-ui/generate-podcast").then((m) => ({
+			default: m.GeneratePodcastToolUI,
+		})),
 	{ ssr: false }
 );
 const GenerateVideoPresentationToolUI = dynamic(
-	() => import("@/components/tool-ui/video-presentation").then(m => ({ default: m.GenerateVideoPresentationToolUI })),
+	() =>
+		import("@/components/tool-ui/video-presentation").then((m) => ({
+			default: m.GenerateVideoPresentationToolUI,
+		})),
 	{ ssr: false }
 );
 const GenerateImageToolUI = dynamic(
-	() => import("@/components/tool-ui/generate-image").then(m => ({ default: m.GenerateImageToolUI })),
+	() =>
+		import("@/components/tool-ui/generate-image").then((m) => ({ default: m.GenerateImageToolUI })),
 	{ ssr: false }
 );
-const SaveMemoryToolUI = dynamic(
-	() => import("@/components/tool-ui/user-memory").then(m => ({ default: m.SaveMemoryToolUI })),
-	{ ssr: false }
-);
-const RecallMemoryToolUI = dynamic(
-	() => import("@/components/tool-ui/user-memory").then(m => ({ default: m.RecallMemoryToolUI })),
+const UpdateMemoryToolUI = dynamic(
+	() => import("@/components/tool-ui/user-memory").then((m) => ({ default: m.UpdateMemoryToolUI })),
 	{ ssr: false }
 );
 const SandboxExecuteToolUI = dynamic(
-	() => import("@/components/tool-ui/sandbox-execute").then(m => ({ default: m.SandboxExecuteToolUI })),
+	() =>
+		import("@/components/tool-ui/sandbox-execute").then((m) => ({
+			default: m.SandboxExecuteToolUI,
+		})),
 	{ ssr: false }
 );
 const CreateNotionPageToolUI = dynamic(
-	() => import("@/components/tool-ui/notion").then(m => ({ default: m.CreateNotionPageToolUI })),
+	() => import("@/components/tool-ui/notion").then((m) => ({ default: m.CreateNotionPageToolUI })),
 	{ ssr: false }
 );
 const UpdateNotionPageToolUI = dynamic(
-	() => import("@/components/tool-ui/notion").then(m => ({ default: m.UpdateNotionPageToolUI })),
+	() => import("@/components/tool-ui/notion").then((m) => ({ default: m.UpdateNotionPageToolUI })),
 	{ ssr: false }
 );
 const DeleteNotionPageToolUI = dynamic(
-	() => import("@/components/tool-ui/notion").then(m => ({ default: m.DeleteNotionPageToolUI })),
+	() => import("@/components/tool-ui/notion").then((m) => ({ default: m.DeleteNotionPageToolUI })),
 	{ ssr: false }
 );
 const CreateLinearIssueToolUI = dynamic(
-	() => import("@/components/tool-ui/linear").then(m => ({ default: m.CreateLinearIssueToolUI })),
+	() => import("@/components/tool-ui/linear").then((m) => ({ default: m.CreateLinearIssueToolUI })),
 	{ ssr: false }
 );
 const UpdateLinearIssueToolUI = dynamic(
-	() => import("@/components/tool-ui/linear").then(m => ({ default: m.UpdateLinearIssueToolUI })),
+	() => import("@/components/tool-ui/linear").then((m) => ({ default: m.UpdateLinearIssueToolUI })),
 	{ ssr: false }
 );
 const DeleteLinearIssueToolUI = dynamic(
-	() => import("@/components/tool-ui/linear").then(m => ({ default: m.DeleteLinearIssueToolUI })),
+	() => import("@/components/tool-ui/linear").then((m) => ({ default: m.DeleteLinearIssueToolUI })),
 	{ ssr: false }
 );
 const CreateGoogleDriveFileToolUI = dynamic(
-	() => import("@/components/tool-ui/google-drive").then(m => ({ default: m.CreateGoogleDriveFileToolUI })),
+	() =>
+		import("@/components/tool-ui/google-drive").then((m) => ({
+			default: m.CreateGoogleDriveFileToolUI,
+		})),
 	{ ssr: false }
 );
 const DeleteGoogleDriveFileToolUI = dynamic(
-	() => import("@/components/tool-ui/google-drive").then(m => ({ default: m.DeleteGoogleDriveFileToolUI })),
+	() =>
+		import("@/components/tool-ui/google-drive").then((m) => ({
+			default: m.DeleteGoogleDriveFileToolUI,
+		})),
 	{ ssr: false }
 );
 const CreateOneDriveFileToolUI = dynamic(
-	() => import("@/components/tool-ui/onedrive").then(m => ({ default: m.CreateOneDriveFileToolUI })),
+	() =>
+		import("@/components/tool-ui/onedrive").then((m) => ({ default: m.CreateOneDriveFileToolUI })),
 	{ ssr: false }
 );
 const DeleteOneDriveFileToolUI = dynamic(
-	() => import("@/components/tool-ui/onedrive").then(m => ({ default: m.DeleteOneDriveFileToolUI })),
+	() =>
+		import("@/components/tool-ui/onedrive").then((m) => ({ default: m.DeleteOneDriveFileToolUI })),
 	{ ssr: false }
 );
 const CreateDropboxFileToolUI = dynamic(
-	() => import("@/components/tool-ui/dropbox").then(m => ({ default: m.CreateDropboxFileToolUI })),
+	() =>
+		import("@/components/tool-ui/dropbox").then((m) => ({ default: m.CreateDropboxFileToolUI })),
 	{ ssr: false }
 );
 const DeleteDropboxFileToolUI = dynamic(
-	() => import("@/components/tool-ui/dropbox").then(m => ({ default: m.DeleteDropboxFileToolUI })),
+	() =>
+		import("@/components/tool-ui/dropbox").then((m) => ({ default: m.DeleteDropboxFileToolUI })),
 	{ ssr: false }
 );
 const CreateCalendarEventToolUI = dynamic(
-	() => import("@/components/tool-ui/google-calendar").then(m => ({ default: m.CreateCalendarEventToolUI })),
+	() =>
+		import("@/components/tool-ui/google-calendar").then((m) => ({
+			default: m.CreateCalendarEventToolUI,
+		})),
 	{ ssr: false }
 );
 const UpdateCalendarEventToolUI = dynamic(
-	() => import("@/components/tool-ui/google-calendar").then(m => ({ default: m.UpdateCalendarEventToolUI })),
+	() =>
+		import("@/components/tool-ui/google-calendar").then((m) => ({
+			default: m.UpdateCalendarEventToolUI,
+		})),
 	{ ssr: false }
 );
 const DeleteCalendarEventToolUI = dynamic(
-	() => import("@/components/tool-ui/google-calendar").then(m => ({ default: m.DeleteCalendarEventToolUI })),
+	() =>
+		import("@/components/tool-ui/google-calendar").then((m) => ({
+			default: m.DeleteCalendarEventToolUI,
+		})),
 	{ ssr: false }
 );
 const CreateGmailDraftToolUI = dynamic(
-	() => import("@/components/tool-ui/gmail").then(m => ({ default: m.CreateGmailDraftToolUI })),
+	() => import("@/components/tool-ui/gmail").then((m) => ({ default: m.CreateGmailDraftToolUI })),
 	{ ssr: false }
 );
 const UpdateGmailDraftToolUI = dynamic(
-	() => import("@/components/tool-ui/gmail").then(m => ({ default: m.UpdateGmailDraftToolUI })),
+	() => import("@/components/tool-ui/gmail").then((m) => ({ default: m.UpdateGmailDraftToolUI })),
 	{ ssr: false }
 );
 const SendGmailEmailToolUI = dynamic(
-	() => import("@/components/tool-ui/gmail").then(m => ({ default: m.SendGmailEmailToolUI })),
+	() => import("@/components/tool-ui/gmail").then((m) => ({ default: m.SendGmailEmailToolUI })),
 	{ ssr: false }
 );
 const TrashGmailEmailToolUI = dynamic(
-	() => import("@/components/tool-ui/gmail").then(m => ({ default: m.TrashGmailEmailToolUI })),
+	() => import("@/components/tool-ui/gmail").then((m) => ({ default: m.TrashGmailEmailToolUI })),
 	{ ssr: false }
 );
 const CreateJiraIssueToolUI = dynamic(
-	() => import("@/components/tool-ui/jira").then(m => ({ default: m.CreateJiraIssueToolUI })),
+	() => import("@/components/tool-ui/jira").then((m) => ({ default: m.CreateJiraIssueToolUI })),
 	{ ssr: false }
 );
 const UpdateJiraIssueToolUI = dynamic(
-	() => import("@/components/tool-ui/jira").then(m => ({ default: m.UpdateJiraIssueToolUI })),
+	() => import("@/components/tool-ui/jira").then((m) => ({ default: m.UpdateJiraIssueToolUI })),
 	{ ssr: false }
 );
 const DeleteJiraIssueToolUI = dynamic(
-	() => import("@/components/tool-ui/jira").then(m => ({ default: m.DeleteJiraIssueToolUI })),
+	() => import("@/components/tool-ui/jira").then((m) => ({ default: m.DeleteJiraIssueToolUI })),
 	{ ssr: false }
 );
 const CreateConfluencePageToolUI = dynamic(
-	() => import("@/components/tool-ui/confluence").then(m => ({ default: m.CreateConfluencePageToolUI })),
+	() =>
+		import("@/components/tool-ui/confluence").then((m) => ({
+			default: m.CreateConfluencePageToolUI,
+		})),
 	{ ssr: false }
 );
 const UpdateConfluencePageToolUI = dynamic(
-	() => import("@/components/tool-ui/confluence").then(m => ({ default: m.UpdateConfluencePageToolUI })),
+	() =>
+		import("@/components/tool-ui/confluence").then((m) => ({
+			default: m.UpdateConfluencePageToolUI,
+		})),
 	{ ssr: false }
 );
 const DeleteConfluencePageToolUI = dynamic(
-	() => import("@/components/tool-ui/confluence").then(m => ({ default: m.DeleteConfluencePageToolUI })),
+	() =>
+		import("@/components/tool-ui/confluence").then((m) => ({
+			default: m.DeleteConfluencePageToolUI,
+		})),
 	{ ssr: false }
 );
 
@@ -329,6 +387,101 @@ export const MessageError: FC = () => {
 	);
 };
 
+function formatMessageDate(date: Date): string {
+	return date.toLocaleDateString(undefined, {
+		month: "short",
+		day: "numeric",
+		hour: "numeric",
+		minute: "2-digit",
+		hour12: true,
+	});
+}
+
+const MessageInfoDropdown: FC = () => {
+	const messageId = useAuiState(({ message }) => message?.id);
+	const createdAt = useAuiState(({ message }) => message?.createdAt);
+	const usage = useTokenUsage(messageId);
+
+	const { data: localConfigs } = useAtomValue(newLLMConfigsAtom);
+	const { data: globalConfigs } = useAtomValue(globalNewLLMConfigsAtom);
+
+	const configByModel = useMemo(() => {
+		const map = new Map<string, { name: string; provider: string }>();
+		for (const c of [...(globalConfigs ?? []), ...(localConfigs ?? [])]) {
+			map.set(c.model_name, { name: c.name, provider: c.provider });
+		}
+		return map;
+	}, [localConfigs, globalConfigs]);
+
+	const resolveModel = (modelKey: string) => {
+		const parts = modelKey.split("/");
+		const bare = parts[parts.length - 1] ?? modelKey;
+		const config = configByModel.get(modelKey) ?? configByModel.get(bare);
+		return config
+			? { name: config.name, icon: getProviderIcon(config.provider, { className: "size-3.5" }) }
+			: { name: modelKey, icon: null };
+	};
+
+	const modelBreakdown = usage ? (usage.usage ?? usage.model_breakdown) : undefined;
+	const models = modelBreakdown ? Object.entries(modelBreakdown) : [];
+	const hasUsage = usage && usage.total_tokens > 0;
+
+	return (
+		<ActionBarMorePrimitive.Root>
+			<ActionBarMorePrimitive.Trigger asChild>
+				<Button variant="ghost" size="icon" className="aui-button-icon size-6 p-1">
+					<MoreHorizontalIcon className="size-4" />
+					<span className="sr-only">More</span>
+				</Button>
+			</ActionBarMorePrimitive.Trigger>
+			<ActionBarMorePrimitive.Content
+				align="start"
+				className="bg-muted text-popover-foreground z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-[180px] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border dark:border-neutral-700 p-1 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2"
+			>
+				{createdAt && (
+					<DropdownMenuLabel className="text-xs text-muted-foreground font-normal select-none">
+						{formatMessageDate(createdAt)}
+					</DropdownMenuLabel>
+				)}
+				{hasUsage && (
+					<>
+						<ActionBarMorePrimitive.Separator className="bg-border mx-2 my-1 h-px" />
+						{models.length > 0 ? (
+							models.map(([model, counts]) => {
+								const { name, icon } = resolveModel(model);
+								return (
+									<ActionBarMorePrimitive.Item
+										key={model}
+										className="focus:bg-neutral-200 dark:focus:bg-neutral-700 relative flex cursor-default flex-col items-start gap-0.5 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none"
+										onSelect={(e) => e.preventDefault()}
+									>
+										<span className="flex items-center gap-1.5 text-xs font-medium">
+											{icon}
+											{name}
+										</span>
+										<span className="text-xs text-muted-foreground">
+											{counts.total_tokens.toLocaleString()} tokens
+										</span>
+									</ActionBarMorePrimitive.Item>
+								);
+							})
+						) : (
+							<ActionBarMorePrimitive.Item
+								className="focus:bg-neutral-200 dark:focus:bg-neutral-700 relative flex cursor-default flex-col items-start gap-0.5 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none"
+								onSelect={(e) => e.preventDefault()}
+							>
+								<span className="text-xs text-muted-foreground">
+									{usage.total_tokens.toLocaleString()} tokens
+								</span>
+							</ActionBarMorePrimitive.Item>
+						)}
+					</>
+				)}
+			</ActionBarMorePrimitive.Content>
+		</ActionBarMorePrimitive.Root>
+	);
+};
+
 const AssistantMessageInner: FC = () => {
 	const isMobile = !useMediaQuery("(min-width: 768px)");
 
@@ -341,13 +494,14 @@ const AssistantMessageInner: FC = () => {
 						tools: {
 							by_name: {
 								generate_report: GenerateReportToolUI,
+								generate_resume: GenerateResumeToolUI,
 								generate_podcast: GeneratePodcastToolUI,
 								generate_video_presentation: GenerateVideoPresentationToolUI,
 								display_image: GenerateImageToolUI,
 								generate_image: GenerateImageToolUI,
-								save_memory: SaveMemoryToolUI,
-								recall_memory: RecallMemoryToolUI,
+								update_memory: UpdateMemoryToolUI,
 								execute: SandboxExecuteToolUI,
+								execute_code: SandboxExecuteToolUI,
 								create_notion_page: CreateNotionPageToolUI,
 								update_notion_page: UpdateNotionPageToolUI,
 								delete_notion_page: DeleteNotionPageToolUI,
@@ -391,7 +545,7 @@ const AssistantMessageInner: FC = () => {
 				</div>
 			)}
 
-			<div className="aui-assistant-message-footer mt-1 mb-5 ml-2 flex">
+			<div className="aui-assistant-message-footer mt-3 mb-5 ml-2 flex items-center gap-2">
 				<AssistantActionBar />
 			</div>
 		</CitationMetadataProvider>
@@ -588,6 +742,7 @@ const AssistantActionBar: FC = () => {
 					<ClipboardPaste />
 				</TooltipIconButton>
 			)}
+			<MessageInfoDropdown />
 		</ActionBarPrimitive.Root>
 	);
 };

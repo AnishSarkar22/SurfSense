@@ -130,9 +130,9 @@ export function SourceDetailPanel({
 	const t = useTranslations("dashboard");
 	const scrollAreaRef = useRef<HTMLDivElement>(null);
 	const hasScrolledRef = useRef(false); // Use ref to avoid stale closures
+	const scrollTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 	const [activeChunkIndex, setActiveChunkIndex] = useState<number | null>(null);
 	const [mounted, setMounted] = useState(false);
-	const [_hasScrolledToCited, setHasScrolledToCited] = useState(false);
 	const shouldReduceMotion = useReducedMotion();
 
 	useEffect(() => {
@@ -314,18 +314,21 @@ export function SourceDetailPanel({
 				const scrollAttempts = [50, 150, 300, 600, 1000];
 
 				scrollAttempts.forEach((delay) => {
-					setTimeout(() => {
-						scrollToCitedChunk();
-					}, delay);
+					scrollTimersRef.current.push(
+						setTimeout(() => {
+							scrollToCitedChunk();
+						}, delay)
+					);
 				});
 
-				// After final attempt, mark state as scrolled
-				setTimeout(
-					() => {
-						setHasScrolledToCited(true);
-						setActiveChunkIndex(citedChunkIndex);
-					},
-					scrollAttempts[scrollAttempts.length - 1] + 50
+				// After final attempt, mark the cited chunk as active
+				scrollTimersRef.current.push(
+					setTimeout(
+						() => {
+							setActiveChunkIndex(citedChunkIndex);
+						},
+						scrollAttempts[scrollAttempts.length - 1] + 50
+					)
 				);
 			}
 		},
@@ -335,10 +338,15 @@ export function SourceDetailPanel({
 	// Reset scroll state when panel closes
 	useEffect(() => {
 		if (!open) {
+			scrollTimersRef.current.forEach(clearTimeout);
+			scrollTimersRef.current = [];
 			hasScrolledRef.current = false;
-			setHasScrolledToCited(false);
 			setActiveChunkIndex(null);
 		}
+		return () => {
+			scrollTimersRef.current.forEach(clearTimeout);
+			scrollTimersRef.current = [];
+		};
 	}, [open]);
 
 	// Handle escape key
