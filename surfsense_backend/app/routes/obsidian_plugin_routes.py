@@ -41,6 +41,7 @@ from app.schemas.obsidian_plugin import (
     SyncAckItem,
     SyncBatchRequest,
 )
+from app.services.notification_service import NotificationService
 from app.services.obsidian_plugin_indexer import (
     delete_note,
     get_manifest,
@@ -66,6 +67,105 @@ OBSIDIAN_CAPABILITIES: list[str] = ["sync", "rename", "delete", "manifest", "sta
 
 def _build_handshake() -> dict[str, object]:
     return {"capabilities": list(OBSIDIAN_CAPABILITIES)}
+
+
+def _connector_type_value(connector: SearchSourceConnector) -> str:
+    connector_type = connector.connector_type
+    if hasattr(connector_type, "value"):
+        return str(connector_type.value)
+    return str(connector_type)
+
+
+async def _start_obsidian_sync_notification(
+    session: AsyncSession,
+    *,
+    user: User,
+    connector: SearchSourceConnector,
+    total_count: int,
+):
+    """Create/update the rolling inbox item for Obsidian plugin sync.
+
+    Obsidian sync is continuous and batched, so we keep one stable
+    operation_id per connector instead of creating a new notification per batch.
+    """
+    handler = NotificationService.connector_indexing
+    operation_id = f"obsidian_sync_connector_{connector.id}"
+    connector_name = connector.name or "Obsidian"
+    notification = await handler.find_or_create_notification(
+        session=session,
+        user_id=user.id,
+        operation_id=operation_id,
+        title=f"Syncing: {connector_name}",
+        message="Syncing from Obsidian plugin",
+        search_space_id=connector.search_space_id,
+        initial_metadata={
+            "connector_id": connector.id,
+            "connector_name": connector_name,
+            "connector_type": _connector_type_value(connector),
+            "sync_stage": "processing",
+            "indexed_count": 0,
+            "failed_count": 0,
+            "total_count": total_count,
+            "source": "obsidian_plugin",
+        },
+    )
+    return await handler.update_notification(
+        session=session,
+        notification=notification,
+        status="in_progress",
+        metadata_updates={
+            "sync_stage": "processing",
+            "total_count": total_count,
+        },
+    )
+
+
+async def _finish_obsidian_sync_notification(
+    session: AsyncSession,
+    *,
+    notification,
+    indexed: int,
+    failed: int,
+):
+    """Mark the rolling Obsidian sync inbox item complete or failed."""
+    handler = NotificationService.connector_indexing
+    connector_name = notification.notification_metadata.get(
+        "connector_name", "Obsidian"
+    )
+    if failed > 0 and indexed == 0:
+        title = f"Failed: {connector_name}"
+        message = (
+            f"Sync failed: {failed} file(s) failed"
+            if failed > 1
+            else "Sync failed: 1 file failed"
+        )
+        status_value = "failed"
+        stage = "failed"
+    else:
+        title = f"Ready: {connector_name}"
+        if failed > 0:
+            message = f"Partially synced: {indexed} file(s) synced, {failed} failed."
+        elif indexed == 0:
+            message = "Already up to date!"
+        elif indexed == 1:
+            message = "Now searchable! 1 file synced."
+        else:
+            message = f"Now searchable! {indexed} files synced."
+        status_value = "completed"
+        stage = "completed"
+
+    await handler.update_notification(
+        session=session,
+        notification=notification,
+        title=title,
+        message=message,
+        status=status_value,
+        metadata_updates={
+            "indexed_count": indexed,
+            "failed_count": failed,
+            "sync_stage": stage,
+        },
+    )
 
 
 async def _resolve_vault_connector(
@@ -175,9 +275,7 @@ async def _find_by_fingerprint(
     return (await session.execute(stmt)).scalars().first()
 
 
-def _build_config(
-    payload: ConnectRequest, *, now_iso: str
-) -> dict[str, object]:
+def _build_config(payload: ConnectRequest, *, now_iso: str) -> dict[str, object]:
     return {
         "vault_id": payload.vault_id,
         "vault_name": payload.vault_name,
@@ -188,7 +286,7 @@ def _build_config(
 
 
 def _display_name(vault_name: str) -> str:
-    return f"Obsidian \u2014 {vault_name}"
+    return f"Obsidian - {vault_name}"
 
 
 @router.post("/connect", response_model=ConnectResponse)
@@ -335,6 +433,18 @@ async def obsidian_sync(
     connector = await _resolve_vault_connector(
         session, user=user, vault_id=payload.vault_id
     )
+    notification = None
+    try:
+        notification = await _start_obsidian_sync_notification(
+            session, user=user, connector=connector, total_count=len(payload.notes)
+        )
+    except Exception:
+        logger.warning(
+            "obsidian sync notification start failed connector=%s user=%s",
+            connector.id,
+            user.id,
+            exc_info=True,
+        )
 
     items: list[SyncAckItem] = []
     indexed = 0
@@ -346,9 +456,7 @@ async def obsidian_sync(
                 session, connector=connector, payload=note, user_id=str(user.id)
             )
             indexed += 1
-            items.append(
-                SyncAckItem(path=note.path, status="ok", document_id=doc.id)
-            )
+            items.append(SyncAckItem(path=note.path, status="ok", document_id=doc.id))
         except HTTPException:
             raise
         except Exception as exc:
@@ -360,6 +468,22 @@ async def obsidian_sync(
             )
             items.append(
                 SyncAckItem(path=note.path, status="error", error=str(exc)[:300])
+            )
+
+    if notification is not None:
+        try:
+            await _finish_obsidian_sync_notification(
+                session,
+                notification=notification,
+                indexed=indexed,
+                failed=failed,
+            )
+        except Exception:
+            logger.warning(
+                "obsidian sync notification finish failed connector=%s user=%s",
+                connector.id,
+                user.id,
+                exc_info=True,
             )
 
     return SyncAck(
@@ -471,9 +595,7 @@ async def obsidian_delete_notes(
                 path,
                 payload.vault_id,
             )
-            items.append(
-                DeleteAckItem(path=path, status="error", error=str(exc)[:300])
-            )
+            items.append(DeleteAckItem(path=path, status="error", error=str(exc)[:300]))
 
     return DeleteAck(
         vault_id=payload.vault_id,
@@ -490,9 +612,7 @@ async def obsidian_manifest(
     session: AsyncSession = Depends(get_async_session),
 ) -> ManifestResponse:
     """Return ``{path: {hash, mtime}}`` for the plugin's onload reconcile diff."""
-    connector = await _resolve_vault_connector(
-        session, user=user, vault_id=vault_id
-    )
+    connector = await _resolve_vault_connector(session, user=user, vault_id=vault_id)
     return await get_manifest(session, connector=connector, vault_id=vault_id)
 
 
@@ -507,9 +627,7 @@ async def obsidian_stats(
     ``files_synced`` excludes tombstones so it matches ``/manifest``;
     ``last_sync_at`` includes them so deletes advance the freshness signal.
     """
-    connector = await _resolve_vault_connector(
-        session, user=user, vault_id=vault_id
-    )
+    connector = await _resolve_vault_connector(session, user=user, vault_id=vault_id)
 
     is_active = Document.document_metadata["deleted_at"].as_string().is_(None)
 

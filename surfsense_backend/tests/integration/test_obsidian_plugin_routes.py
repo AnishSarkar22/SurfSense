@@ -46,6 +46,7 @@ from app.schemas.obsidian_plugin import (
     ConnectRequest,
     DeleteAck,
     DeleteBatchRequest,
+    HeadingRef,
     ManifestResponse,
     NotePayload,
     RenameAck,
@@ -74,6 +75,7 @@ def _make_note_payload(vault_id: str, path: str, content_hash: str) -> NotePaylo
         name=path.rsplit("/", 1)[-1].rsplit(".", 1)[0],
         extension="md",
         content="# Test\n\nbody",
+        headings=[HeadingRef(heading="Test", level=1)],
         content_hash=content_hash,
         mtime=now,
         ctime=now,
@@ -111,9 +113,7 @@ async def race_user_and_space(async_engine):
         # connectors test creates documents, so we wipe them too. The
         # CASCADE on user_id catches anything we missed.
         await cleanup.execute(
-            text(
-                'DELETE FROM search_source_connectors WHERE user_id = :uid'
-            ),
+            text("DELETE FROM search_source_connectors WHERE user_id = :uid"),
             {"uid": user_id},
         )
         await cleanup.execute(
@@ -156,9 +156,7 @@ class TestConnectRace:
                 )
                 await obsidian_connect(payload, user=fresh_user, session=s)
 
-        results = await asyncio.gather(
-            _call("a"), _call("b"), return_exceptions=True
-        )
+        results = await asyncio.gather(_call("a"), _call("b"), return_exceptions=True)
         for r in results:
             assert not isinstance(r, Exception), f"Connect raised: {r!r}"
 
@@ -183,7 +181,7 @@ class TestConnectRace:
         async with AsyncSession(async_engine) as s:
             s.add(
                 SearchSourceConnector(
-                    name="Obsidian \u2014 First",
+                    name="Obsidian - First",
                     connector_type=SearchSourceConnectorType.OBSIDIAN_CONNECTOR,
                     is_indexable=False,
                     config={
@@ -202,7 +200,7 @@ class TestConnectRace:
             async with AsyncSession(async_engine) as s:
                 s.add(
                     SearchSourceConnector(
-                        name="Obsidian \u2014 Second",
+                        name="Obsidian - Second",
                         connector_type=SearchSourceConnectorType.OBSIDIAN_CONNECTOR,
                         is_indexable=False,
                         config={
@@ -228,7 +226,7 @@ class TestConnectRace:
         async with AsyncSession(async_engine) as s:
             s.add(
                 SearchSourceConnector(
-                    name="Obsidian \u2014 Desktop",
+                    name="Obsidian - Desktop",
                     connector_type=SearchSourceConnectorType.OBSIDIAN_CONNECTOR,
                     is_indexable=False,
                     config={
@@ -247,7 +245,7 @@ class TestConnectRace:
             async with AsyncSession(async_engine) as s:
                 s.add(
                     SearchSourceConnector(
-                        name="Obsidian \u2014 Mobile",
+                        name="Obsidian - Mobile",
                         connector_type=SearchSourceConnectorType.OBSIDIAN_CONNECTOR,
                         is_indexable=False,
                         config={
@@ -430,9 +428,7 @@ class TestWireContractSmoke:
         assert {it.status for it in rename_resp.items} == {"ok", "missing"}
         # snake_case fields are deliberate — the plugin decoder maps them
         # to camelCase explicitly.
-        assert all(
-            it.old_path and it.new_path for it in rename_resp.items
-        )
+        assert all(it.old_path and it.new_path for it in rename_resp.items)
 
         # 4. /notes DELETE
         async def _delete(*args, **kwargs) -> bool:
