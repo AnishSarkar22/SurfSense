@@ -71,6 +71,7 @@ export class SyncEngine {
 	private idleReconcileStreak = 0;
 	/** 2^streak is capped at this value (e.g. 8 → max ×8 backoff). */
 	private readonly maxBackoffMultiplier = 8;
+	private lastAppliedKind: StatusKind = "needs-setup";
 
 	constructor(deps: SyncEngineDeps) {
 		this.deps = deps;
@@ -238,7 +239,10 @@ export class SyncEngine {
 	// ---- queue draining ---------------------------------------------------
 
 	async flushQueue(): Promise<void> {
-		if (this.deps.queue.size === 0) return;
+		if (this.deps.queue.size === 0) {
+			await this.recoverStatusIfNeeded();
+			return;
+		}
 		// Shared gate for every flush trigger so the first /sync can't race /connect.
 		if (!this.deps.getSettings().connectorId) {
 			const connected = await this.ensureConnected();
@@ -256,6 +260,31 @@ export class SyncEngine {
 			});
 		}
 		this.setStatus(this.queueStatusKind(), this.statusDetail());
+	}
+
+	/**
+	 * Lightweight status recovery path used after network-change signals.
+	 * Clears stale offline/auth/error only when connectivity/auth is explicitly re-validated.
+	 */
+	async recoverConnectivityStatus(): Promise<void> {
+		const settings = this.deps.getSettings();
+		if (!settings.apiToken) {
+			this.refreshStatus({ force: true });
+			return;
+		}
+		if (!settings.searchSpaceId) {
+			try {
+				const health = await this.deps.apiClient.health();
+				this.applyHealth(health);
+				this.refreshStatus({ force: true });
+			} catch (err) {
+				this.handleStartupError(err);
+			}
+			return;
+		}
+		const connected = await this.ensureConnected();
+		if (!connected) return;
+		this.refreshStatus({ force: true });
 	}
 
 	private async processBatch(batch: QueueItem[]): Promise<BatchResult> {
@@ -502,24 +531,51 @@ export class SyncEngine {
 	// ---- status helpers ---------------------------------------------------
 
 	/**
-	 * Recomputes status from settings + queue depth. Call from main.ts after
-	 * settings change so the indicator reacts to token paste / search-space
-	 * pick without waiting for the next sync trigger.
+	 * Conservative by default: real errors are preserved while setup is
+	 * complete, so unrelated edits don't optimistically clear the indicator.
+	 * Pass `force: true` after an explicit verify/reconcile confirmation.
 	 */
-	refreshStatus(): void {
+	refreshStatus(opts: { force?: boolean } = {}): void {
+		if (!opts.force) {
+			const last = this.lastAppliedKind;
+			if (last === "syncing") return;
+			const isError =
+				last === "auth-error" || last === "offline" || last === "error";
+			const s = this.deps.getSettings();
+			const setupComplete = !!(s.apiToken && s.searchSpaceId && s.connectorId);
+			if (isError && setupComplete) return;
+		}
 		this.setStatus(this.queueStatusKind(), this.statusDetail());
 	}
 
+	reportAuthError(message?: string): void {
+		this.setStatus("auth-error", message ?? "API token expired or invalid");
+	}
+
+	reportError(err: unknown): void {
+		if (err instanceof AuthError) {
+			this.reportAuthError(err.message);
+			return;
+		}
+		if (err instanceof TransientError) {
+			this.setStatus("offline", err.message);
+			return;
+		}
+		this.setStatus("error", (err as Error).message ?? "Unknown error");
+	}
+
 	private setStatus(kind: StatusKind, detail?: string): void {
-		// Errors carry meaningful signal; only "happy" kinds get downgraded
-		// to needs-setup when prerequisites are missing.
-		if (kind !== "auth-error" && kind !== "offline" && kind !== "error") {
-			const s = this.deps.getSettings();
-			if (!s.apiToken || !s.searchSpaceId || !s.connectorId) {
+		const s = this.deps.getSettings();
+		if (!s.apiToken) {
+			kind = "needs-setup";
+			detail = this.setupHint(s);
+		} else if (kind !== "auth-error" && kind !== "offline" && kind !== "error") {
+			if (!s.searchSpaceId || !s.connectorId) {
 				kind = "needs-setup";
 				detail = this.setupHint(s);
 			}
 		}
+		this.lastAppliedKind = kind;
 		this.deps.setStatus({ kind, detail, queueDepth: this.deps.queue.size });
 	}
 
@@ -584,6 +640,19 @@ export class SyncEngine {
 		const verdict = this.classify(err);
 		if (verdict === "stop") return;
 		this.setStatus(this.queueStatusKind(), `${prefix}: ${(err as Error).message}`);
+	}
+
+	private async recoverStatusIfNeeded(): Promise<void> {
+		if (!this.isRecoverableErrorState()) return;
+		await this.recoverConnectivityStatus();
+	}
+
+	private isRecoverableErrorState(): boolean {
+		return (
+			this.lastAppliedKind === "offline" ||
+			this.lastAppliedKind === "auth-error" ||
+			this.lastAppliedKind === "error"
+		);
 	}
 
 	// ---- predicates -------------------------------------------------------
