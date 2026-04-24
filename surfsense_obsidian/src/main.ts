@@ -20,11 +20,12 @@ export default class SurfSensePlugin extends Plugin {
 	queue!: PersistentQueue;
 	engine!: SyncEngine;
 	private statusBar: StatusBar | null = null;
-	lastStatus: StatusState = { kind: "idle", queueDepth: 0 };
+	lastStatus: StatusState = { kind: "needs-setup", queueDepth: 0 };
 	serverCapabilities: string[] = [];
 	private settingTab: SurfSenseSettingTab | null = null;
 	private statusListeners = new Set<() => void>();
 	private reconcileTimerId: number | null = null;
+	private lastAuthToastAt = 0;
 
 	async onload() {
 		await this.loadSettings();
@@ -34,6 +35,7 @@ export default class SurfSensePlugin extends Plugin {
 		this.api = new SurfSenseApiClient({
 			getServerUrl: () => this.settings.serverUrl,
 			getToken: () => this.settings.apiToken,
+			onAuthError: () => this.notifyAuthError(),
 		});
 
 		this.queue = new PersistentQueue(this.settings.queue ?? [], {
@@ -239,6 +241,13 @@ export default class SurfSensePlugin extends Plugin {
 		for (const fn of this.statusListeners) fn();
 	}
 
+	private notifyAuthError(): void {
+		const now = Date.now();
+		if (now - this.lastAuthToastAt < 10_000) return;
+		this.lastAuthToastAt = now;
+		new Notice("Surfsense: API token expired or invalid. Paste a fresh token in settings.", 8000);
+	}
+
 	async loadSettings() {
 		const data = (await this.loadData()) as Partial<SurfsensePluginSettings> | null;
 		this.settings = {
@@ -256,6 +265,9 @@ export default class SurfSensePlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+		// Ensures the indicator reacts to settings edits (token paste, search-space pick)
+		// without waiting for the next sync trigger.
+		this.engine?.refreshStatus();
 	}
 
 	/**

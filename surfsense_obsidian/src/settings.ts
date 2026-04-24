@@ -11,6 +11,7 @@ import { AttachmentsConfirmModal } from "./attachments-confirm-modal";
 import { normalizeFolder, parseExcludePatterns } from "./excludes";
 import { FolderSuggestModal } from "./folder-suggest-modal";
 import type SurfSensePlugin from "./main";
+import { STATUS_VISUALS } from "./status-visuals";
 import type { SearchSpace } from "./types";
 
 /** Plugin settings tab. */
@@ -19,6 +20,8 @@ export class SurfSenseSettingTab extends PluginSettingTab {
 	private readonly plugin: SurfSensePlugin;
 	private searchSpaces: SearchSpace[] = [];
 	private loadingSpaces = false;
+	private connectionIndicator: HTMLElement | null = null;
+	private readonly onStatusChange = (): void => this.updateConnectionIndicator();
 
 	constructor(app: App, plugin: SurfSensePlugin) {
 		super(app, plugin);
@@ -28,6 +31,7 @@ export class SurfSenseSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
+		this.plugin.onStatusChange(this.onStatusChange);
 
 		const settings = this.plugin.settings;
 
@@ -75,6 +79,7 @@ export class SurfSenseSettingTab extends PluginSettingTab {
 						}
 						this.plugin.settings.apiToken = next;
 						await this.plugin.saveSettings();
+						this.plugin.api.resetAuthBlock();
 					});
 			})
 			.addButton((btn) =>
@@ -140,7 +145,7 @@ export class SurfSenseSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Sync interval")
 			.setDesc(
-				"How often to check for changes made outside Obsidian. Set to off to only sync manually.",
+				"How often to check for changes made outside Obsidian.",
 			)
 			.addDropdown((drop) => {
 				const options: Array<[number, string]> = [
@@ -205,7 +210,7 @@ export class SurfSenseSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Include attachments")
 			.setDesc(
-				"Also sync non-Markdown files such as images and PDFs.",
+				"Also sync non-Markdown files such as images and PDFs. Other file types are skipped.",
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -231,7 +236,7 @@ export class SurfSenseSettingTab extends PluginSettingTab {
 			new Setting(containerEl)
 				.setName("Sync only on WiFi")
 				.setDesc(
-					"Pause automatic syncing on cellular. Note: only Android can detect network type — on iOS this toggle has no effect.",
+					"Pause automatic syncing on cellular. Note: only Android can detect network type, on iOS this toggle has no effect.",
 				)
 				.addToggle((toggle) =>
 					toggle
@@ -277,52 +282,32 @@ export class SurfSenseSettingTab extends PluginSettingTab {
 			);
 	}
 
+	hide(): void {
+		this.plugin.offStatusChange(this.onStatusChange);
+		this.connectionIndicator = null;
+	}
+
 	private renderConnectionHeading(containerEl: HTMLElement): void {
 		const heading = new Setting(containerEl).setName("Connection").setHeading();
 		heading.nameEl.addClass("surfsense-connection-heading");
-		const indicator = heading.nameEl.createSpan({
+		this.connectionIndicator = heading.nameEl.createSpan({
 			cls: "surfsense-connection-indicator",
 		});
-		const visual = this.getConnectionVisual();
-		indicator.addClass(`surfsense-connection-indicator--${visual.tone}`);
+		this.updateConnectionIndicator();
+	}
+
+	private updateConnectionIndicator(): void {
+		const indicator = this.connectionIndicator;
+		if (!indicator) return;
+		const visual = STATUS_VISUALS[this.plugin.lastStatus.kind];
+		indicator.empty();
+		indicator.removeClass("surfsense-connection-indicator--err");
+		if (visual.isError) {
+			indicator.addClass("surfsense-connection-indicator--err");
+		}
 		setIcon(indicator, visual.icon);
 		indicator.setAttr("aria-label", visual.label);
 		indicator.setAttr("title", visual.label);
-	}
-
-	private getConnectionVisual(): {
-		icon: string;
-		label: string;
-		tone: "ok" | "syncing" | "warn" | "err" | "muted";
-	} {
-		const settings = this.plugin.settings;
-		const kind = this.plugin.lastStatus.kind;
-
-		if (kind === "auth-error") {
-			return { icon: "lock", label: "Token invalid or expired", tone: "err" };
-		}
-		if (kind === "error") {
-			return { icon: "alert-circle", label: "Connection error", tone: "err" };
-		}
-		if (kind === "offline") {
-			return { icon: "wifi-off", label: "Server unreachable", tone: "warn" };
-		}
-
-		if (!settings.apiToken) {
-			return { icon: "circle", label: "Missing API token", tone: "muted" };
-		}
-		if (!settings.searchSpaceId) {
-			return { icon: "circle", label: "Pick a search space", tone: "muted" };
-		}
-		if (!settings.connectorId) {
-			return { icon: "circle", label: "Not connected yet", tone: "muted" };
-		}
-
-		if (kind === "syncing" || kind === "queued") {
-			return { icon: "refresh-ccw", label: "Connected and syncing", tone: "syncing" };
-		}
-
-		return { icon: "check-circle", label: "Connected", tone: "ok" };
 	}
 
 	private async refreshSearchSpaces(): Promise<void> {
@@ -381,10 +366,7 @@ export class SurfSenseSettingTab extends PluginSettingTab {
 	}
 
 	private handleApiError(err: unknown): void {
-		if (err instanceof AuthError) {
-			new Notice(`SurfSense: ${err.message}`);
-			return;
-		}
+		if (err instanceof AuthError) return;
 		new Notice(
 			`SurfSense: request failed — ${(err as Error).message ?? "unknown error"}`,
 		);

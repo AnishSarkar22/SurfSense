@@ -1,5 +1,6 @@
 import { setIcon } from "obsidian";
-import type { StatusKind, StatusState } from "./types";
+import { STATUS_VISUALS } from "./status-visuals";
+import type { StatusState } from "./types";
 
 /**
  * Tiny status-bar adornment.
@@ -7,21 +8,6 @@ import type { StatusKind, StatusState } from "./types";
  * Plain DOM (no HTML strings, no CSS-in-JS) so it stays cheap on mobile
  * and Obsidian's lint doesn't complain about innerHTML.
  */
-
-interface StatusVisual {
-	icon: string;
-	label: string;
-	cls: string;
-}
-
-const VISUALS: Record<StatusKind, StatusVisual> = {
-	idle: { icon: "check-circle", label: "Synced", cls: "surfsense-status--ok" },
-	syncing: { icon: "refresh-ccw", label: "Syncing", cls: "surfsense-status--syncing" },
-	queued: { icon: "upload", label: "Queued", cls: "surfsense-status--syncing" },
-	offline: { icon: "wifi-off", label: "Offline", cls: "surfsense-status--warn" },
-	"auth-error": { icon: "lock", label: "Auth error", cls: "surfsense-status--err" },
-	error: { icon: "alert-circle", label: "Error", cls: "surfsense-status--err" },
-};
 
 export class StatusBar {
 	private readonly el: HTMLElement;
@@ -41,14 +27,9 @@ export class StatusBar {
 	}
 
 	update(state: StatusState): void {
-		const visual = VISUALS[state.kind];
-		this.el.removeClass(
-			"surfsense-status--ok",
-			"surfsense-status--syncing",
-			"surfsense-status--warn",
-			"surfsense-status--err",
-		);
-		this.el.addClass(visual.cls);
+		const visual = STATUS_VISUALS[state.kind];
+		this.el.removeClass("surfsense-status--err");
+		if (visual.isError) this.el.addClass("surfsense-status--err");
 		setIcon(this.icon, visual.icon);
 
 		let label = `SurfSense: ${visual.label}`;

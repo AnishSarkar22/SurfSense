@@ -119,8 +119,7 @@ def _build_metadata(
     }
     if payload.is_binary:
         meta["is_binary"] = True
-        if payload.mime_type:
-            meta["mime_type"] = payload.mime_type
+        meta["mime_type"] = payload.mime_type
     if extra:
         meta.update(extra)
     return meta
@@ -154,16 +153,13 @@ def _build_document_string(
 async def _extract_binary_attachment_markdown(
     payload: NotePayload, *, vision_llm
 ) -> tuple[str, dict[str, Any]]:
-    if not payload.binary_base64:
-        return "", {"attachment_extraction_status": "missing_binary_payload"}
-
     try:
         raw_bytes = base64.b64decode(payload.binary_base64, validate=True)
     except Exception:
         logger.warning("obsidian attachment payload had invalid base64: %s", payload.path)
         return "", {"attachment_extraction_status": "invalid_binary_payload"}
 
-    suffix = f".{payload.extension.lstrip('.')}" if payload.extension else ""
+    suffix = f".{payload.extension.lstrip('.')}"
     temp_path: str | None = None
     filename = payload.path.rsplit("/", 1)[-1] or payload.name
     try:
@@ -208,7 +204,7 @@ async def _run_etl_extract(*, file_path: str, filename: str, vision_llm):
 
 def _is_image_attachment(payload: NotePayload) -> bool:
     ext = payload.extension.lower().lstrip(".")
-    return ext in {"png", "jpg", "jpeg", "gif", "webp", "bmp", "tiff", "svg"}
+    return ext in {"png", "jpg", "jpeg", "gif", "webp", "svg"}
 
 
 async def _resolve_attachment_vision_llm(

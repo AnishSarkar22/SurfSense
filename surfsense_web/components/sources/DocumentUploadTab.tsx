@@ -546,6 +546,7 @@ export function DocumentUploadTab({
 						</button>
 					)
 				) : (
+					// biome-ignore lint/a11y/useSemanticElements: cannot use <button> here because the contents include nested interactive elements (renderBrowseButton renders a Button), which would be invalid HTML.
 					<div
 						role="button"
 						tabIndex={0}
@@ -763,22 +764,16 @@ export function DocumentUploadTab({
 					</div>
 
 					<Button
-						className="w-full"
+						className="w-full relative"
 						onClick={handleUpload}
 						disabled={isAnyUploading || fileCount === 0}
 					>
-						{isAnyUploading ? (
-							<span className="flex items-center gap-2">
-								<Spinner size="sm" />
-								{t("uploading")}
-							</span>
-						) : (
-							<span className="flex items-center gap-2">
-								{folderUpload
-									? t("upload_folder_button", { count: fileCount })
-									: t("upload_button", { count: fileCount })}
-							</span>
-						)}
+						<span className={isAnyUploading ? "opacity-0" : ""}>
+							{folderUpload
+								? t("upload_folder_button", { count: fileCount })
+								: t("upload_button", { count: fileCount })}
+						</span>
+						{isAnyUploading && <Spinner size="sm" className="absolute" />}
 					</Button>
 				</div>
 			)}

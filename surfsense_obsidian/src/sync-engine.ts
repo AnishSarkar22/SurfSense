@@ -46,6 +46,7 @@ export interface SyncEngineDeps {
 
 export interface SyncEngineSettings {
 	vaultId: string;
+	apiToken: string;
 	connectorId: number | null;
 	searchSpaceId: number | null;
 	includeFolders: string[];
@@ -103,7 +104,7 @@ export class SyncEngine {
 				this.handleStartupError(err);
 				return;
 			}
-			this.setStatus("idle", "Pick a search space in settings to start syncing.");
+			this.setStatus("idle");
 			return;
 		}
 
@@ -120,11 +121,11 @@ export class SyncEngine {
 	 * (Re)register the vault. Adopts server's `vault_id` in case fingerprint
 	 * dedup routed us to an existing row from another device.
 	 */
-	async ensureConnected(): Promise<void> {
+	async ensureConnected(): Promise<boolean> {
 		const settings = this.deps.getSettings();
 		if (!settings.searchSpaceId) {
-			this.setStatus("idle", "Pick a search space in settings.");
-			return;
+			this.setStatus("idle");
+			return false;
 		}
 		this.setStatus("syncing", "Connecting to SurfSense");
 		try {
@@ -141,8 +142,10 @@ export class SyncEngine {
 				s.connectorId = resp.connector_id;
 			});
 			this.setStatus(this.queueStatusKind(), this.statusDetail());
+			return true;
 		} catch (err) {
 			this.handleStartupError(err);
+			return false;
 		}
 	}
 
@@ -238,7 +241,8 @@ export class SyncEngine {
 		if (this.deps.queue.size === 0) return;
 		// Shared gate for every flush trigger so the first /sync can't race /connect.
 		if (!this.deps.getSettings().connectorId) {
-			await this.ensureConnected();
+			const connected = await this.ensureConnected();
+			if (!connected) return;
 			if (!this.deps.getSettings().connectorId) return;
 		}
 		this.setStatus("syncing", `Syncing ${this.deps.queue.size} item(s)…`);
@@ -393,7 +397,7 @@ export class SyncEngine {
 			ctime: file.stat.ctime,
 			is_binary: true,
 			binary_base64: binaryBase64,
-			mime_type: mimeTypeFromExtension(file.extension),
+			mime_type: mimeTypeFor(file.extension),
 		};
 	}
 
@@ -409,7 +413,8 @@ export class SyncEngine {
 		// Re-handshake first: if the vault grew enough to match another
 		// device's fingerprint, the server merges and routes us to the
 		// survivor row, which the /manifest call below then uses.
-		await this.ensureConnected();
+		const connected = await this.ensureConnected();
+		if (!connected) return;
 		const refreshed = this.deps.getSettings();
 		if (!refreshed.connectorId) return;
 
@@ -496,8 +501,32 @@ export class SyncEngine {
 
 	// ---- status helpers ---------------------------------------------------
 
+	/**
+	 * Recomputes status from settings + queue depth. Call from main.ts after
+	 * settings change so the indicator reacts to token paste / search-space
+	 * pick without waiting for the next sync trigger.
+	 */
+	refreshStatus(): void {
+		this.setStatus(this.queueStatusKind(), this.statusDetail());
+	}
+
 	private setStatus(kind: StatusKind, detail?: string): void {
+		// Errors carry meaningful signal; only "happy" kinds get downgraded
+		// to needs-setup when prerequisites are missing.
+		if (kind !== "auth-error" && kind !== "offline" && kind !== "error") {
+			const s = this.deps.getSettings();
+			if (!s.apiToken || !s.searchSpaceId || !s.connectorId) {
+				kind = "needs-setup";
+				detail = this.setupHint(s);
+			}
+		}
 		this.deps.setStatus({ kind, detail, queueDepth: this.deps.queue.size });
+	}
+
+	private setupHint(s: SyncEngineSettings): string {
+		if (!s.apiToken) return "Paste your API token in settings.";
+		if (!s.searchSpaceId) return "Pick a search space in settings.";
+		return "Connecting…";
 	}
 
 	private queueStatusKind(): StatusKind {
@@ -552,7 +581,8 @@ export class SyncEngine {
 	}
 
 	private classifyAndStatus(err: unknown, prefix: string): void {
-		this.classify(err);
+		const verdict = this.classify(err);
+		if (verdict === "stop") return;
 		this.setStatus(this.queueStatusKind(), `${prefix}: ${(err as Error).message}`);
 	}
 
@@ -560,9 +590,10 @@ export class SyncEngine {
 
 	private shouldTrack(file: TAbstractFile): boolean {
 		if (!isTFile(file)) return false;
+		if (this.isMarkdown(file)) return true;
 		const settings = this.deps.getSettings();
-		if (!settings.includeAttachments && !this.isMarkdown(file)) return false;
-		return true;
+		if (!settings.includeAttachments) return false;
+		return ALLOWED_ATTACHMENT_EXTENSIONS.has(file.extension.toLowerCase());
 	}
 
 	private isExcluded(path: string, settings: SyncEngineSettings): boolean {
@@ -599,23 +630,29 @@ function arrayBufferToBase64(buf: ArrayBuffer): string {
 	return btoa(binary);
 }
 
-function mimeTypeFromExtension(extension: string): string | undefined {
-	const ext = extension.toLowerCase();
-	const mimeByExt: Record<string, string> = {
-		pdf: "application/pdf",
-		png: "image/png",
-		jpg: "image/jpeg",
-		jpeg: "image/jpeg",
-		gif: "image/gif",
-		webp: "image/webp",
-		svg: "image/svg+xml",
-		txt: "text/plain",
-		csv: "text/csv",
-		docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-		pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-		xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-	};
-	return mimeByExt[ext];
+/** Source of truth for the attachment whitelist. Mirrors ATTACHMENT_MIME_TYPES on the backend. */
+export const MIME_BY_EXTENSION = {
+	pdf: "application/pdf",
+	png: "image/png",
+	jpg: "image/jpeg",
+	jpeg: "image/jpeg",
+	gif: "image/gif",
+	webp: "image/webp",
+	svg: "image/svg+xml",
+	txt: "text/plain",
+} as const satisfies Record<string, string>;
+
+export const ALLOWED_ATTACHMENT_EXTENSIONS: ReadonlySet<string> = new Set(
+	Object.keys(MIME_BY_EXTENSION),
+);
+
+function mimeTypeFor(extension: string): string {
+	const ext = extension.toLowerCase() as keyof typeof MIME_BY_EXTENSION;
+	const mime = MIME_BY_EXTENSION[ext];
+	if (!mime) {
+		throw new Error(`Unsupported attachment extension: .${extension}`);
+	}
+	return mime;
 }
 
 function formatRelative(ts: number): string {
