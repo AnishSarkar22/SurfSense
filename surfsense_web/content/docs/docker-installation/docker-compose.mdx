@@ -90,6 +90,12 @@ Defaults work out of the box. Change for security in production.
 | `DB_SSLMODE` | SSL mode: `disable`, `require`, `verify-ca`, `verify-full` | `disable` |
 | `DATABASE_URL` | Full connection URL override. Use for managed databases (RDS, Supabase, etc.) | *(built from above)* |
 
+### Redis
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `REDIS_URL` | Full Redis URL override for broker/result/cache (use for managed Redis) | `redis://redis:6379/0` |
+
 ### Authentication
 
 | Variable | Description |
@@ -188,6 +194,8 @@ docker compose down -v
 
 - **Ports already in use**: Change the relevant `*_PORT` variable in `.env` and restart.
 - **Permission errors on Linux**: You may need to prefix `docker` commands with `sudo`.
+- **Redis exits with `ARM64-COW-BUG`**: Some older ARM64 kernels trigger Redis safety shutdown. Edit the Redis service image in `docker/docker-compose.yml` (and `docker/docker-compose.dev.yml` if using dev) from `redis:8-alpine` to `redis:7.4-alpine`, then run `docker compose down && docker compose up -d`. This is the primary workaround if this is the only startup issue you see.
+- **Redis warns `Memory overcommit must be enabled`**: This is separate from `ARM64-COW-BUG`. SurfSense can still run, but for better Redis reliability on Linux you can run `sudo sysctl -w vm.overcommit_memory=1` and persist it with `echo "vm.overcommit_memory=1" | sudo tee /etc/sysctl.d/99-surfsense-redis.conf && sudo sysctl --system`.
 - **Zero-cache not starting**: Check `docker compose logs zero-cache`. Ensure PostgreSQL has `wal_level=logical` (configured automatically by the bundled `postgresql.conf`).
 - **Real-time updates not working**: Open DevTools → Console and check for WebSocket errors. Verify `NEXT_PUBLIC_ZERO_CACHE_URL` matches the running zero-cache address.
 - **Line ending issues on Windows**: Run `git config --global core.autocrlf true` before cloning.
