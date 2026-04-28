@@ -266,7 +266,7 @@ export function AllPrivateChatsSidebarContent({
 						</Button>
 					)}
 					<User className="h-4 w-4 text-primary" />
-					<h2 className="text-md font-semibold">{t("chats") || "Private Chats"}</h2>
+					<h2 className="text-lg font-semibold">{t("chats") || "Private Chats"}</h2>
 				</div>
 
 				<div className="relative">
@@ -363,7 +363,7 @@ export function AllPrivateChatsSidebarContent({
 											onTouchMove={longPressHandlers.onTouchMove}
 											disabled={isBusy}
 											className={cn(
-												"flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 text-xs text-left",
+												"flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 text-sm text-left",
 												"group-hover/item:bg-accent group-hover/item:text-accent-foreground",
 												"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 												isActive && "bg-accent text-accent-foreground",
@@ -380,7 +380,7 @@ export function AllPrivateChatsSidebarContent({
 													onClick={() => handleThreadClick(thread.id)}
 													disabled={isBusy}
 													className={cn(
-														"flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 text-xs text-left",
+														"flex w-full items-center gap-2 overflow-hidden rounded-md px-2 py-1.5 text-sm text-left",
 														"group-hover/item:bg-accent group-hover/item:text-accent-foreground",
 														"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
 														isActive && "bg-accent text-accent-foreground",

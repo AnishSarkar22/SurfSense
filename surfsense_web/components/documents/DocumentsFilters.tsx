@@ -84,13 +84,13 @@ export function DocumentsFilters({
 							<TooltipTrigger asChild>
 								<ToggleGroupItem
 									value="folder"
-									className="h-9 w-9 shrink-0 border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+									className="h-8 w-8 shrink-0 border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
 									onClick={(e) => {
 										e.preventDefault();
 										onCreateFolder();
 									}}
 								>
-									<FolderPlus size={14} />
+									<FolderPlus size={13} />
 								</ToggleGroupItem>
 							</TooltipTrigger>
 							<TooltipContent>New folder</TooltipContent>
@@ -104,7 +104,7 @@ export function DocumentsFilters({
 									value="ai-sort"
 									disabled={aiSortBusy}
 									className={cn(
-										"h-9 w-9 shrink-0 border bg-muted/50 transition-colors",
+										"h-8 w-8 shrink-0 border bg-muted/50 transition-colors",
 										"disabled:pointer-events-none disabled:opacity-50",
 										aiSortEnabled
 											? "bg-accent text-accent-foreground hover:bg-accent"
@@ -120,9 +120,9 @@ export function DocumentsFilters({
 									{aiSortBusy ? (
 										<Spinner size="xs" />
 									) : aiSortEnabled ? (
-										<IconBinaryTreeFilled size={16} />
+										<IconBinaryTreeFilled size={14} />
 									) : (
-										<IconBinaryTree size={16} />
+										<IconBinaryTree size={14} />
 									)}
 								</ToggleGroupItem>
 							</TooltipTrigger>
@@ -142,9 +142,9 @@ export function DocumentsFilters({
 								<PopoverTrigger asChild>
 									<ToggleGroupItem
 										value="filter"
-										className="relative h-9 w-9 shrink-0 border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground overflow-visible"
+										className="relative h-8 w-8 shrink-0 overflow-visible border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
 									>
-										<ListFilter size={14} />
+										<ListFilter size={13} />
 										{activeTypes.length > 0 && (
 											<span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-neutral-300 text-[9px] font-medium text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200">
 												{activeTypes.length}
@@ -227,12 +227,12 @@ export function DocumentsFilters({
 				{/* Search Input */}
 				<div className="relative flex-1 min-w-0">
 					<div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-						<Search size={14} aria-hidden="true" />
+						<Search size={13} aria-hidden="true" />
 					</div>
 					<Input
 						id={`${id}-input`}
 						ref={inputRef}
-						className="h-9 w-full pl-9 pr-8 text-sm select-none focus:select-text"
+						className="h-8 w-full select-none pl-8 pr-7 text-sm focus:select-text"
 						value={searchValue}
 						onChange={(e) => onSearch(e.target.value)}
 						placeholder="Search docs"
@@ -242,7 +242,7 @@ export function DocumentsFilters({
 					{Boolean(searchValue) && (
 						<button
 							type="button"
-							className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+							className="absolute right-1 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
 							aria-label="Clear filter"
 							onClick={() => {
 								onSearch("");
@@ -260,9 +260,9 @@ export function DocumentsFilters({
 					onClick={handleUpload}
 					variant="outline"
 					size="sm"
-					className="h-9 shrink-0 gap-1.5 border-0 shadow-none bg-white text-gray-700 hover:bg-gray-50 dark:bg-white dark:text-gray-800 dark:hover:bg-gray-100"
+					className="h-8 shrink-0 gap-1.5 border-0 bg-white text-gray-700 shadow-none hover:bg-gray-50 dark:bg-white dark:text-gray-800 dark:hover:bg-gray-100"
 				>
-					<Upload size={14} />
+					<Upload size={13} />
 					<span>Upload</span>
 				</Button>
 			</div>

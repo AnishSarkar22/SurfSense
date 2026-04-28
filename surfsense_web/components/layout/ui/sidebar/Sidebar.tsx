@@ -206,7 +206,7 @@ export function Sidebar({
 								)}
 							</div>
 						) : (
-							<p className="px-2 py-1 text-xs text-muted-foreground">{t("no_shared_chats")}</p>
+							<p className="px-2 py-1 text-sm text-muted-foreground">{t("no_shared_chats")}</p>
 						)}
 					</SidebarSection>
 
@@ -262,7 +262,7 @@ export function Sidebar({
 								)}
 							</div>
 						) : (
-							<p className="px-2 py-1 text-xs text-muted-foreground">{t("no_chats")}</p>
+							<p className="px-2 py-1 text-sm text-muted-foreground">{t("no_chats")}</p>
 						)}
 					</SidebarSection>
 				</div>

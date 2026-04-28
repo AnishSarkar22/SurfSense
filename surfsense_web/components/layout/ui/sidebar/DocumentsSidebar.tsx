@@ -1028,11 +1028,11 @@ function AuthenticatedDocumentsSidebarBase({
 	const cloudContent = (
 		<>
 			{/* Connected tools strip */}
-			<div className="shrink-0 mx-4 mt-4 mb-4 flex select-none items-center gap-2 rounded-lg border bg-muted/50 transition-colors hover:bg-muted/80">
+			<div className="shrink-0 mx-4 mt-6 mb-2.5 flex select-none items-center gap-2 rounded-lg border bg-muted/50 transition-colors hover:bg-muted/80">
 				<button
 					type="button"
 					onClick={() => setConnectorDialogOpen(true)}
-					className="flex items-center gap-2 min-w-0 flex-1 text-left px-3 py-2"
+					className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left"
 				>
 					<Unplug className="size-4 shrink-0 text-muted-foreground" />
 					<span className="truncate text-xs text-muted-foreground">
@@ -1099,7 +1099,7 @@ function AuthenticatedDocumentsSidebarBase({
 				<button
 					type="button"
 					onClick={handleWatchLocalFolder}
-					className="shrink-0 mx-4 mb-4 flex select-none items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 transition-colors hover:bg-muted/80"
+					className="shrink-0 mx-4 mb-2.5 flex select-none items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5 transition-colors hover:bg-muted/80"
 				>
 					<FolderClock className="size-4 shrink-0 text-muted-foreground" />
 					<span className="truncate text-xs text-muted-foreground">Watch local folder</span>
@@ -1107,7 +1107,7 @@ function AuthenticatedDocumentsSidebarBase({
 			)}
 
 			<div className="flex-1 min-h-0 pt-0 flex flex-col">
-				<div className="px-4 pb-2">
+				<div className="px-4 pb-1.5">
 					<DocumentsFilters
 						typeCounts={typeCounts}
 						onSearch={setSearch}
@@ -1207,7 +1207,7 @@ function AuthenticatedDocumentsSidebarBase({
 
 	const documentsContent = (
 		<>
-			<div className="shrink-0 flex h-14 items-center px-4">
+			<div className="shrink-0 flex h-12 items-center px-4">
 				<div className="flex w-full items-center justify-between">
 					<div className="flex items-center gap-3">
 						{isMobile && (
@@ -1692,10 +1692,10 @@ function AnonymousDocumentsSidebar({
 			/>
 
 			{/* Header */}
-			<div className="shrink-0 flex h-14 items-center px-4">
+			<div className="shrink-0 flex h-12 items-center px-4">
 				<div className="flex w-full items-center justify-between">
 					<div className="flex items-center gap-2">
-						<h2 className="select-none text-lg font-semibold">{t("title") || "Documents"}</h2>
+						<h2 className="select-none text-base font-semibold">{t("title") || "Documents"}</h2>
 					</div>
 					<div className="flex items-center gap-1">
 						{isMobile && (
@@ -1744,11 +1744,11 @@ function AnonymousDocumentsSidebar({
 			</div>
 
 			{/* Connectors strip (gated) */}
-			<div className="shrink-0 mx-4 mt-4 mb-4 flex select-none items-center gap-2 rounded-lg border bg-muted/50 transition-colors hover:bg-muted/80">
+			<div className="shrink-0 mx-4 mt-6 mb-2.5 flex select-none items-center gap-2 rounded-lg border bg-muted/50 transition-colors hover:bg-muted/80">
 				<button
 					type="button"
 					onClick={() => gate("connect your data sources")}
-					className="flex items-center gap-2 min-w-0 flex-1 text-left px-3 py-2"
+					className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left"
 				>
 					<Unplug className="size-4 shrink-0 text-muted-foreground" />
 					<span className="truncate text-xs text-muted-foreground">Connect your connectors</span>
@@ -1783,7 +1783,7 @@ function AnonymousDocumentsSidebar({
 
 			{/* Filters & upload */}
 			<div className="flex-1 min-h-0 pt-0 flex flex-col">
-				<div className="px-4 pb-2">
+				<div className="px-4 pb-1.5">
 					<DocumentsFilters
 						typeCounts={hasDoc ? { FILE: 1 } : {}}
 						onSearch={setSearch}
