@@ -178,7 +178,7 @@ export function InboxSidebarContent({
 	const [mounted, setMounted] = useState(false);
 	const [openDropdown, setOpenDropdown] = useState<"filter" | null>(null);
 	const [connectorScrollPos, setConnectorScrollPos] = useState<"top" | "middle" | "bottom">("top");
-	const connectorRafRef = useRef<number>();
+	const connectorRafRef = useRef<number | null>(null);
 	const handleConnectorScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
 		const el = e.currentTarget;
 		if (connectorRafRef.current) return;
@@ -186,7 +186,7 @@ export function InboxSidebarContent({
 			const atTop = el.scrollTop <= 2;
 			const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 2;
 			setConnectorScrollPos(atTop ? "top" : atBottom ? "bottom" : "middle");
-			connectorRafRef.current = undefined;
+			connectorRafRef.current = null;
 		});
 	}, []);
 	useEffect(
@@ -528,7 +528,7 @@ export function InboxSidebarContent({
 
 	return (
 		<>
-			<div className="shrink-0 p-4 pb-2 space-y-3">
+			<div className="shrink-0 p-3 pb-1.5 space-y-2">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
 						{isMobile && (
@@ -542,7 +542,7 @@ export function InboxSidebarContent({
 								<span className="sr-only">{t("close") || "Close"}</span>
 							</Button>
 						)}
-						<h2 className="text-lg font-semibold">{t("inbox") || "Inbox"}</h2>
+						<h2 className="text-md font-semibold">{t("inbox") || "Inbox"}</h2>
 					</div>
 					<div className="flex items-center gap-1">
 						{isMobile ? (
@@ -811,19 +811,19 @@ export function InboxSidebarContent({
 				</div>
 
 				<div className="relative">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+					<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
 					<Input
 						type="text"
 						placeholder={t("search_inbox") || "Search inbox"}
 						value={searchQuery}
 						onChange={(e) => setSearchQuery(e.target.value)}
-						className="pl-9 pr-8 h-9"
+						className="h-8 pl-8 pr-7 text-sm"
 					/>
 					{searchQuery && (
 						<Button
 							variant="ghost"
 							size="icon"
-							className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6"
+							className="absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2"
 							onClick={handleClearSearch}
 						>
 							<X className="h-3.5 w-3.5" />
@@ -842,23 +842,23 @@ export function InboxSidebarContent({
 						setActiveFilter("all");
 					}
 				}}
-				className="shrink-0 mx-4 mt-2"
+				className="shrink-0 mx-3 mt-1.5"
 			>
 				<TabsList stretch showBottomBorder size="sm">
 					<TabsTrigger value="comments">
 						<span className="inline-flex items-center gap-1.5">
-							<MessageCircleReply className="h-4 w-4" />
+							<MessageCircleReply className="h-3.5 w-3.5" />
 							<span>{t("comments") || "Comments"}</span>
-							<span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary/20 text-muted-foreground text-xs font-medium">
+							<span className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary/20 px-1 text-[10px] font-medium text-muted-foreground">
 								{formatInboxCount(comments.unreadCount)}
 							</span>
 						</span>
 					</TabsTrigger>
 					<TabsTrigger value="status">
 						<span className="inline-flex items-center gap-1.5">
-							<History className="h-4 w-4" />
+							<History className="h-3.5 w-3.5" />
 							<span>{t("status") || "Status"}</span>
-							<span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-primary/20 text-muted-foreground text-xs font-medium">
+							<span className="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary/20 px-1 text-[10px] font-medium text-muted-foreground">
 								{formatInboxCount(status.unreadCount)}
 							</span>
 						</span>
@@ -1021,23 +1021,23 @@ export function InboxSidebarContent({
 					</div>
 				) : isSearchMode ? (
 					<div className="text-center py-8">
-						<Search className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-						<p className="text-sm text-muted-foreground">
+						<Search className="mx-auto mb-2.5 h-10 w-10 text-muted-foreground" />
+						<p className="text-xs text-muted-foreground">
 							{t("no_results_found") || "No results found"}
 						</p>
-						<p className="text-xs text-muted-foreground/70 mt-1">
+						<p className="mt-1 text-[11px] text-muted-foreground/70">
 							{t("try_different_search") || "Try a different search term"}
 						</p>
 					</div>
 				) : (
 					<div className="text-center py-8">
 						{activeTab === "comments" ? (
-							<MessageCircleReply className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+							<MessageCircleReply className="mx-auto mb-2.5 h-10 w-10 text-muted-foreground" />
 						) : (
-							<History className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+							<History className="mx-auto mb-2.5 h-10 w-10 text-muted-foreground" />
 						)}
-						<p className="text-sm text-muted-foreground">{getEmptyStateMessage().title}</p>
-						<p className="text-xs text-muted-foreground/70 mt-1">{getEmptyStateMessage().hint}</p>
+						<p className="text-xs text-muted-foreground">{getEmptyStateMessage().title}</p>
+						<p className="mt-1 text-[11px] text-muted-foreground/70">{getEmptyStateMessage().hint}</p>
 					</div>
 				)}
 			</div>

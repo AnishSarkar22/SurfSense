@@ -159,7 +159,7 @@ export function NavSection({ items, onItemClick, isCollapsed = false }: NavSecti
 							<StatusIcon
 								status={item.statusIndicator}
 								FallbackIcon={item.icon}
-								className="h-4 w-4"
+							className="h-3.5 w-3.5"
 							/>
 						}
 						trailingContent={<StatusPill status={item.statusIndicator} />}

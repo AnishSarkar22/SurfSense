@@ -26,7 +26,7 @@ interface SidebarButtonProps {
 }
 
 const expandedClassName = cn(
-	"flex items-center gap-2 rounded-md mx-2 px-2 py-1.5 text-sm transition-colors text-left",
+	"flex items-center gap-1.5 rounded-md mx-2 px-2 py-1 text-sm transition-colors text-left",
 	"hover:bg-accent hover:text-accent-foreground",
 	"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 );
@@ -63,7 +63,7 @@ export function SidebarButton({
 						className={cn(collapsedClassName, isActive && activeClassName, className)}
 						{...buttonProps}
 					>
-						<Icon className="h-4 w-4" />
+			<Icon className="h-3.5 w-3.5" />
 						{collapsedOverlay}
 						<span className="sr-only">{label}</span>
 					</button>
@@ -87,7 +87,7 @@ export function SidebarButton({
 			className={cn(expandedClassName, isActive && activeClassName, className)}
 			{...buttonProps}
 		>
-			{expandedIconNode ?? <Icon className="h-4 w-4 shrink-0" />}
+			{expandedIconNode ?? <Icon className="h-3.5 w-3.5 shrink-0" />}
 			<span className="flex-1 truncate">{label}</span>
 			{trailingContent}
 			{badge && typeof badge !== "string" ? badge : null}

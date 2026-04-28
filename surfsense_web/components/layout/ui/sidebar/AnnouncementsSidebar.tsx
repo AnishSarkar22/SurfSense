@@ -31,7 +31,7 @@ export function AnnouncementsSidebarContent({
 
 	return (
 		<div className="h-full flex flex-col">
-			<div className="shrink-0 p-4 pb-2 space-y-3">
+			<div className="shrink-0 p-3 pb-1.5 space-y-2">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
 						{isMobile && (
@@ -48,12 +48,12 @@ export function AnnouncementsSidebarContent({
 								<span className="sr-only">Close</span>
 							</Button>
 						)}
-						<h2 className="text-lg font-semibold">Announcements</h2>
+						<h2 className="text-md font-semibold">Announcements</h2>
 					</div>
 				</div>
 			</div>
 
-			<div className="flex-1 overflow-y-auto p-4">
+			<div className="flex-1 overflow-y-auto p-3">
 				{announcements.length === 0 ? (
 					<AnnouncementsEmptyState />
 				) : (
