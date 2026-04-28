@@ -387,6 +387,11 @@ export function LayoutShell({
 							onSearchSpaceDelete={onSearchSpaceDelete}
 							onSearchSpaceSettings={onSearchSpaceSettings}
 							onAddSearchSpace={onAddSearchSpace}
+							user={user}
+							onUserSettings={onUserSettings}
+							onLogout={onLogout}
+							theme={theme}
+							setTheme={setTheme}
 						/>
 					</div>
 
@@ -423,6 +428,7 @@ export function LayoutShell({
 							pageUsage={pageUsage}
 							theme={theme}
 							setTheme={setTheme}
+							renderUserProfile={false}
 							className={cn(
 								"flex shrink-0 transition-[border-radius] duration-200",
 								anySlideOutOpen ? "rounded-l-xl delay-0" : "rounded-xl delay-150"

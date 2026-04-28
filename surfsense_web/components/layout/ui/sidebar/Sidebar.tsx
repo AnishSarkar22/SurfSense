@@ -62,6 +62,7 @@ interface SidebarProps {
 	disableTooltips?: boolean;
 	sidebarWidth?: number;
 	isResizing?: boolean;
+	renderUserProfile?: boolean;
 }
 
 export function Sidebar({
@@ -95,6 +96,7 @@ export function Sidebar({
 	disableTooltips = false,
 	sidebarWidth = SIDEBAR_MIN_WIDTH,
 	isResizing = false,
+	renderUserProfile = true,
 }: SidebarProps) {
 	const t = useTranslations("sidebar");
 	const [openDropdownChatId, setOpenDropdownChatId] = useState<number | null>(null);
@@ -275,14 +277,16 @@ export function Sidebar({
 
 				<SidebarUsageFooter pageUsage={pageUsage} isCollapsed={isCollapsed} />
 
-				<SidebarUserProfile
-					user={user}
-					onUserSettings={onUserSettings}
-					onLogout={onLogout}
-					isCollapsed={isCollapsed}
-					theme={theme}
-					setTheme={setTheme}
-				/>
+				{renderUserProfile && (
+					<SidebarUserProfile
+						user={user}
+						onUserSettings={onUserSettings}
+						onLogout={onLogout}
+						isCollapsed={isCollapsed}
+						theme={theme}
+						setTheme={setTheme}
+					/>
+				)}
 			</div>
 		</div>
 	);

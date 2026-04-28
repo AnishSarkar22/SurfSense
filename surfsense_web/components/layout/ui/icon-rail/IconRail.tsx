@@ -6,6 +6,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { SearchSpace } from "../../types/layout.types";
+import type { User } from "../../types/layout.types";
+import { SidebarUserProfile } from "../sidebar/SidebarUserProfile";
 import { SearchSpaceAvatar } from "./SearchSpaceAvatar";
 
 interface IconRailProps {
@@ -15,6 +17,11 @@ interface IconRailProps {
 	onSearchSpaceDelete?: (searchSpace: SearchSpace) => void;
 	onSearchSpaceSettings?: (searchSpace: SearchSpace) => void;
 	onAddSearchSpace: () => void;
+	user: User;
+	onUserSettings?: () => void;
+	onLogout?: () => void;
+	theme?: string;
+	setTheme?: (theme: "light" | "dark" | "system") => void;
 	className?: string;
 }
 
@@ -25,11 +32,16 @@ export function IconRail({
 	onSearchSpaceDelete,
 	onSearchSpaceSettings,
 	onAddSearchSpace,
+	user,
+	onUserSettings,
+	onLogout,
+	theme,
+	setTheme,
 	className,
 }: IconRailProps) {
 	return (
-		<div className={cn("flex h-full w-14 flex-col items-center", className)}>
-			<ScrollArea className="w-full">
+		<div className={cn("flex h-full w-14 min-h-0 flex-col items-center", className)}>
+			<ScrollArea className="w-full min-h-0 flex-1">
 				<div className="flex flex-col items-center gap-2 px-1.5 py-3">
 					{searchSpaces.map((searchSpace) => (
 						<SearchSpaceAvatar
@@ -65,6 +77,14 @@ export function IconRail({
 					</Tooltip>
 				</div>
 			</ScrollArea>
+			<SidebarUserProfile
+				user={user}
+				onUserSettings={onUserSettings}
+				onLogout={onLogout}
+				isCollapsed
+				theme={theme}
+				setTheme={setTheme}
+			/>
 		</div>
 	);
 }

@@ -113,19 +113,23 @@ function UserAvatar({
 	avatarUrl,
 	initials,
 	bgColor,
+	size = "sm",
 }: {
 	avatarUrl?: string;
 	initials: string;
 	bgColor: string;
+	size?: "sm" | "md";
 }) {
+	const sizeClass = size === "md" ? "h-9 w-9" : "h-8 w-8";
+
 	if (avatarUrl) {
 		return (
 			<Image
 				src={avatarUrl}
 				alt="User avatar"
-				width={32}
-				height={32}
-				className="h-8 w-8 shrink-0 rounded-lg object-cover select-none"
+				width={size === "md" ? 36 : 32}
+				height={size === "md" ? 36 : 32}
+				className={cn(sizeClass, "shrink-0 rounded-full object-cover select-none")}
 				referrerPolicy="no-referrer"
 				unoptimized
 			/>
@@ -134,7 +138,10 @@ function UserAvatar({
 
 	return (
 		<div
-			className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-semibold text-white select-none"
+			className={cn(
+				sizeClass,
+				"flex shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white select-none"
+			)}
 			style={{ backgroundColor: bgColor }}
 		>
 			{initials}
@@ -181,24 +188,29 @@ export function SidebarUserProfile({
 	// Collapsed view - just show avatar with dropdown
 	if (isCollapsed) {
 		return (
-			<div className="border-t p-2">
+			<div className="border-t px-1.5 py-2">
 				<DropdownMenu>
 					<DropdownMenuTrigger asChild>
 						<button
 							type="button"
 							className={cn(
-								"flex h-10 w-full items-center justify-center rounded-md",
-								"hover:bg-accent transition-colors",
+								"mx-auto flex h-9 w-9 items-center justify-center rounded-full",
+								"transition-opacity hover:opacity-90",
 								"focus:outline-none focus-visible:outline-none",
-								"data-[state=open]:bg-transparent"
+								"data-[state=open]:opacity-90"
 							)}
 						>
-							<UserAvatar avatarUrl={user.avatarUrl} initials={initials} bgColor={bgColor} />
+							<UserAvatar
+								avatarUrl={user.avatarUrl}
+								initials={initials}
+								bgColor={bgColor}
+								size="md"
+							/>
 							<span className="sr-only">{displayName}</span>
 						</button>
 					</DropdownMenuTrigger>
 
-					<DropdownMenuContent className="w-48" side="right" align="center" sideOffset={8}>
+					<DropdownMenuContent className="w-48" side="right" align="end" sideOffset={8}>
 						<DropdownMenuLabel className="font-normal">
 							<div className="flex items-center gap-2">
 								<UserAvatar avatarUrl={user.avatarUrl} initials={initials} bgColor={bgColor} />
