@@ -89,7 +89,7 @@ export function TabBar({
 			{leftActions ? <div className="flex items-center gap-0.5 shrink-0">{leftActions}</div> : null}
 			<div
 				ref={scrollRef}
-				className="flex h-8 items-center flex-1 gap-3 overflow-x-auto overflow-y-hidden scrollbar-hide [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0"
+				className="flex h-8 items-center flex-1 gap-3 pl-2 overflow-x-auto overflow-y-hidden scrollbar-hide [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0"
 			>
 				{tabs.map((tab) => {
 					const isActive = tab.id === activeTabId;
