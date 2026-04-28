@@ -1207,7 +1207,7 @@ function AuthenticatedDocumentsSidebarBase({
 
 	const documentsContent = (
 		<>
-			<div className="shrink-0 flex h-12 items-center px-4">
+			<div className="shrink-0 flex h-12 items-center px-3 border-b">
 				<div className="flex w-full items-center justify-between">
 					<div className="flex items-center gap-3">
 						{isMobile && (
@@ -1692,7 +1692,7 @@ function AnonymousDocumentsSidebar({
 			/>
 
 			{/* Header */}
-			<div className="shrink-0 flex h-12 items-center px-4">
+			<div className="shrink-0 flex h-12 items-center px-3 border-b">
 				<div className="flex w-full items-center justify-between">
 					<div className="flex items-center gap-2">
 						<h2 className="select-none text-base font-semibold">{t("title") || "Documents"}</h2>

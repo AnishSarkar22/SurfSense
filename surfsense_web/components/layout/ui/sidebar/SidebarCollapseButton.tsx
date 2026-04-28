@@ -22,7 +22,12 @@ export function SidebarCollapseButton({
 	const { shortcutKeys } = usePlatformShortcut();
 
 	const button = (
-		<Button variant="ghost" size="icon" onClick={onToggle} className="h-8 w-8 shrink-0">
+		<Button
+			variant="ghost"
+			size="icon"
+			onClick={onToggle}
+			className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+		>
 			<PanelLeft className="h-4 w-4" />
 			<span className="sr-only">{isCollapsed ? t("expand_sidebar") : t("collapse_sidebar")}</span>
 		</Button>

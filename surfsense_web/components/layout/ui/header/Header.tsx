@@ -4,12 +4,10 @@ import { useAtomValue } from "jotai";
 import { usePathname } from "next/navigation";
 import { currentThreadAtom } from "@/atoms/chat/current-thread.atom";
 import { activeSearchSpaceIdAtom } from "@/atoms/search-spaces/search-space-query.atoms";
-import { activeTabAtom, tabsAtom } from "@/atoms/tabs/tabs.atom";
+import { activeTabAtom } from "@/atoms/tabs/tabs.atom";
 import { ChatHeader } from "@/components/new-chat/chat-header";
 import { ChatShareButton } from "@/components/new-chat/chat-share-button";
-import { useIsMobile } from "@/hooks/use-mobile";
 import type { ChatVisibility, ThreadRecord } from "@/lib/chat/thread-persistence";
-import { RightPanelExpandButton } from "../right-panel/RightPanel";
 
 interface HeaderProps {
 	mobileMenuTrigger?: React.ReactNode;
@@ -18,14 +16,11 @@ interface HeaderProps {
 export function Header({ mobileMenuTrigger }: HeaderProps) {
 	const pathname = usePathname();
 	const searchSpaceId = useAtomValue(activeSearchSpaceIdAtom);
-	const isMobile = useIsMobile();
 	const activeTab = useAtomValue(activeTabAtom);
-	const tabs = useAtomValue(tabsAtom);
 
 	const isFreePage = pathname?.startsWith("/free") ?? false;
 	const isChatPage = pathname?.includes("/new-chat") ?? false;
 	const isDocumentTab = activeTab?.type === "document";
-	const hasTabBar = tabs.length > 1;
 
 	const currentThreadState = useAtomValue(currentThreadAtom);
 
@@ -72,7 +67,6 @@ export function Header({ mobileMenuTrigger }: HeaderProps) {
 				{hasThread && (
 					<ChatShareButton thread={threadForButton} onVisibilityChange={handleVisibilityChange} />
 				)}
-				{!isMobile && !hasTabBar && <RightPanelExpandButton />}
 			</div>
 		</header>
 	);

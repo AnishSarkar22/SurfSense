@@ -77,21 +77,19 @@ export function TabBar({
 
 	// Keep action slots visible even with one/no tabs
 	const hasAuxActions = !!leftActions || !!rightActions || !!onNewChat;
-	const hasMultipleChats = tabs.length > 1;
 	if (tabs.length <= 1 && !hasAuxActions) return null;
 
 	return (
 		<div
 			className={cn(
-				"mb-2 flex h-9 items-center shrink-0 px-1 gap-0.5 select-none",
-				hasMultipleChats && "mt-1",
+				"mb-0 flex h-12 items-center shrink-0 px-1 gap-0.5 select-none border-b border-border/60",
 				className
 			)}
 		>
 			{leftActions ? <div className="flex items-center gap-0.5 shrink-0">{leftActions}</div> : null}
 			<div
 				ref={scrollRef}
-				className="flex h-full items-center flex-1 gap-0.5 overflow-x-auto overflow-y-hidden scrollbar-hide [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1"
+				className="flex h-8 items-center flex-1 gap-3 overflow-x-auto overflow-y-hidden scrollbar-hide [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0"
 			>
 				{tabs.map((tab) => {
 					const isActive = tab.id === activeTabId;
@@ -103,7 +101,7 @@ export function TabBar({
 							data-tab-id={tab.id}
 							onClick={() => handleTabClick(tab)}
 							className={cn(
-								"group relative flex h-full w-[150px] items-center px-3 min-h-0 overflow-hidden text-[13px] font-medium rounded-lg transition-all duration-150 shrink-0",
+								"group relative flex h-full w-[150px] items-center px-3 min-h-0 overflow-hidden text-[13px] font-medium rounded-md transition-all duration-150 shrink-0",
 								isActive
 									? "bg-muted/60 text-foreground"
 									: "bg-transparent text-muted-foreground hover:bg-muted/30 hover:text-foreground"
@@ -136,15 +134,15 @@ export function TabBar({
 					);
 				})}
 			</div>
-			<div className="flex items-center gap-0.5 shrink-0">
+			<div className="flex items-center gap-0.5 shrink-0 pr-2">
 				{onNewChat && (
 					<button
 						type="button"
 						onClick={onNewChat}
-						className="flex h-6 w-6 items-center justify-center shrink-0 rounded-md text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-muted/40"
+						className="flex h-8 w-8 items-center justify-center shrink-0 rounded-md text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-muted/40"
 						title="New Chat"
 					>
-						<Plus className="size-3.5" />
+						<Plus className="size-4" />
 					</button>
 				)}
 				{rightActions}
