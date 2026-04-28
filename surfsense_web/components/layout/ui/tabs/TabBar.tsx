@@ -15,11 +15,18 @@ import { cn } from "@/lib/utils";
 interface TabBarProps {
 	onTabSwitch?: (tab: Tab) => void;
 	onNewChat?: () => void;
+	leftActions?: React.ReactNode;
 	rightActions?: React.ReactNode;
 	className?: string;
 }
 
-export function TabBar({ onTabSwitch, onNewChat, rightActions, className }: TabBarProps) {
+export function TabBar({
+	onTabSwitch,
+	onNewChat,
+	leftActions,
+	rightActions,
+	className,
+}: TabBarProps) {
 	const tabs = useAtomValue(tabsAtom);
 	const activeTabId = useAtomValue(activeTabIdAtom);
 	const switchTab = useSetAtom(switchTabAtom);
@@ -68,11 +75,20 @@ export function TabBar({ onTabSwitch, onNewChat, rightActions, className }: TabB
 		}
 	}, [activeTabId]);
 
-	// Only show tab bar when there's more than one tab
-	if (tabs.length <= 1) return null;
+	// Keep action slots visible even with one/no tabs
+	const hasAuxActions = !!leftActions || !!rightActions || !!onNewChat;
+	const hasMultipleChats = tabs.length > 1;
+	if (tabs.length <= 1 && !hasAuxActions) return null;
 
 	return (
-		<div className={cn("mb-2 flex h-9 items-center shrink-0 px-1 gap-0.5 select-none", className)}>
+		<div
+			className={cn(
+				"mb-2 flex h-9 items-center shrink-0 px-1 gap-0.5 select-none",
+				hasMultipleChats && "mt-1",
+				className
+			)}
+		>
+			{leftActions ? <div className="flex items-center gap-0.5 shrink-0">{leftActions}</div> : null}
 			<div
 				ref={scrollRef}
 				className="flex h-full items-center flex-1 gap-0.5 overflow-x-auto overflow-y-hidden scrollbar-hide [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1"

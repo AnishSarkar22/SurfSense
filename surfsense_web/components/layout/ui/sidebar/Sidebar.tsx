@@ -269,7 +269,7 @@ export function Sidebar({
 			)}
 
 			{/* Footer */}
-			<div className="mt-auto border-t">
+			<div className="mt-auto border-t border-border/60">
 				{/* Platform navigation */}
 				{navItems.length > 0 && (
 					<NavSection items={navItems} onItemClick={onNavItemClick} isCollapsed={isCollapsed} />
@@ -307,7 +307,7 @@ function SidebarUsageFooter({
 
 	if (isAnonymous) {
 		return (
-			<div className="px-3 py-3 border-t space-y-3">
+			<div className="px-3 py-3 border-t border-border/60 space-y-3">
 				{pageUsage && (
 					<div className="space-y-1.5">
 						<div className="flex justify-between items-center text-xs">
@@ -340,7 +340,7 @@ function SidebarUsageFooter({
 	}
 
 	return (
-		<div className="px-3 py-3 border-t space-y-3">
+		<div className="px-3 py-3 border-t border-border/60 space-y-3">
 			<PremiumTokenUsageDisplay />
 			{pageUsage && (
 				<PageUsageDisplay pagesUsed={pageUsage.pagesUsed} pagesLimit={pageUsage.pagesLimit} />

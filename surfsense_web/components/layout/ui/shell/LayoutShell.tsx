@@ -26,6 +26,7 @@ import {
 	MobileSidebarTrigger,
 	Sidebar,
 } from "../sidebar";
+import { SidebarCollapseButton } from "../sidebar/SidebarCollapseButton";
 import { SidebarSlideOutPanel } from "../sidebar/SidebarSlideOutPanel";
 import { TabBar } from "../tabs/TabBar";
 
@@ -121,11 +122,13 @@ function MainContentPanel({
 	isChatPage,
 	onTabSwitch,
 	onNewChat,
+	leftActions,
 	children,
 }: {
 	isChatPage: boolean;
 	onTabSwitch?: (tab: Tab) => void;
 	onNewChat?: () => void;
+	leftActions?: React.ReactNode;
 	children: React.ReactNode;
 }) {
 	const activeTab = useAtomValue(activeTabAtom);
@@ -136,6 +139,7 @@ function MainContentPanel({
 			<TabBar
 				onTabSwitch={onTabSwitch}
 				onNewChat={onNewChat}
+				leftActions={leftActions}
 				rightActions={<RightPanelExpandButton />}
 				className="min-w-0"
 			/>
@@ -377,9 +381,9 @@ export function LayoutShell({
 		<SidebarProvider value={sidebarContextValue}>
 			<TooltipProvider delayDuration={0}>
 				<div
-					className={cn("flex h-screen w-full gap-2 p-2 overflow-hidden bg-muted/40", className)}
+					className={cn("flex h-screen w-full gap-2 px-2 py-0 overflow-hidden bg-muted/40", className)}
 				>
-					<div className="hidden md:flex overflow-hidden">
+					<div className="hidden md:flex overflow-hidden border-r border-border/60 -mr-2 pr-2">
 						<IconRail
 							searchSpaces={searchSpaces}
 							activeSearchSpaceId={activeSearchSpaceId}
@@ -387,6 +391,10 @@ export function LayoutShell({
 							onSearchSpaceDelete={onSearchSpaceDelete}
 							onSearchSpaceSettings={onSearchSpaceSettings}
 							onAddSearchSpace={onAddSearchSpace}
+							isSingleRailMode={isCollapsed}
+							onNewChat={onNewChat}
+							navItems={navItems}
+							onNavItemClick={onNavItemClick}
 							user={user}
 							onUserSettings={onUserSettings}
 							onLogout={onLogout}
@@ -398,45 +406,44 @@ export function LayoutShell({
 					{/* Sidebar + slide-out panels share one container; overflow visible so panels can overlay main content */}
 					<div
 						className={cn(
-							"relative hidden md:flex shrink-0 border bg-sidebar z-20 transition-[border-radius,border-color] duration-200",
-							anySlideOutOpen ? "rounded-l-xl border-r-0 delay-0" : "rounded-xl delay-150"
+							"relative hidden md:flex shrink-0 z-20",
+							!isCollapsed && "bg-sidebar"
 						)}
 					>
-						<Sidebar
-							searchSpace={searchSpace}
-							isCollapsed={isCollapsed}
-							onToggleCollapse={toggleCollapsed}
-							navItems={navItems}
-							onNavItemClick={onNavItemClick}
-							chats={chats}
-							sharedChats={sharedChats}
-							activeChatId={activeChatId}
-							onNewChat={onNewChat}
-							onChatSelect={onChatSelect}
-							onChatRename={onChatRename}
-							onChatDelete={onChatDelete}
-							onChatArchive={onChatArchive}
-							onViewAllSharedChats={onViewAllSharedChats}
-							onViewAllPrivateChats={onViewAllPrivateChats}
-							isSharedChatsPanelOpen={activeSlideoutPanel === "shared"}
-							isPrivateChatsPanelOpen={activeSlideoutPanel === "private"}
-							user={user}
-							onSettings={onSettings}
-							onManageMembers={onManageMembers}
-							onUserSettings={onUserSettings}
-							onLogout={onLogout}
-							pageUsage={pageUsage}
-							theme={theme}
-							setTheme={setTheme}
-							renderUserProfile={false}
-							className={cn(
-								"flex shrink-0 transition-[border-radius] duration-200",
-								anySlideOutOpen ? "rounded-l-xl delay-0" : "rounded-xl delay-150"
-							)}
-							isLoadingChats={isLoadingChats}
-							sidebarWidth={sidebarWidth}
-							isResizing={isResizing}
-						/>
+						{!isCollapsed && (
+							<Sidebar
+								searchSpace={searchSpace}
+								isCollapsed={isCollapsed}
+								onToggleCollapse={toggleCollapsed}
+								navItems={navItems}
+								onNavItemClick={onNavItemClick}
+								chats={chats}
+								sharedChats={sharedChats}
+								activeChatId={activeChatId}
+								onNewChat={onNewChat}
+								onChatSelect={onChatSelect}
+								onChatRename={onChatRename}
+								onChatDelete={onChatDelete}
+								onChatArchive={onChatArchive}
+								onViewAllSharedChats={onViewAllSharedChats}
+								onViewAllPrivateChats={onViewAllPrivateChats}
+								isSharedChatsPanelOpen={activeSlideoutPanel === "shared"}
+								isPrivateChatsPanelOpen={activeSlideoutPanel === "private"}
+								user={user}
+								onSettings={onSettings}
+								onManageMembers={onManageMembers}
+								onUserSettings={onUserSettings}
+								onLogout={onLogout}
+								pageUsage={pageUsage}
+								theme={theme}
+								setTheme={setTheme}
+								renderUserProfile={false}
+								className="flex shrink-0"
+								isLoadingChats={isLoadingChats}
+								sidebarWidth={sidebarWidth}
+								isResizing={isResizing}
+							/>
+						)}
 
 						{/* Unified slide-out panel — shell stays open, content cross-fades */}
 						<SidebarSlideOutPanel
@@ -524,7 +531,16 @@ export function LayoutShell({
 					)}
 
 					{/* Main content panel */}
-					<MainContentPanel isChatPage={isChatPage} onTabSwitch={onTabSwitch} onNewChat={onNewChat}>
+					<MainContentPanel
+						isChatPage={isChatPage}
+						onTabSwitch={onTabSwitch}
+						onNewChat={onNewChat}
+						leftActions={
+							isCollapsed ? (
+								<SidebarCollapseButton isCollapsed={isCollapsed} onToggle={toggleCollapsed} />
+							) : undefined
+						}
+					>
 						{children}
 					</MainContentPanel>
 

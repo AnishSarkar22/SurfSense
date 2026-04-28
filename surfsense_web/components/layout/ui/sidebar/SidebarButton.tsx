@@ -14,6 +14,8 @@ interface SidebarButtonProps {
 	badge?: React.ReactNode;
 	/** Overlay in the top-right corner of the collapsed icon (e.g. status badge) */
 	collapsedOverlay?: React.ReactNode;
+	/** Custom icon node for collapsed mode — overrides the default <Icon> rendering */
+	collapsedIconNode?: React.ReactNode;
 	/** Custom icon node for expanded mode — overrides the default <Icon> rendering */
 	expandedIconNode?: React.ReactNode;
 	/** Optional inline trailing content shown in expanded mode */
@@ -26,7 +28,7 @@ interface SidebarButtonProps {
 }
 
 const expandedClassName = cn(
-	"flex items-center gap-1.5 rounded-md mx-2 px-2 py-1 text-sm transition-colors text-left",
+	"flex items-center gap-2 rounded-md mx-2 px-2 py-1.5 text-sm transition-colors text-left",
 	"hover:bg-accent hover:text-accent-foreground",
 	"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 );
@@ -45,6 +47,7 @@ export function SidebarButton({
 	isActive = false,
 	badge,
 	collapsedOverlay,
+	collapsedIconNode,
 	expandedIconNode,
 	trailingContent,
 	tooltipContent,
@@ -63,7 +66,7 @@ export function SidebarButton({
 						className={cn(collapsedClassName, isActive && activeClassName, className)}
 						{...buttonProps}
 					>
-			<Icon className="h-3.5 w-3.5" />
+						{collapsedIconNode ?? <Icon className="h-3.5 w-3.5" />}
 						{collapsedOverlay}
 						<span className="sr-only">{label}</span>
 					</button>

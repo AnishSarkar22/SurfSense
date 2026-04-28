@@ -35,7 +35,7 @@ export function SidebarCollapseButton({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>{button}</TooltipTrigger>
-			<TooltipContent side={isCollapsed ? "right" : "bottom"}>
+			<TooltipContent side="bottom" avoidCollisions={false}>
 				<span className="flex items-center">
 					{isCollapsed ? t("expand_sidebar") : t("collapse_sidebar")}
 					<ShortcutKbd keys={shortcutKeys("Mod", "\\")} />
