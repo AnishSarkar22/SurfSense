@@ -61,7 +61,7 @@ function CollapseButton({ onClick }: { onClick: () => void }) {
 					variant="ghost"
 					size="icon"
 					onClick={onClick}
-					className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+					className="h-8 w-8 shrink-0 text-muted-foreground hover:text-muted-foreground hover:bg-muted/40"
 				>
 					<PanelRight className="h-4 w-4" />
 					<span className="sr-only">Collapse panel</span>
@@ -102,7 +102,7 @@ export function RightPanelExpandButton() {
 						variant="ghost"
 						size="icon"
 						onClick={() => startTransition(() => setCollapsed(false))}
-						className="h-8 w-8 shrink-0 -m-0.5 text-muted-foreground hover:text-foreground hover:bg-muted/40"
+						className="h-8 w-8 shrink-0 -m-0.5 text-muted-foreground hover:text-muted-foreground hover:bg-muted/40"
 					>
 						<PanelRight className="h-4 w-4" />
 						<span className="sr-only">Expand panel</span>

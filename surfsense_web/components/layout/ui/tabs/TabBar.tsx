@@ -139,7 +139,7 @@ export function TabBar({
 					<button
 						type="button"
 						onClick={onNewChat}
-						className="flex h-8 w-8 items-center justify-center shrink-0 rounded-md text-muted-foreground transition-all duration-150 hover:text-foreground hover:bg-muted/40"
+						className="flex h-8 w-8 items-center justify-center shrink-0 rounded-md text-muted-foreground transition-all duration-150 hover:text-muted-foreground hover:bg-muted/40"
 						title="New Chat"
 					>
 						<Plus className="size-4" />
