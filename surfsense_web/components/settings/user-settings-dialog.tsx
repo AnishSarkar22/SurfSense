@@ -1,7 +1,18 @@
 "use client";
 
 import { useAtom } from "jotai";
-import { Brain, CircleUser, Globe, Keyboard, KeyRound, Monitor, ReceiptText, Sparkles } from "lucide-react";
+import {
+	Activity,
+	Brain,
+	CircleUser,
+	Globe,
+	Keyboard,
+	KeyRound,
+	Monitor,
+	ReceiptText,
+	ShieldCheck,
+	Sparkles,
+} from "lucide-react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { useMemo } from "react";
@@ -53,15 +64,29 @@ const DesktopContent = dynamic(
 );
 const DesktopShortcutsContent = dynamic(
 	() =>
-		import("@/app/dashboard/[search_space_id]/user-settings/components/DesktopShortcutsContent").then(
-			(m) => ({ default: m.DesktopShortcutsContent })
-		),
+		import(
+			"@/app/dashboard/[search_space_id]/user-settings/components/DesktopShortcutsContent"
+		).then((m) => ({ default: m.DesktopShortcutsContent })),
 	{ ssr: false }
 );
 const MemoryContent = dynamic(
 	() =>
 		import("@/app/dashboard/[search_space_id]/user-settings/components/MemoryContent").then(
 			(m) => ({ default: m.MemoryContent })
+		),
+	{ ssr: false }
+);
+const AgentPermissionsContent = dynamic(
+	() =>
+		import(
+			"@/app/dashboard/[search_space_id]/user-settings/components/AgentPermissionsContent"
+		).then((m) => ({ default: m.AgentPermissionsContent })),
+	{ ssr: false }
+);
+const AgentStatusContent = dynamic(
+	() =>
+		import("@/app/dashboard/[search_space_id]/user-settings/components/AgentStatusContent").then(
+			(m) => ({ default: m.AgentStatusContent })
 		),
 	{ ssr: false }
 );
@@ -93,6 +118,16 @@ export function UserSettingsDialog() {
 				value: "memory",
 				label: "Memory",
 				icon: <Brain className="h-4 w-4" />,
+			},
+			{
+				value: "agent-permissions",
+				label: "Agent Permissions",
+				icon: <ShieldCheck className="h-4 w-4" />,
+			},
+			{
+				value: "agent-status",
+				label: "Agent Status",
+				icon: <Activity className="h-4 w-4" />,
 			},
 			{
 				value: "purchases",
@@ -132,6 +167,8 @@ export function UserSettingsDialog() {
 				{state.initialTab === "prompts" && <PromptsContent />}
 				{state.initialTab === "community-prompts" && <CommunityPromptsContent />}
 				{state.initialTab === "memory" && <MemoryContent />}
+				{state.initialTab === "agent-permissions" && <AgentPermissionsContent />}
+				{state.initialTab === "agent-status" && <AgentStatusContent />}
 				{state.initialTab === "purchases" && <PurchaseHistoryContent />}
 				{state.initialTab === "desktop" && <DesktopContent />}
 				{state.initialTab === "desktop-shortcuts" && <DesktopShortcutsContent />}

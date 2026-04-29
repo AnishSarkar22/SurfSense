@@ -20,7 +20,6 @@ import { openEditorPanelAtom } from "@/atoms/editor/editor-panel.atom";
 import { ImagePreview, ImageRoot, ImageZoom } from "@/components/assistant-ui/image";
 import "katex/dist/katex.min.css";
 import { InlineCitation, UrlCitation } from "@/components/assistant-ui/inline-citation";
-import { useElectronAPI } from "@/hooks/use-platform";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Table,
@@ -30,6 +29,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { useElectronAPI } from "@/hooks/use-platform";
 import { cn } from "@/lib/utils";
 
 function MarkdownCodeBlockSkeleton() {
@@ -85,10 +85,13 @@ function preprocessMarkdown(content: string): string {
 		}
 	);
 
+	// All math forms are normalised to $$...$$ so we can disable single-dollar
+	// inline math in remark-math (otherwise currency like "$3,120.00 and $0.00"
+	// gets parsed as a LaTeX expression).
 	// 1. Block math: \[...\] → $$...$$
 	content = content.replace(/\\\[([\s\S]*?)\\\]/g, (_, inner) => `$$${inner}$$`);
-	// 2. Inline math: \(...\) → $...$
-	content = content.replace(/\\\(([\s\S]*?)\\\)/g, (_, inner) => `$${inner}$`);
+	// 2. Inline math: \(...\) → $$...$$
+	content = content.replace(/\\\(([\s\S]*?)\\\)/g, (_, inner) => `$$${inner}$$`);
 	// 3. Block: \begin{equation}...\end{equation} → $$...$$
 	content = content.replace(
 		/\\begin\{equation\}([\s\S]*?)\\end\{equation\}/g,
@@ -99,8 +102,11 @@ function preprocessMarkdown(content: string): string {
 		/\\begin\{displaymath\}([\s\S]*?)\\end\{displaymath\}/g,
 		(_, inner) => `$$${inner}$$`
 	);
-	// 5. Inline: \begin{math}...\end{math} → $...$
-	content = content.replace(/\\begin\{math\}([\s\S]*?)\\end\{math\}/g, (_, inner) => `$${inner}$`);
+	// 5. Inline: \begin{math}...\end{math} → $$...$$
+	content = content.replace(
+		/\\begin\{math\}([\s\S]*?)\\end\{math\}/g,
+		(_, inner) => `$$${inner}$$`
+	);
 	// 6. Strip backtick wrapping around math: `$$...$$` → $$...$$ and `$...$` → $...$
 	content = content.replace(/`(\${1,2})((?:(?!\1).)+)\1`/g, "$1$2$1");
 
@@ -180,7 +186,7 @@ const MarkdownTextImpl = () => {
 	return (
 		<MarkdownTextPrimitive
 			smooth={false}
-			remarkPlugins={[remarkGfm, remarkMath]}
+			remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
 			rehypePlugins={[rehypeKatex]}
 			className="aui-md"
 			components={defaultComponents}
@@ -493,10 +499,7 @@ const defaultComponents = memoizeMarkdownComponents({
 										const mounts = (await electronAPI.getAgentFilesystemMounts(
 											resolvedSearchSpaceId
 										)) as AgentFilesystemMount[];
-										resolvedLocalPath = normalizeLocalVirtualPathForEditor(
-											inlineValue,
-											mounts
-										);
+										resolvedLocalPath = normalizeLocalVirtualPathForEditor(inlineValue, mounts);
 									} catch {
 										// Fall back to the raw inline path if mount lookup fails.
 									}
