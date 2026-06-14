@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
@@ -175,6 +176,7 @@ async def read_search_spaces(
                     user_id=space.user_id,
                     citations_enabled=space.citations_enabled,
                     qna_custom_instructions=space.qna_custom_instructions,
+                    onboarding_state=space.onboarding_state or {},
                     ai_file_sort_enabled=space.ai_file_sort_enabled,
                     member_count=member_count,
                     is_owner=is_owner,
@@ -217,6 +219,67 @@ async def read_search_space(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch search space: {e!s}"
+        ) from e
+
+
+@router.post(
+    "/searchspaces/{search_space_id}/onboarding/llm_setup/complete",
+    response_model=SearchSpaceRead,
+)
+async def complete_llm_setup_onboarding(
+    search_space_id: int,
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+):
+    """
+    Mark the workspace-level LLM setup onboarding step as complete.
+    Requires SETTINGS_UPDATE permission because this changes search-space lifecycle state.
+    """
+    try:
+        await check_permission(
+            session,
+            user,
+            search_space_id,
+            Permission.SETTINGS_UPDATE.value,
+            "You don't have permission to update onboarding for this search space",
+        )
+
+        result = await session.execute(
+            select(SearchSpace).filter(SearchSpace.id == search_space_id)
+        )
+        db_search_space = result.scalars().first()
+
+        if not db_search_space:
+            raise HTTPException(status_code=404, detail="Search space not found")
+
+        onboarding_state = dict(db_search_space.onboarding_state or {})
+        steps = dict(onboarding_state.get("steps") or {})
+        llm_setup = dict(steps.get("llm_setup") or {})
+
+        if llm_setup.get("status") != "completed":
+            now = datetime.now(UTC).isoformat()
+            steps["llm_setup"] = {
+                **llm_setup,
+                "status": "completed",
+                "completed_at": now,
+                "completed_by": str(user.id),
+            }
+            db_search_space.onboarding_state = {
+                **onboarding_state,
+                "version": onboarding_state.get("version") or 1,
+                "steps": steps,
+            }
+            await session.commit()
+            await session.refresh(db_search_space)
+
+        return db_search_space
+    except HTTPException:
+        raise
+    except Exception as e:
+        await session.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to complete LLM setup onboarding: {e!s}",
         ) from e
 
 

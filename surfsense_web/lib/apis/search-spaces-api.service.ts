@@ -1,6 +1,9 @@
 import { z } from "zod";
 import {
+	type CompleteLlmSetupOnboardingRequest,
 	type CreateSearchSpaceRequest,
+	completeLlmSetupOnboardingRequest,
+	completeLlmSetupOnboardingResponse,
 	createSearchSpaceRequest,
 	createSearchSpaceResponse,
 	type DeleteSearchSpaceRequest,
@@ -100,6 +103,26 @@ class SearchSpacesApiService {
 		return baseApiService.put(`/api/v1/searchspaces/${request.id}`, updateSearchSpaceResponse, {
 			body: parsedRequest.data.data,
 		});
+	};
+
+	/**
+	 * Mark LLM setup onboarding complete for a search space
+	 */
+	completeLlmSetupOnboarding = async (request: CompleteLlmSetupOnboardingRequest) => {
+		const parsedRequest = completeLlmSetupOnboardingRequest.safeParse(request);
+
+		if (!parsedRequest.success) {
+			console.error("Invalid request:", parsedRequest.error);
+
+			const errorMessage = parsedRequest.error.issues.map((issue) => issue.message).join(", ");
+			throw new ValidationError(`Invalid request: ${errorMessage}`);
+		}
+
+		return baseApiService.post(
+			`/api/v1/searchspaces/${request.id}/onboarding/llm_setup/complete`,
+			completeLlmSetupOnboardingResponse,
+			{}
+		);
 	};
 
 	/**

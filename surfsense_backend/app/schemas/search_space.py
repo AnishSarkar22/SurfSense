@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base import IDModel, TimestampModel
 
@@ -32,6 +33,7 @@ class SearchSpaceRead(SearchSpaceBase, IDModel, TimestampModel):
     qna_custom_instructions: str | None = None
     shared_memory_md: str | None = None
     ai_file_sort_enabled: bool = False
+    onboarding_state: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(from_attributes=True)
 

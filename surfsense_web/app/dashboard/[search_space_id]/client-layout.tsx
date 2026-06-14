@@ -2,25 +2,22 @@
 
 import { useAtomValue, useSetAtom } from "jotai";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { pendingUserImageDataUrlsAtom } from "@/atoms/chat/pending-user-images.atom";
 import { myAccessAtom } from "@/atoms/members/members-query.atoms";
 import {
-	globalModelConnectionsAtom,
-	modelConnectionsAtom,
-	modelRolesAtom,
-} from "@/atoms/model-connections/model-connections-query.atoms";
-import { activeSearchSpaceIdAtom } from "@/atoms/search-spaces/search-space-query.atoms";
+	activeSearchSpaceIdAtom,
+	searchSpacesAtom,
+} from "@/atoms/search-spaces/search-space-query.atoms";
 import { DocumentUploadDialogProvider } from "@/components/assistant-ui/document-upload-popup";
 import { LayoutDataProvider } from "@/components/layout";
 import { OnboardingTour } from "@/components/onboarding-tour";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFolderSync } from "@/hooks/use-folder-sync";
 import { useGlobalLoadingEffect } from "@/hooks/use-global-loading";
 import { useElectronAPI } from "@/hooks/use-platform";
-import { isLlmOnboardingComplete } from "@/lib/onboarding";
+import { isSelfHosted } from "@/lib/env-config";
+import { isLlmSetupOnboardingComplete } from "@/lib/onboarding";
 
 export function DashboardClientLayout({
 	children,
@@ -29,7 +26,6 @@ export function DashboardClientLayout({
 	children: React.ReactNode;
 	searchSpaceId: string;
 }) {
-	const t = useTranslations("dashboard");
 	const router = useRouter();
 	const pathname = usePathname();
 	const { search_space_id } = useParams();
@@ -37,73 +33,61 @@ export function DashboardClientLayout({
 	const setActiveSearchSpaceIdState = useSetAtom(activeSearchSpaceIdAtom);
 	const setPendingUserImageUrls = useSetAtom(pendingUserImageDataUrlsAtom);
 
-	const { data: modelRoles = {}, isLoading: loading, error } = useAtomValue(modelRolesAtom);
-	const { data: globalConnections = [], isLoading: globalConfigsLoading } = useAtomValue(
-		globalModelConnectionsAtom
-	);
-	const { data: modelConnections = [], isLoading: modelConnectionsLoading } =
-		useAtomValue(modelConnectionsAtom);
-
-	const { data: access = null, isLoading: accessLoading } = useAtomValue(myAccessAtom);
-	const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
+	const { isLoading: accessLoading } = useAtomValue(myAccessAtom);
+	const {
+		data: searchSpaces = [],
+		isLoading: searchSpacesLoading,
+		isSuccess: searchSpacesLoaded,
+	} = useAtomValue(searchSpacesAtom);
+	const [hasCheckedLayoutReadiness, setHasCheckedLayoutReadiness] = useState(false);
 
 	const isOnboardingPage = pathname?.includes("/onboard");
-	const isOwner = access?.is_owner ?? false;
 	const isSearchSpaceReady = activeSearchSpaceId === searchSpaceId;
+	const selfHosted = isSelfHosted();
+	const numericSearchSpaceId = Number(searchSpaceId);
+	const activeSearchSpace = useMemo(
+		() => searchSpaces.find((space) => space.id === numericSearchSpaceId) ?? null,
+		[searchSpaces, numericSearchSpaceId]
+	);
+	const llmSetupComplete = isLlmSetupOnboardingComplete(activeSearchSpace?.onboarding_state);
+	const shouldRouteToOnboarding =
+		selfHosted &&
+		searchSpacesLoaded &&
+		activeSearchSpace?.is_owner === true &&
+		!llmSetupComplete &&
+		!isOnboardingPage;
+	const shouldRouteAwayFromOnboarding =
+		selfHosted &&
+		searchSpacesLoaded &&
+		isOnboardingPage &&
+		activeSearchSpace !== null &&
+		(activeSearchSpace.is_owner !== true || llmSetupComplete);
 
 	useEffect(() => {
 		if (isSearchSpaceReady) return;
-		setHasCheckedOnboarding(false);
+		setHasCheckedLayoutReadiness(false);
 	}, [isSearchSpaceReady]);
 
 	useEffect(() => {
 		if (isOnboardingPage) {
-			setHasCheckedOnboarding(true);
+			setHasCheckedLayoutReadiness(true);
 			return;
 		}
 
-		if (
-			isSearchSpaceReady &&
-			!loading &&
-			!accessLoading &&
-			!globalConfigsLoading &&
-			!modelConnectionsLoading &&
-			!hasCheckedOnboarding
-		) {
-			const onboardingComplete = isLlmOnboardingComplete(
-				modelRoles.chat_model_id,
-				globalConnections,
-				modelConnections
-			);
-
-			if (onboardingComplete) {
-				setHasCheckedOnboarding(true);
-				return;
-			}
-
-			if (!isOwner) {
-				setHasCheckedOnboarding(true);
-				return;
-			}
-
-			router.push(`/dashboard/${searchSpaceId}/onboard`);
-			setHasCheckedOnboarding(true);
+		if (isSearchSpaceReady && !accessLoading && !hasCheckedLayoutReadiness) {
+			setHasCheckedLayoutReadiness(true);
 		}
-	}, [
-		isSearchSpaceReady,
-		loading,
-		accessLoading,
-		globalConfigsLoading,
-		modelConnectionsLoading,
-		modelRoles.chat_model_id,
-		globalConnections,
-		modelConnections,
-		isOnboardingPage,
-		isOwner,
-		router,
-		searchSpaceId,
-		hasCheckedOnboarding,
-	]);
+	}, [isSearchSpaceReady, accessLoading, isOnboardingPage, hasCheckedLayoutReadiness]);
+
+	useEffect(() => {
+		if (!shouldRouteToOnboarding) return;
+		router.replace(`/dashboard/${searchSpaceId}/onboard`);
+	}, [router, searchSpaceId, shouldRouteToOnboarding]);
+
+	useEffect(() => {
+		if (!shouldRouteAwayFromOnboarding) return;
+		router.replace(`/dashboard/${searchSpaceId}/new-chat`);
+	}, [router, searchSpaceId, shouldRouteAwayFromOnboarding]);
 
 	const electronAPI = useElectronAPI();
 
@@ -154,13 +138,10 @@ export function DashboardClientLayout({
 
 	// Determine if we should show loading
 	const shouldShowLoading =
-		!hasCheckedOnboarding &&
-		(!isSearchSpaceReady ||
-			loading ||
-			accessLoading ||
-			globalConfigsLoading ||
-			modelConnectionsLoading) &&
-		!isOnboardingPage;
+		(!hasCheckedLayoutReadiness && (!isSearchSpaceReady || accessLoading) && !isOnboardingPage) ||
+		(selfHosted && searchSpacesLoading) ||
+		shouldRouteToOnboarding ||
+		shouldRouteAwayFromOnboarding;
 
 	// Use global loading screen - spinner animation won't reset
 	useGlobalLoadingEffect(shouldShowLoading);
@@ -170,26 +151,6 @@ export function DashboardClientLayout({
 
 	if (shouldShowLoading) {
 		return null;
-	}
-
-	if (error && !hasCheckedOnboarding && !isOnboardingPage) {
-		return (
-			<div className="flex flex-col items-center justify-center min-h-screen space-y-4">
-				<Card className="w-[400px] bg-background/60 backdrop-blur-sm border-destructive/20">
-					<CardHeader className="pb-2">
-						<CardTitle className="text-xl font-medium text-destructive">
-							{t("config_error")}
-						</CardTitle>
-						<CardDescription>{t("failed_load_llm_config")}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<p className="text-sm text-muted-foreground">
-							{error instanceof Error ? error.message : String(error)}
-						</p>
-					</CardContent>
-				</Card>
-			</div>
-		);
 	}
 
 	if (isOnboardingPage) {

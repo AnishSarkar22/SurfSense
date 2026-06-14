@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { isSelfHosted } from "@/lib/env-config";
 import { trackSearchSpaceCreated } from "@/lib/posthog/events";
 
 const formSchema = z.object({
@@ -67,7 +68,9 @@ export function CreateSearchSpaceDialog({ open, onOpenChange }: CreateSearchSpac
 
 			trackSearchSpaceCreated(result.id, values.name);
 
-			router.push(`/dashboard/${result.id}/onboard`);
+			router.push(
+				isSelfHosted() ? `/dashboard/${result.id}/onboard` : `/dashboard/${result.id}/new-chat`
+			);
 		} catch (error) {
 			console.error("Failed to create search space:", error);
 			setIsSubmitting(false);

@@ -1,6 +1,27 @@
 import { z } from "zod";
 import { paginationQueryParams } from ".";
 
+export const onboardingStepState = z
+	.object({
+		status: z.string().optional(),
+		completed_at: z.string().nullable().optional(),
+		completed_by: z.string().nullable().optional(),
+	})
+	.passthrough();
+
+export const onboardingState = z
+	.object({
+		version: z.number().optional(),
+		steps: z
+			.object({
+				llm_setup: onboardingStepState.optional(),
+			})
+			.passthrough()
+			.optional(),
+	})
+	.passthrough()
+	.prefault({});
+
 export const searchSpace = z.object({
 	id: z.number(),
 	name: z.string(),
@@ -11,6 +32,7 @@ export const searchSpace = z.object({
 	qna_custom_instructions: z.string().nullable(),
 	shared_memory_md: z.string().nullable().optional(),
 	ai_file_sort_enabled: z.boolean().optional().default(false),
+	onboarding_state: onboardingState,
 	member_count: z.number(),
 	is_owner: z.boolean(),
 });
@@ -64,6 +86,16 @@ export const updateSearchSpaceRequest = z.object({
 export const updateSearchSpaceResponse = searchSpace.omit({ member_count: true, is_owner: true });
 
 /**
+ * Complete LLM setup onboarding
+ */
+export const completeLlmSetupOnboardingRequest = searchSpace.pick({ id: true });
+
+export const completeLlmSetupOnboardingResponse = searchSpace.omit({
+	member_count: true,
+	is_owner: true,
+});
+
+/**
  * Delete search space
  */
 export const deleteSearchSpaceRequest = searchSpace.pick({ id: true });
@@ -89,5 +121,7 @@ export type GetSearchSpaceRequest = z.infer<typeof getSearchSpaceRequest>;
 export type GetSearchSpaceResponse = z.infer<typeof getSearchSpaceResponse>;
 export type UpdateSearchSpaceRequest = z.infer<typeof updateSearchSpaceRequest>;
 export type UpdateSearchSpaceResponse = z.infer<typeof updateSearchSpaceResponse>;
+export type CompleteLlmSetupOnboardingRequest = z.infer<typeof completeLlmSetupOnboardingRequest>;
+export type CompleteLlmSetupOnboardingResponse = z.infer<typeof completeLlmSetupOnboardingResponse>;
 export type DeleteSearchSpaceRequest = z.infer<typeof deleteSearchSpaceRequest>;
 export type DeleteSearchSpaceResponse = z.infer<typeof deleteSearchSpaceResponse>;

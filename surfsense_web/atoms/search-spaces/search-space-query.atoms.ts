@@ -8,7 +8,7 @@ export const activeSearchSpaceIdAtom = atom<string | null>(null);
 
 export const searchSpacesQueryParamsAtom = atom<GetSearchSpacesRequest["queryParams"]>({
 	skip: 0,
-	limit: 10,
+	limit: 200,
 	owned_only: false,
 });
 

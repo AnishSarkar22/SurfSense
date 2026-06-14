@@ -8,11 +8,13 @@ import {
 	modelConnectionsAtom,
 	modelRolesAtom,
 } from "@/atoms/model-connections/model-connections-query.atoms";
+import { completeLlmSetupOnboardingMutationAtom } from "@/atoms/search-spaces/search-space-mutation.atoms";
 import { Logo } from "@/components/Logo";
 import { ModelProviderConnectionsPanel } from "@/components/settings/model-connections/model-provider-connections-panel";
 import { Button } from "@/components/ui/button";
 import { useGlobalLoadingEffect } from "@/hooks/use-global-loading";
 import { getBearerToken, redirectToLogin } from "@/lib/auth-utils";
+import { isCloud } from "@/lib/env-config";
 import { hasEnabledChatModel, isLlmOnboardingComplete } from "@/lib/onboarding";
 
 export default function OnboardPage() {
@@ -24,10 +26,20 @@ export default function OnboardPage() {
 	);
 	const { data: connections = [] } = useAtomValue(modelConnectionsAtom);
 	const { data: roles = {}, isLoading: rolesLoading } = useAtomValue(modelRolesAtom);
+	const { mutateAsync: completeLlmSetupOnboarding, isPending: completionPending } = useAtomValue(
+		completeLlmSetupOnboardingMutationAtom
+	);
 
 	useEffect(() => {
-		if (!getBearerToken()) redirectToLogin();
-	}, []);
+		if (!getBearerToken()) {
+			redirectToLogin();
+			return;
+		}
+
+		if (isCloud()) {
+			router.replace(`/dashboard/${searchSpaceId}/new-chat`);
+		}
+	}, [router, searchSpaceId]);
 
 	const hasUsableChatModel = useMemo(
 		() => hasEnabledChatModel([...globalConnections, ...connections]),
@@ -43,6 +55,12 @@ export default function OnboardPage() {
 	const isLoading = globalLoading || rolesLoading;
 	useGlobalLoadingEffect(isLoading);
 
+	async function handleStart() {
+		await completeLlmSetupOnboarding({ id: searchSpaceId });
+		router.push(`/dashboard/${searchSpaceId}/new-chat`);
+	}
+
+	if (isCloud()) return null;
 	if (isLoading) return null;
 
 	return (
@@ -62,8 +80,8 @@ export default function OnboardPage() {
 					footerAction={
 						<Button
 							className="min-w-[112px]"
-							disabled={!onboardingComplete || !hasUsableChatModel}
-							onClick={() => router.push(`/dashboard/${searchSpaceId}/new-chat`)}
+							disabled={!onboardingComplete || !hasUsableChatModel || completionPending}
+							onClick={handleStart}
 						>
 							Start
 						</Button>

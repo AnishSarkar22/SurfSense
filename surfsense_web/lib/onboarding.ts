@@ -1,4 +1,7 @@
 import type { ConnectionRead } from "@/contracts/types/model-connections.types";
+import type { SearchSpace } from "@/contracts/types/search-space.types";
+
+const COMPLETED_STATUS = "completed";
 
 export function hasEnabledChatModel(connections: ConnectionRead[]): boolean {
 	return connections.some(
@@ -6,6 +9,12 @@ export function hasEnabledChatModel(connections: ConnectionRead[]): boolean {
 			connection.enabled &&
 			connection.models.some((model) => model.enabled && Boolean(model.supports_chat))
 	);
+}
+
+export function isLlmSetupOnboardingComplete(
+	onboardingState: SearchSpace["onboarding_state"] | null | undefined
+): boolean {
+	return onboardingState?.steps?.llm_setup?.status === COMPLETED_STATUS;
 }
 
 export function isLlmOnboardingComplete(
