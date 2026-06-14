@@ -10,6 +10,7 @@ Errors classified here:
     vision-capable cfg for an image-bearing turn. The same gate fires later
     in ``llm_capability`` for explicit selections; mapping both to the same
     code keeps the FE error UI consistent.
+  * ``NO_CHAT_MODELS_AVAILABLE`` — Auto mode has no eligible chat models.
   * ``SERVER_ERROR`` — any other ``ValueError`` from the resolver.
 
 This module owns *initial* pin resolution; the rate-limit recovery loop has
@@ -25,7 +26,10 @@ from typing import Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.observability import otel as ot
-from app.services.auto_model_pin_service import resolve_or_get_pinned_llm_config_id
+from app.services.auto_model_pin_service import (
+    NoChatModelsAvailableError,
+    resolve_or_get_pinned_llm_config_id,
+)
 
 
 @dataclass
@@ -77,6 +81,11 @@ async def resolve_initial_auto_pin(
             },
         )
         return AutoPinResult(llm_config_id=pinned.resolved_llm_config_id, error=None)
+    except NoChatModelsAvailableError as pin_error:
+        return AutoPinResult(
+            llm_config_id=None,
+            error=(str(pin_error), "NO_CHAT_MODELS_AVAILABLE", "user_error"),
+        )
     except ValueError as pin_error:
         # The "no vision-capable cfg" path raises a ValueError whose message
         # we map to the friendly image-input SSE error so the user sees the

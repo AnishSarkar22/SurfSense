@@ -9,6 +9,7 @@ export type ChatErrorKind =
 	| "model_not_found"
 	| "model_context_limit"
 	| "model_provider_unavailable"
+	| "no_chat_models_available"
 	| "rate_limited"
 	| "network_offline"
 	| "stream_interrupted"
@@ -282,6 +283,20 @@ export function classifyChatError(input: RawChatErrorInput): NormalizedChatError
 			rawMessage,
 			errorCode: errorCode ?? "RATE_LIMITED",
 			details: { flow: input.flow, providerErrorType },
+		};
+	}
+
+	if (errorCode === "NO_CHAT_MODELS_AVAILABLE") {
+		return {
+			kind: "no_chat_models_available",
+			channel: "toast",
+			severity: "warn",
+			telemetryEvent: "chat_blocked",
+			isExpected: true,
+			userMessage: "No chat models are enabled. Add or enable a model in Settings.",
+			rawMessage,
+			errorCode: errorCode ?? "NO_CHAT_MODELS_AVAILABLE",
+			details: { flow: input.flow },
 		};
 	}
 

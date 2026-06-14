@@ -222,8 +222,13 @@ async def stream_new_chat(
         )
         if pin_result.error is not None:
             message, error_code, error_kind = pin_result.error
+            is_no_chat_models = error_code == "NO_CHAT_MODELS_AVAILABLE"
             yield emit_stream_error(
-                message=message, error_kind=error_kind, error_code=error_code
+                message=message,
+                error_kind=error_kind,
+                error_code=error_code,
+                severity="warn" if is_no_chat_models else "error",
+                is_expected=is_no_chat_models,
             )
             yield streaming_service.format_done()
             return
@@ -279,10 +284,13 @@ async def stream_new_chat(
                     )
                     if pin_fallback.error is not None:
                         message, error_code, error_kind = pin_fallback.error
+                        is_no_chat_models = error_code == "NO_CHAT_MODELS_AVAILABLE"
                         yield emit_stream_error(
                             message=message,
                             error_kind=error_kind,
                             error_code=error_code,
+                            severity="warn" if is_no_chat_models else "error",
+                            is_expected=is_no_chat_models,
                         )
                         yield streaming_service.format_done()
                         return

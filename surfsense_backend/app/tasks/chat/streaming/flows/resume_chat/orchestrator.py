@@ -31,6 +31,7 @@ from app.agents.chat.multi_agent_chat.shared.filesystem_selection import (
 )
 from app.db import ChatVisibility, async_session_maker
 from app.observability import otel as ot
+from app.services.auto_model_pin_service import NoChatModelsAvailableError
 from app.services.chat_session_state_service import set_ai_responding
 from app.services.new_streaming_service import VercelStreamingService
 from app.tasks.chat.content_builder import AssistantContentBuilder
@@ -188,6 +189,16 @@ async def stream_resume_chat(
                     "pin.requires_image_input": False,
                 },
             )
+        except NoChatModelsAvailableError as pin_error:
+            yield emit_stream_error(
+                message=str(pin_error),
+                error_kind="user_error",
+                error_code="NO_CHAT_MODELS_AVAILABLE",
+                severity="warn",
+                is_expected=True,
+            )
+            yield streaming_service.format_done()
+            return
         except ValueError as pin_error:
             yield emit_stream_error(
                 message=str(pin_error),
@@ -237,6 +248,16 @@ async def stream_resume_chat(
                                 "repin.to_config_id": llm_config_id,
                             },
                         )
+                    except NoChatModelsAvailableError as pin_error:
+                        yield emit_stream_error(
+                            message=str(pin_error),
+                            error_kind="user_error",
+                            error_code="NO_CHAT_MODELS_AVAILABLE",
+                            severity="warn",
+                            is_expected=True,
+                        )
+                        yield streaming_service.format_done()
+                        return
                     except ValueError as pin_error:
                         yield emit_stream_error(
                             message=str(pin_error),

@@ -95,6 +95,7 @@ export function tagPreAcceptSendFailure(error: unknown): unknown {
 			"MODEL_NOT_FOUND",
 			"MODEL_CONTEXT_LIMIT",
 			"MODEL_PROVIDER_UNAVAILABLE",
+			"NO_CHAT_MODELS_AVAILABLE",
 			"RATE_LIMITED",
 			"NETWORK_ERROR",
 			"STREAM_PARSE_ERROR",

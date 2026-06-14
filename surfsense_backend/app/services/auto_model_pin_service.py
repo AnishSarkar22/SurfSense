@@ -59,6 +59,10 @@ _healthy_until: dict[int, float] = {}
 _healthy_lock = threading.Lock()
 
 
+class NoChatModelsAvailableError(ValueError):
+    """Raised when Auto mode has no eligible chat model candidates."""
+
+
 @dataclass
 class AutoPinResolution:
     resolved_llm_config_id: int
@@ -581,6 +585,10 @@ async def resolve_or_get_pinned_llm_config_id(
             # "no usable cfg" so the streaming task can map this to the
             # MODEL_DOES_NOT_SUPPORT_IMAGE_INPUT SSE error.
             raise ValueError("No vision-capable LLM models are available for Auto mode")
+        if not excluded_ids:
+            raise NoChatModelsAvailableError(
+                "No chat models are enabled. Add or enable a model in Settings."
+            )
         raise ValueError("No usable LLM models are available for Auto mode")
     candidate_by_id = {int(c["id"]): c for c in candidates}
 
