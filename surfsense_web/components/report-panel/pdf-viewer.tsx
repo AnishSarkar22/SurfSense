@@ -180,6 +180,7 @@ export function PdfViewer({ pdfUrl, isPublic = false, toolbarActions }: PdfViewe
 				const loadingTask = pdfjsLib.getDocument({
 					url: pdfUrl,
 					httpHeaders: getAuthHeaders(),
+					withCredentials: !isPublic,
 				});
 
 				const pdf = await loadingTask.promise;
@@ -226,7 +227,7 @@ export function PdfViewer({ pdfUrl, isPublic = false, toolbarActions }: PdfViewe
 			pdfDocRef.current?.destroy();
 			pdfDocRef.current = null;
 		};
-	}, [pdfUrl]);
+	}, [pdfUrl, isPublic]);
 
 	useEffect(() => {
 		if (numPages === 0) return;
