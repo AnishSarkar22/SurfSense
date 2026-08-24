@@ -194,7 +194,7 @@ function LiveDeliverableJobCard({
 				<TextShimmerLoader text="Loading your video" size="sm" />
 			) : (
 				<p className="text-xs text-muted-foreground">
-					This video is no longer available or you do not have access to it.
+					This video is no longer available or you do not have access to it
 				</p>
 			)}
 		</CardShell>
