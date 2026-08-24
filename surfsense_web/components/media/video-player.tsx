@@ -16,7 +16,7 @@ export function VideoPlayer({ src, poster, className }: VideoPlayerProps) {
 			<VideoJsPlayer>
 				{/* Embedding surfaces own their edges; retain only Video.js playback controls. */}
 				<VideoSkin className="surfsense-video-player">
-					<Video src={src} poster={poster} playsInline preload="none" />
+					<Video src={src} poster={poster} playsInline preload="auto" />
 				</VideoSkin>
 			</VideoJsPlayer>
 		</div>

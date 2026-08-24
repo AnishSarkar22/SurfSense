@@ -23,7 +23,7 @@ test("VideoPlayer streams its source through the Video.js media element", () => 
 	assert.equal(skin.props.className, "surfsense-video-player");
 	assert.equal(video.type, VideoMedia);
 	assert.equal(video.props.playsInline, true);
-	assert.equal(video.props.preload, "none");
+	assert.equal(video.props.preload, "auto");
 	assert.equal(video.props.src, "/video.mp4");
 	assert.equal(video.props.poster, "/poster.jpg");
 });
