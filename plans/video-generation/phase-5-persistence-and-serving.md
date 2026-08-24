@@ -80,7 +80,7 @@ The existing Artifact routes provide:
 
 Local storage seeks and reads the requested range. Azure uses ranged blob download. Multipart ranges remain out of scope.
 
-The browser's native `<video>` element therefore seeks through the same generic artifact route used by all MP4 viewers.
+The shared Video.js player's native `<Video>` media element seeks through the same generic artifact route used by all MP4 viewers. It receives the content URL directly and never fetches or buffers the complete MP4 in application memory.
 
 ## 6. Temporary and legacy data
 

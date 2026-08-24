@@ -102,7 +102,7 @@ Retain:
 - `deliverable-job.tsx` and `use-deliverable-job-live.ts`;
 - Cancel/Retry client and same-origin routing;
 - artifacts-library deliverable-job merge;
-- `Mp4ArtifactCard`, `Mp4VideoPlayer`, KB viewer, manifest, download, and Range serving.
+- `Mp4ArtifactCard`, shared Video.js player, KB viewer, manifest, download, and Range serving.
 
 Phase 7 must remove the need for a browser compatibility renderer before this phase starts. Delete related web dependencies after a repository-wide import check proves no unrelated feature uses them.
 

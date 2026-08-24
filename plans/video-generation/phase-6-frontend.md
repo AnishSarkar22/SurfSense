@@ -14,7 +14,7 @@ enqueue receipt {job_id, title}
   → lifecycle card
   → ready artifact_id
   → Mp4ArtifactCard
-  → manifest + native video player + download
+  → manifest + shared Video.js player + download
 ```
 
 No Artifact is required for the queued/running UI, and no job-specific media path exists.
@@ -93,8 +93,8 @@ That path:
 
 1. loads the generic Artifact manifest;
 2. selects the PRIMARY `video/mp4` file;
-3. passes its authenticated content URL to `Mp4VideoPlayer`;
-4. preserves controls, `playsInline`, and `preload="none"`;
+3. passes its authenticated content URL to the shared `components/media/video-player.tsx`;
+4. renders the Video.js `/video` preset while preserving `playsInline` and `preload="none"`;
 5. uses existing HTTP Range behavior and download action.
 
 Ready without an Artifact ID displays a neutral unavailable state rather than attempting playback.
@@ -117,7 +117,7 @@ Unit coverage verifies:
 - job-specific Cancel/Retry paths and web/desktop routing;
 - pending-action disabled behavior;
 - ready handoff to `Mp4ArtifactCard`;
-- native MP4 player lazy loading.
+- shared Video.js player lazy loading and direct media-source streaming.
 
 Dedicated tests for the artifacts-library merge and the live hook are not currently present.
 
@@ -128,4 +128,4 @@ Dedicated tests for the artifacts-library merge and the live hook are not curren
 - Cancel/Retry target only their exact job and reconcile from the backend;
 - UI text never exposes infrastructure;
 - non-ready layout remains stable across states and widths;
-- ready output uses one shared MP4 manifest/player/download architecture.
+- ready output uses one shared Video.js manifest/player/download architecture.
