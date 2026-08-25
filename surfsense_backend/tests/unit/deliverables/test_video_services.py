@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
 from pathlib import PurePosixPath
 
 import pytest
 
 from app.agents.chat.multi_agent_chat.subagents.builtins.deliverables.tools import (
-    prepare_video_project as prepare_service,
     review_video_stills as review_service,
 )
 from tests.utils.fake_sandbox import FakeSandboxSession
@@ -14,55 +12,6 @@ from tests.utils.fake_sandbox import FakeSandboxSession
 pytestmark = pytest.mark.unit
 
 WORKDIR = PurePosixPath("/workspace/deliverable-job-7")
-
-
-def _video_scene(number: int) -> prepare_service.VideoScene:
-    return prepare_service.VideoScene(
-        slide_number=number,
-        filename=f"scene-{number}.tsx",
-        code=(
-            'import React from "react";\n'
-            f"const Scene{number} = () => <div>{number}</div>;\n"
-            f"export default Scene{number};\n"
-        ),
-        audio=f"slide-{number}.wav",
-    )
-
-
-async def test_prepare_video_project_writes_typed_json() -> None:
-    session = FakeSandboxSession({})
-    scene = _video_scene(1)
-
-    result = await prepare_service.prepare_video_project(
-        prepare_service.VideoProject(scenes=[scene]),
-        session=session,
-        workdir=WORKDIR,
-    )
-
-    assert result["props_path"] == f"{WORKDIR}/props.json"
-    payload = json.loads(session.writes[result["props_path"]])
-    assert payload["scenes"][0]["code"] == scene.code
-    assert payload["scenes"][0]["filename"] == "scene-1.tsx"
-    assert session.commands == []
-
-
-@pytest.mark.parametrize("scene_count", [12, 13])
-async def test_prepare_video_project_enforces_scene_policy(scene_count) -> None:
-    if scene_count == 13:
-        with pytest.raises(ValueError, match="at most 12 items"):
-            prepare_service.VideoProject(
-                scenes=[_video_scene(number) for number in range(1, 14)]
-            )
-        return
-
-    result = await prepare_service.prepare_video_project(
-        prepare_service.VideoProject(
-            scenes=[_video_scene(number) for number in range(1, scene_count + 1)]
-        ),
-        session=FakeSandboxSession({}),
-        workdir=WORKDIR,
-    )
-    assert result["scene_count"] == 12
 
 
 async def test_review_video_stills_rejects_traversal_before_sandbox_access() -> None:

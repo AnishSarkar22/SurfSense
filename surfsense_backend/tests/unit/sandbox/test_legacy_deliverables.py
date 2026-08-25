@@ -25,6 +25,7 @@ def test_video_authoring_tool_is_flag_gated(monkeypatch):
 
     legacy_names = {tool.name for tool in load_tools(dependencies=dependencies)}
     assert "generate_video_presentation" in legacy_names
+    assert "enqueue_deliverable_job" not in legacy_names
     assert "synthesize_narration" not in legacy_names
 
     monkeypatch.setattr(config, "VIDEO_SANDBOX_RENDERING_ENABLED", True)

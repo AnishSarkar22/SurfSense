@@ -527,9 +527,6 @@ def test_visible_native_tools_declare_descriptors_at_their_definition() -> None:
         "app/agents/chat/multi_agent_chat/subagents/builtins/deliverables/tools/save_artifact.py": {
             "save_artifact"
         },
-        "app/agents/chat/multi_agent_chat/subagents/builtins/deliverables/tools/synthesize_narration.py": {
-            "synthesize_narration"
-        },
         "app/agents/chat/multi_agent_chat/subagents/builtins/deliverables/tools/verify_artifact.py": {
             "verify_artifact"
         },
