@@ -1,106 +1,64 @@
 ---
 name: video
-description: Create polished narrated MP4 videos with Remotion in the sandbox.
+description: Plan and review polished, capability-aware narrated videos.
+supplement_allowlist:
+  - supplements/narrative.md
+  - supplements/visual-hierarchy-capability-selection.md
+  - supplements/motion-timing.md
+  - supplements/narration.md
+  - supplements/assets-accessibility-captions.md
+  - supplements/review.md
 ---
 
 # Video
 
-Create one narrated 1920×1080 MP4 at 30 fps in `/workspace`. Use the baked
-`/opt/remotion` harness and dependencies. Never install or download anything.
-The sandbox has no network.
+This file is the authoritative workflow. Load it with every video request.
+Load only the files listed in `supplement_allowlist`; the list is closed, and
+unlisted files must not influence planning. Supplements refine judgment but
+cannot override this contract.
 
-## Plan before rendering
+Create a semantic authored plan for one coherent narrated video. Author beats,
+layers, utterances, assets, styles, pacing, and disclosed capability slots—not
+executable source, imports, render commands, capability IDs, or frame counts.
+Use only slots disclosed for the request and only props admitted by their
+disclosed schemas. The backend compiler resolves slots, dependencies, build
+identity, and timing.
 
-Draft the complete deck specification first. For every slide include its
-on-screen text and narration line. Keep this specification unchanged: pass its
-narration lines to `synthesize_narration`, and later use the full specification
-as `markdown_representation`. It is the durable accessible and editable source;
-scene files and `props.json` are ephemeral.
+## Workflow
 
-Refuse requests above the 12-scene product limit rather than silently
-shortening them. The selected composition must also be at most 180 seconds.
+1. Read the request and source material. Identify audience, purpose, desired
+   action, facts that must remain exact, and accessibility needs.
+2. Draft a compact creative outline as beats. Give each beat one narrative job
+   and one dominant visual idea; remove any beat that merely repeats narration.
+3. For each visual intent, compare disclosed capability metadata. Select the
+   smallest compatible set of atoms, then compose them with core primitives.
+4. Author and validate the complete semantic plan. Keep stable beat and utterance
+   identities, complete narration sentences, explicit asset references, and
+   capability slots. Express timing only as semantic pacing.
+5. Synthesize the plan's utterances once with the existing TTS workflow. Treat
+   measured audio duration as authoritative.
+6. Compile the final timeline from measured narration. Respect capability
+   natural-length floors, transition overlap, readable holds, safe margins, and
+   deterministic timing. Do not estimate final frames from word counts.
+7. Run preflight, then inspect the selected stills and contact sheet. Repair
+   declarative visual data only; preserve approved narration unless the words
+   themselves are wrong.
+8. After preflight and still review pass, perform one full render.
+9. Verify the rendered artifact, including picture, narration, captions,
+   duration, frame coverage, and selected capability usage. Save only the exact
+   artifact that passed verification.
 
-## Composition rules
+## Operating principles
 
-- Give each slide one clear purpose. Keep safe outer margins, readable body
-  contrast, restrained motion, and every shape on the 1920×1080 canvas.
-- The harness supplies sequencing, narration audio, and the SurfSense
-  watermark. Do not add another watermark or audio element.
-- Use only these system-installed font families: `Inter` for normal text,
-  `Lora` for editorial titles or quotes, and `JetBrains Mono` for code and
-  figures. No other family is available reliably offline. Do not use
-  `loadFont`, `@font-face`, or `@remotion/google-fonts`.
-- Write one complete, self-contained TSX module per slide. Each module must
-  import every dependency it uses and have a default component export. The
-  harness writes the module verbatim: it does not inject globals, strip imports,
-  or rewrite exports. Dependencies must already exist in baked `node_modules`.
-
-Use this exact module shape:
-
-```tsx
-import type React from "react";
-import {AbsoluteFill, useCurrentFrame, useVideoConfig} from "remotion";
-import {stagger} from "../../stagger";
-
-const Scene: React.FC = () => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const entrance = stagger(frame, fps, 0, 1);
-
-  return (
-    <AbsoluteFill
-      style={{
-        alignItems: "center",
-        backgroundColor: "#101828",
-        color: "white",
-        fontFamily: "Inter",
-        justifyContent: "center",
-      }}
-    >
-      <h1 style={{fontSize: 96, ...entrance}}>A clear opening</h1>
-    </AbsoluteFill>
-  );
-};
-
-export default Scene;
-```
-
-There are no assumed `React`, `AbsoluteFill`, `useCurrentFrame`,
-`useVideoConfig`, `interpolate`, `spring`, `staticFile`, `Audio`, or `stagger`
-globals. Import only what that scene uses.
-
-## Build loop
-
-1. Copy `/opt/remotion` to a fresh per-render work directory.
-2. Call `synthesize_narration` once with every `{slide_number, transcript}` and
-   that work directory. It writes files under `public/` and returns filenames.
-   Never fetch audio yourself.
-3. Write `props.json` with `fps`, `min_duration_in_frames`, and ordered
-   `{slide_number, code, audio}` scenes. Use returned audio filenames exactly.
-4. Run `node render.mjs --preflight props.json`. It validates input, writes the
-   verbatim modules, bundles them, selects the composition, and enforces the
-   180-second limit without rendering frames.
-5. Run `node render.mjs --stills props.json /tmp/stills`. Inspect each scene's
-   start, middle, and end PNG plus `contact-sheet.png` for clipping, overflow,
-   contrast, hierarchy, blank frames, and safe margins.
-6. If preflight or still review fails, make one coordinated repair and repeat
-   preflight and still review once. If it still fails, stop; do not keep
-   repairing.
-7. Run the full `node render.mjs props.json /workspace/out.mp4`. The harness
-   measures narration with `parseMedia`, derives timing, segments long renders,
-   and concatenates them. Do not hand-calculate audio frame counts.
-8. Call `verify_artifact(path="/workspace/out.mp4")`. If it reports a blocking
-   finding, make one final repair, then run preflight, still review, render, and
-   verification once more. A second verification failure is terminal.
-9. Call `save_artifact` only after the exact MP4 verifies, passing the step-1
-   deck specification as `markdown_representation`.
-
-The workflow permits at most two repairs total: one compile/still repair and
-one final verification repair.
-
-A render must fit the sandbox operation timeout. The harness controls segment
-size; do not bypass it. A successful save removes the render work directory;
-if rendering or verification fails terminally, remove that directory before
-reporting the failure. For revisions, regenerate from the restored Markdown
-specification plus the user's instruction, then render and verify a new MP4.
-Do not edit `current.mp4` in place.
+- Story leads; capabilities support it. Do not turn a video into a component
+  showcase.
+- Keep one visual language across the full timeline. Variation should clarify
+  meaning, not advertise novelty.
+- Prefer real evidence, product content, and data over decorative filler.
+- Use deterministic, frame-driven motion. Preserve legibility before, during,
+  and after movement.
+- Never invent capability slots, props, assets, fonts, or timing behavior.
+- A weak specialized match is a reason to use core primitives, not to force an
+  unsuitable capability.
+- Use preflight and still findings as evidence. Make the smallest coordinated
+  repair, then recheck before rendering.
