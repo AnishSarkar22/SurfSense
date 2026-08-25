@@ -50,7 +50,7 @@ from app.deliverables.video.timeline import (
     VideoTimelineDurationError,
     build_video_render_input,
 )
-from app.sandbox import SandboxSession, get_registry
+from app.sandbox import SandboxResourceProfile, SandboxSession, get_registry
 from app.sandbox.capabilities import (
     CapabilityFilter,
     RetrievalQuery,
@@ -156,7 +156,11 @@ async def execute_video_deliverable(
         f"/workspace/deliverable-job-{job.id}-attempt-{job.attempt_count}"
     )
     output_path = f"{workdir}.mp4"
-    sandbox = await (await get_registry()).get_session(owner, job.workspace_id)
+    sandbox = await (await get_registry()).get_session(
+        owner,
+        job.workspace_id,
+        profile=SandboxResourceProfile.VIDEO_RENDER,
+    )
 
     async def heartbeat(phase: str, progress: int) -> None:
         await _heartbeat(
@@ -773,7 +777,9 @@ def _render_command(
 ) -> str:
     quoted_arguments = " ".join(shlex.quote(str(argument)) for argument in arguments)
     return (
-        f"cd -- {shlex.quote(str(workdir))} && node render.mjs "
+        f"cd -- {shlex.quote(str(workdir))} && "
+        f"VIDEO_SANDBOX_FRAME_CONCURRENCY="
+        f"{app_config.VIDEO_SANDBOX_FRAME_CONCURRENCY} node render.mjs "
         f"--bundle-dir {shlex.quote(str(workdir / 'bundle'))} {quoted_arguments}"
     )
 

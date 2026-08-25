@@ -29,6 +29,7 @@ from app.deliverables.video.timeline import (
     VideoTimelineDurationError,
     build_video_render_input,
 )
+from app.sandbox import SandboxResourceProfile
 from app.sandbox.capabilities.schema import (
     CapabilityEnvelope,
     CapabilityIndex,
@@ -226,8 +227,9 @@ async def test_executor_repairs_wrong_kind_before_tts_and_orders_phases(
     session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
 
     class Registry:
-        async def get_session(self, owner, workspace_id):
+        async def get_session(self, owner, workspace_id, *, profile):
             assert (owner, workspace_id) == ("deliverable-job-7-attempt-1", 3)
+            assert profile is SandboxResourceProfile.VIDEO_RENDER
             return sandbox
 
     async def heartbeat(*_args, phase, **_kwargs):
@@ -419,15 +421,17 @@ async def test_publish_job_assets_targets_bundle_public() -> None:
     ]
 
 
-def test_render_commands_use_the_isolated_job_bundle() -> None:
+def test_render_commands_use_the_isolated_job_bundle(monkeypatch) -> None:
     workdir = PurePosixPath("/workspace/deliverable-job-7-attempt-1")
 
+    monkeypatch.setattr(executor.app_config, "VIDEO_SANDBOX_FRAME_CONCURRENCY", 2)
     assert executor._render_command(
         workdir,
         "--preflight",
         workdir / "props.json",
     ) == (
-        "cd -- /workspace/deliverable-job-7-attempt-1 && node render.mjs "
+        "cd -- /workspace/deliverable-job-7-attempt-1 && "
+        "VIDEO_SANDBOX_FRAME_CONCURRENCY=2 node render.mjs "
         "--bundle-dir /workspace/deliverable-job-7-attempt-1/bundle "
         "--preflight /workspace/deliverable-job-7-attempt-1/props.json"
     )
