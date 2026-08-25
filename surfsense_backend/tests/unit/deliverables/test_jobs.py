@@ -62,7 +62,7 @@ def test_video_policy_is_bounded() -> None:
 
     assert spec is VIDEO_SPEC
     assert spec.max_duration_seconds == 180
-    assert spec.max_scenes == 12
+    assert spec.max_beats == 12
     assert spec.repair_cycles == 2
     assert 0 < spec.soft_time_limit_seconds < spec.hard_time_limit_seconds
 

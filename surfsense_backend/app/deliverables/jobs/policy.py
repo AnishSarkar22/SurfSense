@@ -8,7 +8,7 @@ from typing import Final
 @dataclass(frozen=True, slots=True)
 class DeliverableKindSpec:
     max_duration_seconds: int
-    max_scenes: int
+    max_beats: int
     repair_cycles: int
     soft_time_limit_seconds: int
     hard_time_limit_seconds: int
@@ -16,7 +16,7 @@ class DeliverableKindSpec:
     def __post_init__(self) -> None:
         if (
             self.max_duration_seconds <= 0
-            or self.max_scenes <= 0
+            or self.max_beats <= 0
             or self.repair_cycles < 0
             or self.soft_time_limit_seconds <= 0
             or self.hard_time_limit_seconds <= self.soft_time_limit_seconds
@@ -39,7 +39,7 @@ class DeliverableKindSpec:
 VIDEO_KIND: Final = "video"
 VIDEO_SPEC: Final = DeliverableKindSpec(
     max_duration_seconds=180,
-    max_scenes=12,
+    max_beats=12,
     repair_cycles=2,
     soft_time_limit_seconds=3600,
     hard_time_limit_seconds=3900,
