@@ -1,99 +1,61 @@
-# Phase 5 — Worker-owned persistence and MP4 serving
+# Phase 5 — Persistence, storage, and playback
 
-**Status:** IMPLEMENTED WITH A TRANSACTIONAL HARDENING GAP.
-**Parent spec:** [`00-umbrella-plan.md`](00-umbrella-plan.md).
-**Depends on:** Phase 2b, Phase 4, and existing artifact storage/serving.
+**Status:** Implemented, with a known final-link transaction gap.
 
-## 1. Outcome
+## Receipt-bound save
 
-A successfully verified MP4 is streamed from the attempt sandbox into the generic Artifact platform and served through the existing authenticated manifest, content, download, and HTTP Range routes.
+The verified MP4 is the only durable video output. The executor passes an `ArtifactFileStreamInput` to generic `save_artifact()`:
 
 ```text
-DeliverableJob
-  → queued/running pipeline
-  → verified MP4 + signed receipt
-  → streamed PRIMARY ArtifactFile
-  → Artifact ID
-  → job ready
+chunks          = sandbox.read_file_stream(output_path)
+filename        = attempt MP4 filename
+mime_type       = video/mp4
+expected_sha256 = signed verification receipt digest
+format          = video
 ```
 
-There is no job-specific media endpoint or second video storage model.
+Generic storage streams without buffering the complete file in backend memory, computes byte count and SHA-256 while writing, supports local and Azure backends, rejects digest mismatch, and removes a partially stored blob when save fails.
 
-## 2. Save path
+The PRIMARY file is the MP4. Narration, `props.json`, risk stills, contact sheet, progress/cancel files, render metadata, verification receipt, and copied runtime are temporary attempt data and are removed best-effort after a successful save.
 
-`execute_video_deliverable()` calls `save_artifact()` directly with:
+## Artifact metadata
 
-```text
-ArtifactFileStreamInput
-  chunks = sandbox.read_file_stream(output_path)
-  filename = generated .mp4 name
-  mime_type = video/mp4
-  expected_sha256 = verification receipt digest
-```
+Saved video metadata records:
 
-Before save, the executor checks that the receipt path and canonical `format="video"` match the exact final output.
+- verification availability/reason and primary SHA-256;
+- video schema version;
+- capability `build_id`;
+- video skill SHA-256 and exact loaded skill files;
+- selected capability IDs;
+- complete renderer sidecar metadata.
 
-`store_artifact_file_stream()`:
+Revisions target an existing video Artifact in the same workspace and use its current generation for optimistic concurrency. They create a new verified generation; bytes are never edited in place.
 
-- consumes the async byte stream without buffering the whole MP4;
-- calculates byte count and SHA-256 while writing;
-- uses the generic local or Azure streaming backend;
-- rejects a final digest mismatch;
-- deletes the uploaded blob when streaming or database persistence fails within the artifact service.
+## Job completion boundary
 
-The saved file is the PRIMARY file and the Artifact format is explicitly `video`.
+Current completion has two commits:
 
-## 3. Current transaction boundary
+1. `save_artifact()` commits the Artifact/blob.
+2. The Celery task separately links `artifact_id` and marks `DeliverableJob.ready`.
 
-The earlier design required Artifact creation, `job.artifact_id`, and `job.status=ready` in one transaction. That is not the current implementation:
+A ready job cannot lack an Artifact ID, but an Artifact can be committed if the second transition fails. There is no implemented atomic save/link transaction or compensation reconciler for this narrow window.
 
-1. `save_artifact()` creates and commits the Artifact and PRIMARY blob;
-2. the Celery task separately calls `complete_deliverable_job(artifact_id=...)`;
-3. that transition commits `artifact_id`, `ready`, progress 100, and finish time.
+Cancellation and supersession are checked through attempt-bound heartbeats and the worker watcher before normal completion. Worker `finally` still terminates the exact attempt sandbox even when cleanup commands fail.
 
-This creates a small failure window in which an Artifact can exist while the job has not reached ready. The database still prevents a ready job without an Artifact ID, but it does not guarantee the reverse.
+## Existing delivery path
 
-Future hardening must either make the final linkage atomic or add explicit reconciliation/compensation for a successful Artifact save followed by job-completion failure. The specs must not claim that this is already transactional.
+No job-specific media endpoint or video storage subsystem was added. Existing authenticated Artifact routes provide:
 
-## 4. Cancellation, retries, and revisions
-
-- Stage heartbeats and the parallel watcher prevent a cancelled/superseded attempt from normally reaching save.
-- Cancel is not allowed for ready/failed/cancelled jobs.
-- Explicit Retry starts a new attempt with a clean attempt sandbox and no linked artifact on the job.
-- Transient provider retry requeues the current job safely through conditional state changes.
-- Revision save supplies `expected_generation` for optimistic concurrency against the target Artifact.
-- Sandbox cleanup remains independent from storage cleanup and cannot overwrite the lifecycle state.
-
-## 5. Serving
-
-The existing Artifact routes provide:
-
-- manifest lookup with the PRIMARY `video/mp4` content URL;
+- manifest lookup and PRIMARY `video/mp4` content URL;
 - full `200` responses;
-- single closed/open-ended byte ranges with `206 Partial Content`;
-- correct inclusive `Content-Range` and `Accept-Ranges: bytes`;
+- single closed and open-ended byte ranges with `206`;
+- inclusive `Content-Range` and `Accept-Ranges: bytes`;
 - `416` for unsatisfiable ranges;
-- ETag handling;
-- inline MP4 disposition;
-- workspace authorization;
-- existing PRIMARY-file download.
+- ETag behavior and inline disposition;
+- workspace authorization and existing download.
 
-Local storage seeks and reads the requested range. Azure uses ranged blob download. Multipart ranges remain out of scope.
+Local storage seeks to the requested range; Azure uses ranged blob download. Multipart ranges are not implemented. The shared Video.js component receives the generic content URL directly, uses `preload="none"`, and relies on browser Range requests for seeking.
 
-The shared Video.js player's native `<Video>` media element seeks through the same generic artifact route used by all MP4 viewers. It receives the content URL directly and never fetches or buffers the complete MP4 in application memory.
+## Evidence
 
-## 6. Temporary and legacy data
-
-Narration, generated scene source, stills, segments, receipts, and intermediate outputs remain temporary in the attempt sandbox. Only the verified MP4 becomes an Artifact file.
-
-Legacy per-slide audio, scene metadata, old writers, and compatibility readers remain until the Phase-7 migration decision and Phase-8 retirement gates are complete.
-
-## 7. Acceptance
-
-- verified bytes stream to local/Azure-compatible storage without a full backend buffer;
-- stored size and SHA-256 match the verification receipt;
-- digest mismatch removes the partial blob and fails the attempt;
-- the final Artifact uses canonical format `video` and MIME `video/mp4`;
-- manifest, download, full content, `206`, `416`, ETag, and seeking use existing routes;
-- no placeholder Artifact is created at enqueue;
-- the separate Artifact-save and job-ready commits are tracked as an explicit remaining gap.
+Storage and route tests cover streaming size/digest checks, partial cleanup, manifest/download, full content, `206`, `416`, ETag, authorization, and local/Azure range behavior. Executor coverage asserts the signed receipt digest is passed as `expected_sha256`, revision generation is enforced, and capability/skill/render metadata is saved.
