@@ -1534,7 +1534,7 @@ class Chunk(BaseModel, TimestampMixin):
 class VideoPresentationRun(BaseModel, TimestampMixin):
     """Lifecycle record for one video-presentation generation.
 
-    The delivered result — Remotion slides, scene codes, narration — lives in
+    The delivered result — slides, scene code, and narration — lives in
     the Artifact pointed to by ``artifact_id``. This row tracks only the run:
     its status, and the reason a failed one failed.
     """

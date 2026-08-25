@@ -727,7 +727,7 @@ async def get_snapshot_video_artifact(
 
     Same allowlist as ``get_snapshot_artifact_file``: the share token grants
     access only to the artifacts the shared thread produced. Returns the
-    Artifact with its document loaded (for the title); the Remotion slides and
+    Artifact with its document loaded (for the title); the legacy slides and
     scene codes live in ``artifact_metadata``.
     """
     from app.artifacts.persistence import Artifact

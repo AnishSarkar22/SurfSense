@@ -1,4 +1,4 @@
-"""Bounded visual review for Remotion stills."""
+"""Bounded visual review for generated video stills."""
 
 from __future__ import annotations
 

@@ -90,7 +90,7 @@ async def record(
             kind="video",
             legacy_id=video_pres.id,
         )
-        remotion_slides = [
+        video_slides = [
             {
                 k: v
                 for k, v in slide.items()
@@ -110,7 +110,7 @@ async def record(
                 {
                     "slide_count": len(slides),
                     "scene_code_count": len(scene_codes),
-                    "slides": remotion_slides,
+                    "slides": video_slides,
                     "scene_codes": scene_codes,
                 },
             ),

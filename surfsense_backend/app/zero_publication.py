@@ -83,7 +83,7 @@ PODCAST_COLS = [
 ]
 
 # Lifecycle only: status and error drive the in-flight / failed UI by push,
-# artifact_id links the delivered result. The Remotion payload lives in the
+# artifact_id links the delivered result. The legacy scene payload lives in the
 # Artifact and is fetched over REST, never replicated here.
 VIDEO_PRESENTATION_RUN_COLS = [
     "id",
