@@ -1,0 +1,32 @@
+{
+  "id": "video.component.blur-out-up",
+  "kind": "component",
+  "summary": "Words arrive cleanly and depart upward with increasing blur.",
+  "category": "typography",
+  "tags": ["headline", "exit", "blur", "editorial"],
+  "vibe": "premium",
+  "use_for": ["Graceful title exits", "Short editorial taglines"],
+  "avoid_for": ["Paragraphs", "Hard cuts", "Blur-in entrances"],
+  "natural_frame_length": 90,
+  "tier": "vetted",
+  "dependencies": ["remotion"],
+  "native_canvas": {"width": 1280, "height": 720, "fps": 30},
+  "deterministic": true,
+  "test_props": {"text": "Clear in, airy out.", "color": "#f8fafc"},
+  "props_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["text"],
+    "properties": {
+      "text": {"type": "string", "minLength": 1, "maxLength": 160},
+      "staggerDelay": {"type": "number", "minimum": 0, "maximum": 8},
+      "fontSize": {"type": "number", "minimum": 16, "maximum": 180},
+      "color": {"type": "string", "minLength": 1},
+      "fontWeight": {"type": "number", "minimum": 100, "maximum": 900},
+      "speed": {"type": "number", "minimum": 0.25, "maximum": 4}
+    }
+  },
+  "upstream_docs_url": "https://remocn.dev/docs/typography/blur-out-up.md",
+  "vendored_revision": "registry-2026-08-25",
+  "loader": "component.blur-out-up"
+}

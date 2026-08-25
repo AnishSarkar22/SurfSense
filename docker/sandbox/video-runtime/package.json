@@ -1,0 +1,31 @@
+{
+	"name": "surfsense-video-runtime",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"generate": "node scripts/build-capabilities.mjs",
+		"build": "npm run generate && node scripts/build-bundle.mjs",
+		"check": "npm run generate && tsc --noEmit",
+		"test": "npm run generate && node --test harness-tests/*.test.mjs",
+		"test:render": "bash harness-fixtures/smoke.sh",
+		"benchmark": "node harness-fixtures/benchmark.mjs"
+	},
+	"dependencies": {
+		"@remotion/fonts": "4.0.514",
+		"@remotion/media": "4.0.514",
+		"@remotion/renderer": "4.0.514",
+		"@remotion/transitions": "4.0.514",
+		"ajv": "^8.20.0",
+		"react": "19.2.3",
+		"react-dom": "19.2.3",
+		"remotion": "4.0.514",
+		"zod": "4.4.3"
+	},
+	"devDependencies": {
+		"@remotion/bundler": "4.0.514",
+		"@remotion/cli": "4.0.514",
+		"@types/react": "19.2.14",
+		"@types/react-dom": "19.2.3",
+		"typescript": "5.9.3"
+	}
+}

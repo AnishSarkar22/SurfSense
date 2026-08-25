@@ -1,0 +1,68 @@
+[
+  {
+    "id": "video.renderer.master",
+    "kind": "renderer",
+    "summary": "Static 1920x1080 declarative video renderer.",
+    "category": "video",
+    "tags": ["rendering", "h264", "aac", "offline"],
+    "use_for": ["Trusted declarative video rendering"],
+    "avoid_for": ["Arbitrary source execution"],
+    "tier": "core",
+    "dependencies": ["remotion", "@remotion/renderer"],
+    "deterministic": true
+  },
+  {
+    "id": "video.component.core.primitives",
+    "kind": "component",
+    "summary": "Always-available typed layers for text, layout, media, charts, code, connectors, captions, filters, camera moves, overlays, audio visualization, and repeated elements.",
+    "category": "core",
+    "tags": ["fallback", "text", "layout", "shape", "gradient", "image", "video", "svg", "icon", "chart", "code", "connector", "caption", "filter", "camera", "keyframe", "overlay", "audio", "repeat"],
+    "vibe": "clean",
+    "use_for": ["General composition", "Fallback when no specialized capability fits"],
+    "avoid_for": ["Unbounded generated markup"],
+    "tier": "core",
+    "dependencies": ["remotion", "@remotion/media"],
+    "native_canvas": {"width": 1920, "height": 1080, "fps": 30},
+    "deterministic": true,
+    "test_props": {}
+  },
+  {
+    "id": "font.inter",
+    "kind": "font",
+    "summary": "Local sans-serif UI and display family.",
+    "category": "sans-serif",
+    "tags": ["clean", "ui", "display"],
+    "use_for": ["UI", "Headlines", "Body copy"],
+    "avoid_for": ["Long-form editorial contrast"],
+    "tier": "core",
+    "dependencies": [],
+    "deterministic": true,
+    "font": {"family": "Inter", "file": "fonts/Inter.ttf", "format": "truetype", "weight": 400}
+  },
+  {
+    "id": "font.lora",
+    "kind": "font",
+    "summary": "Local serif family for editorial contrast.",
+    "category": "serif",
+    "tags": ["editorial", "serif", "premium"],
+    "use_for": ["Editorial headlines", "Quotes"],
+    "avoid_for": ["Dense UI", "Code"],
+    "tier": "core",
+    "dependencies": [],
+    "deterministic": true,
+    "font": {"family": "Lora", "file": "fonts/Lora.ttf", "format": "truetype", "weight": 400}
+  },
+  {
+    "id": "font.jetbrains-mono",
+    "kind": "font",
+    "summary": "Local monospace family for code and technical labels.",
+    "category": "monospace",
+    "tags": ["code", "terminal", "technical"],
+    "use_for": ["Code blocks", "Terminal output", "Technical labels"],
+    "avoid_for": ["Long prose"],
+    "tier": "core",
+    "dependencies": [],
+    "deterministic": true,
+    "font": {"family": "JetBrains Mono", "file": "fonts/JetBrainsMono.ttf", "format": "truetype", "weight": 400}
+  }
+]

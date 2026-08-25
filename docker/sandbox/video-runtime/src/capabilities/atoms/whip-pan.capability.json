@@ -1,0 +1,27 @@
+{
+  "id": "video.transition.whip-pan",
+  "kind": "transition",
+  "summary": "Both scenes fly through frame with velocity-based directional blur.",
+  "category": "directional",
+  "tags": ["transition", "kinetic", "directional", "blur"],
+  "vibe": "playful",
+  "use_for": ["Energetic peer-to-peer cuts", "Product demo montages"],
+  "avoid_for": ["Calm moments", "Repeated same-direction cuts"],
+  "natural_frame_length": 26,
+  "tier": "vetted",
+  "dependencies": ["remotion", "@remotion/transitions"],
+  "native_canvas": {"width": 1280, "height": 720, "fps": 30},
+  "deterministic": true,
+  "test_props": {"direction": "left", "blur": 24},
+  "props_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "direction": {"enum": ["left", "right", "up", "down"]},
+      "blur": {"type": "number", "minimum": 0, "maximum": 64}
+    }
+  },
+  "upstream_docs_url": "https://remocn.dev/docs/transitions/whip-pan.md",
+  "vendored_revision": "registry-2026-08-25",
+  "loader": "transition.whip-pan"
+}
