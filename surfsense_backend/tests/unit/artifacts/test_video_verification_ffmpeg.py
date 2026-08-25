@@ -18,6 +18,19 @@ class LocalCommandSession:
     session_id = "local-ffmpeg"
 
     async def run_command(self, command):
+        if command.startswith('index="${SURFSENSE_CAPABILITY_INDEX'):
+            return ExecResult(
+                json.dumps(
+                    {
+                        "build_id": "0123456789abcdefabcd",
+                        "capabilities": [
+                            {"id": "font.inter"},
+                            {"id": "video.renderer.master"},
+                        ],
+                    }
+                ),
+                0,
+            )
         process = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -40,6 +53,38 @@ async def _make_fixture(path, *, black=False, audio=True):
     )
     result = await LocalCommandSession().run_command(command)
     assert result.ok, result.output
+    path.with_name(f"{path.name}.render.json").write_text(
+        json.dumps(
+            {
+                "build_id": "0123456789abcdefabcd",
+                "expected_duration_seconds": 1,
+                "expected_frame_count": 30,
+                "beat_sample_frames": [
+                    {"frame": 0, "reason": "first-content"},
+                    {"frame": 15, "reason": "beat:one:midpoint"},
+                    {"frame": 29, "reason": "last-content"},
+                ],
+                "selected_capability_ids": [
+                    "font.inter",
+                    "video.renderer.master",
+                ],
+                "resolved_capability_ids": [
+                    "font.inter",
+                    "video.renderer.master",
+                ],
+                "selected_capability_count": 2,
+                "resolved_capability_count": 2,
+                "render_settings": {
+                    "codec": "h264",
+                    "audio_codec": "aac",
+                    "pixel_format": "yuv420p",
+                    "width": 1920,
+                    "height": 1080,
+                    "fps": 30,
+                },
+            }
+        )
+    )
 
 
 async def test_real_ffmpeg_video_fixtures_cover_structural_gate(tmp_path):
@@ -59,9 +104,10 @@ async def test_real_ffmpeg_video_fixtures_cover_structural_gate(tmp_path):
         (await check_video(session, str(mute))).structural.findings
     )
 
-    (tmp_path / "valid.mp4.segments.json").write_text(
-        json.dumps({"expected_duration_seconds": 3})
-    )
-    assert "rendered segments" in " ".join(
+    sidecar = tmp_path / "valid.mp4.render.json"
+    metadata = json.loads(sidecar.read_text())
+    metadata["expected_duration_seconds"] = 3
+    sidecar.write_text(json.dumps(metadata))
+    assert "render metadata" in " ".join(
         (await check_video(session, str(valid))).structural.findings
     )

@@ -18,6 +18,9 @@ _DURATION_TOLERANCE_SECONDS = 0.5
 _MIN_FRAME_LEVELS = 4
 _MIN_FRAME_STDDEV = 1.0
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_BUILD_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+_CAPABILITY_ID_RE = re.compile(r"^(?:font|video\.(?:component|transition|renderer))\.")
+_MAX_SAMPLE_FRAMES = 36
 
 
 def reject_buffered_video_check(_: bytes) -> StructuralCheckResult:
@@ -39,38 +42,126 @@ def _positive_float(value: Any) -> float | None:
     return parsed if math.isfinite(parsed) and parsed > 0 else None
 
 
-async def _expected_duration(session: SandboxSession, path: str) -> float | None:
-    sidecar = f"{path}.segments.json"
+def _positive_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 and parsed == value else None
+
+
+def _capability_ids(value: Any) -> tuple[str, ...] | None:
+    if (
+        not isinstance(value, list)
+        or not value
+        or any(
+            not isinstance(item, str) or not _CAPABILITY_ID_RE.match(item)
+            for item in value
+        )
+        or value != sorted(value)
+        or len(value) != len(set(value))
+    ):
+        return None
+    return tuple(value)
+
+
+async def _render_metadata(session: SandboxSession, path: str) -> dict[str, Any]:
+    sidecar = f"{path}.render.json"
     result = await session.run_command(
         f"test -f {shlex.quote(sidecar)} && cat -- {shlex.quote(sidecar)}"
     )
     if not result.ok or not result.output.strip():
-        return None
+        raise ValueError("Video render metadata is missing")
     try:
         data = json.loads(result.output)
-        if "expected_duration_seconds" in data:
-            expected = _positive_float(data["expected_duration_seconds"])
-            if expected is not None:
-                return expected
-            raise ValueError("Video segment metadata is invalid")
-        durations = data.get("segment_durations_seconds")
-        if isinstance(durations, list) and durations:
-            values = [_positive_float(value) for value in durations]
-            if all(value is not None for value in values):
-                return sum(value for value in values if value is not None)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        pass
-    raise ValueError("Video segment metadata is invalid")
+    except json.JSONDecodeError as exc:
+        raise ValueError("Video render metadata is invalid") from exc
+    if not isinstance(data, dict):
+        raise ValueError("Video render metadata is invalid")
+
+    expected_duration = _positive_float(data.get("expected_duration_seconds"))
+    expected_frames = _positive_int(data.get("expected_frame_count"))
+    build_id = data.get("build_id")
+    selected = _capability_ids(data.get("selected_capability_ids"))
+    resolved = _capability_ids(data.get("resolved_capability_ids"))
+    samples = data.get("beat_sample_frames")
+    settings = data.get("render_settings")
+    if (
+        expected_duration is None
+        or expected_frames is None
+        or not isinstance(build_id, str)
+        or not _BUILD_ID_RE.fullmatch(build_id)
+        or selected is None
+        or resolved is None
+        or resolved != selected
+        or data.get("selected_capability_count") != len(selected)
+        or data.get("resolved_capability_count") != len(resolved)
+        or not isinstance(samples, list)
+        or not 2 <= len(samples) <= _MAX_SAMPLE_FRAMES
+        or not isinstance(settings, dict)
+        or settings.get("codec") != "h264"
+        or settings.get("audio_codec") != "aac"
+        or settings.get("width") != _WIDTH
+        or settings.get("height") != _HEIGHT
+        or settings.get("fps") != 30
+    ):
+        raise ValueError("Video render metadata is invalid")
+
+    frames: list[int] = []
+    for sample in samples:
+        if (
+            not isinstance(sample, dict)
+            or not isinstance(sample.get("frame"), int)
+            or isinstance(sample.get("frame"), bool)
+            or not 0 <= sample["frame"] < expected_frames
+            or not isinstance(sample.get("reason"), str)
+            or not sample["reason"]
+        ):
+            raise ValueError("Video render metadata is invalid")
+        frames.append(sample["frame"])
+    if (
+        frames != sorted(frames)
+        or len(frames) != len(set(frames))
+        or frames[0] != 0
+        or frames[-1] != expected_frames - 1
+    ):
+        raise ValueError("Video render metadata is invalid")
+
+    index_result = await session.run_command(
+        'index="${SURFSENSE_CAPABILITY_INDEX:-/opt/surfsense/capabilities/index.json}"; '
+        'test -f "$index" && cat -- "$index"'
+    )
+    try:
+        index = json.loads(index_result.output) if index_result.ok else None
+        known_ids = {
+            capability["id"]
+            for capability in index["capabilities"]
+            if isinstance(capability, dict) and isinstance(capability.get("id"), str)
+        }
+    except (KeyError, TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("Video capability index is invalid") from exc
+    if (
+        not isinstance(index, dict)
+        or index.get("build_id") != build_id
+        or not set(selected).issubset(known_ids)
+        or not set(resolved).issubset(known_ids)
+    ):
+        raise ValueError("Video capability metadata does not match the sandbox build")
+    return data
 
 
 async def check_video(session: SandboxSession, path: str) -> SandboxCheckResult:
     """Probe an MP4 in place; only compact metadata crosses the trust boundary."""
     quoted = shlex.quote(path)
     findings: list[str] = []
+    metadata = await _render_metadata(session, path)
     probe_text = await _run(
         session,
         "ffprobe -v error -count_packets -of json -show_entries "
-        "format=duration:stream=codec_type,width,height,duration,nb_read_packets "
+        "format=duration:stream=codec_type,codec_name,width,height,duration,"
+        "nb_read_packets "
         f"{quoted}",
         "probe",
     )
@@ -94,15 +185,21 @@ async def check_video(session: SandboxSession, path: str) -> SandboxCheckResult:
     ]
     if len(video_streams) != 1:
         findings.append("Video must contain exactly one video stream")
-    elif (
-        video_streams[0].get("width") != _WIDTH
-        or video_streams[0].get("height") != _HEIGHT
-    ):
-        findings.append(f"Video resolution must be {_WIDTH}x{_HEIGHT}")
+    else:
+        video_stream = video_streams[0]
+        if video_stream.get("codec_name") != "h264":
+            findings.append("Video stream must use H.264")
+        if (
+            video_stream.get("width") != _WIDTH
+            or video_stream.get("height") != _HEIGHT
+        ):
+            findings.append(f"Video resolution must be {_WIDTH}x{_HEIGHT}")
     if len(audio_streams) != 1:
         findings.append("Video must contain exactly one narration audio stream")
     else:
         audio_stream = audio_streams[0]
+        if audio_stream.get("codec_name") != "aac":
+            findings.append("Video narration audio must use AAC")
         try:
             audio_packets = int(audio_stream.get("nb_read_packets", 0))
         except (TypeError, ValueError):
@@ -117,33 +214,51 @@ async def check_video(session: SandboxSession, path: str) -> SandboxCheckResult:
         ):
             findings.append("Video narration ends before the video")
 
-    expected_duration = await _expected_duration(session, path)
+    expected_duration = _positive_float(metadata["expected_duration_seconds"])
     if (
-        expected_duration is not None
-        and duration is not None
+        duration is not None
+        and expected_duration is not None
         and abs(duration - expected_duration) > _DURATION_TOLERANCE_SECONDS
     ):
-        findings.append("Video duration does not match its rendered segments")
+        findings.append("Video duration does not match its render metadata")
 
-    if duration is not None:
+    if len(video_streams) == 1:
+        try:
+            frame_count = int(video_streams[0].get("nb_read_packets", 0))
+        except (TypeError, ValueError):
+            frame_count = 0
+        if frame_count != metadata["expected_frame_count"]:
+            findings.append("Video frame count does not match its render metadata")
+
+    sample_frames = [sample["frame"] for sample in metadata["beat_sample_frames"]]
+    if sample_frames:
+        select = "+".join(f"eq(n\\,{frame})" for frame in sample_frames)
         frame_stats_text = await _run(
             session,
             "ffmpeg -v error "
-            f"-ss {duration / 2:.6f} -i {quoted} -frames:v 1 "
-            '-vf "scale=64:36,format=gray" -f rawvideo - | '
+            f"-i {quoted} -vf {shlex.quote(f'select={select},scale=64:36,format=gray')} "
+            "-vsync 0 -f rawvideo - | "
             "python3 -c 'import json,statistics,sys; "
-            "d=sys.stdin.buffer.read(); "
-            'print(json.dumps({"levels":len(set(d)),'
-            '"stddev":statistics.pstdev(d) if d else 0}))\'',
-            "frame sanity check",
+            "d=sys.stdin.buffer.read(); size=64*36; "
+            "frames=[d[i:i+size] for i in range(0,len(d),size)]; "
+            'print(json.dumps([{"levels":len(set(f)),'
+            '"stddev":statistics.pstdev(f) if f else 0} for f in frames]))\'',
+            "frame sanity checks",
         )
         try:
             frame_stats = json.loads(frame_stats_text)
-            if (
-                int(frame_stats["levels"]) < _MIN_FRAME_LEVELS
-                or float(frame_stats["stddev"]) < _MIN_FRAME_STDDEV
+            if not isinstance(frame_stats, list) or len(frame_stats) != len(
+                sample_frames
             ):
-                findings.append("Video sampled frame is blank or single-color")
+                raise ValueError
+            for frame, stats in zip(sample_frames, frame_stats, strict=True):
+                if (
+                    int(stats["levels"]) < _MIN_FRAME_LEVELS
+                    or float(stats["stddev"]) < _MIN_FRAME_STDDEV
+                ):
+                    findings.append(
+                        f"Video sampled frame {frame} is blank or single-color"
+                    )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             raise ValueError("Video frame check returned invalid metadata") from exc
 

@@ -83,7 +83,7 @@ async def _consume_verification(
 
 async def _cleanup_video_workdir(session: SandboxSession, primary_path: str) -> None:
     """Best-effort cleanup after the streamed MP4 is durably committed."""
-    sidecar_path = f"{primary_path}.segments.json"
+    sidecar_path = f"{primary_path}.render.json"
     try:
         metadata = json.loads((await session.read_file(sidecar_path)).decode())
         workdir = PurePosixPath(metadata["render_workdir"])
