@@ -8,7 +8,15 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Protocol, runtime_checkable
+
+
+class SandboxResourceProfile(StrEnum):
+    """Provider-neutral resource class for a sandbox workload."""
+
+    DEFAULT = "default"
+    VIDEO_RENDER = "video_render"
 
 
 @dataclass(slots=True)
@@ -54,7 +62,12 @@ class SandboxSession(Protocol):
 class SandboxProvider(Protocol):
     """Creates and rediscovers sessions for a given backend."""
 
-    async def get_or_create_session(self, thread_id: str) -> SandboxSession:
+    async def get_or_create_session(
+        self,
+        thread_id: str,
+        *,
+        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
+    ) -> SandboxSession:
         """Return the thread's session, adopting a live one if it exists.
 
         Rediscovery matters across backend restarts: the sandbox outlives the
@@ -63,7 +76,12 @@ class SandboxProvider(Protocol):
         """
         ...
 
-    async def terminate_session(self, thread_id: str) -> None:
+    async def terminate_session(
+        self,
+        thread_id: str,
+        *,
+        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
+    ) -> None:
         """Kill the thread's session if one exists. Must not raise if absent."""
         ...
 
