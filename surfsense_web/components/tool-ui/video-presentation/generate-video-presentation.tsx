@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { baseApiService } from "@/lib/apis/base-api.service";
 import { authenticatedFetch } from "@/lib/auth-fetch";
 import { buildBackendUrl } from "@/lib/env-config";
-import { compileCheck, compileToComponent } from "@/lib/remotion/compile-check";
-import { FPS } from "@/lib/remotion/constants";
+import { compileCheck, compileToComponent } from "@/lib/video-runtime/compile-check";
+import { FPS } from "@/lib/video-runtime/constants";
 import { buildCompositionComponent, CombinedPlayer, type CompiledSlide } from "./combined-player";
 import { getVideoDownloadErrorToast } from "./errors";
 

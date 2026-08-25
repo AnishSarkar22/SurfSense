@@ -5,7 +5,7 @@ import { Player } from "@remotion/player";
 import type React from "react";
 import { useMemo } from "react";
 import { AbsoluteFill, interpolate, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
-import { FPS } from "@/lib/remotion/constants";
+import { FPS } from "@/lib/video-runtime/constants";
 
 export interface CompiledSlide {
 	component: React.ComponentType;
