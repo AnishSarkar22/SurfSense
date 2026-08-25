@@ -26,11 +26,12 @@ from daytona.common.errors import DaytonaError, DaytonaNotFoundError
 from app.config import config as app_config
 
 from ..file_stream import read_file_stream_via_commands
-from ..protocol import ExecResult
+from ..protocol import ExecResult, SandboxResourceProfile
 
 logger = logging.getLogger(__name__)
 
 THREAD_LABEL_KEY = "surfsense_thread"
+PROFILE_LABEL_KEY = "surfsense_profile"
 _START_TIMEOUT = 60
 
 
@@ -123,11 +124,33 @@ class DaytonaProvider:
                 )
             return self._client
 
-    def _create_params(self, labels: dict[str, str]) -> CreateSandboxFromSnapshotParams:
+    @staticmethod
+    def _labels(
+        thread_id: str, profile: SandboxResourceProfile
+    ) -> dict[str, str]:
+        return {
+            THREAD_LABEL_KEY: thread_id,
+            PROFILE_LABEL_KEY: profile.value,
+        }
+
+    @staticmethod
+    def _snapshot(profile: SandboxResourceProfile) -> str | None:
+        if profile is SandboxResourceProfile.VIDEO_RENDER:
+            snapshot = app_config.DAYTONA_VIDEO_SNAPSHOT_ID
+            if not snapshot:
+                raise ValueError(
+                    "DAYTONA_VIDEO_SNAPSHOT_ID is required for video sandboxes"
+                )
+            return snapshot
+        return app_config.DAYTONA_SNAPSHOT_ID
+
+    def _create_params(
+        self, labels: dict[str, str], profile: SandboxResourceProfile
+    ) -> CreateSandboxFromSnapshotParams:
         return CreateSandboxFromSnapshotParams(
             language="python",
             labels=labels,
-            snapshot=app_config.DAYTONA_SNAPSHOT_ID,
+            snapshot=self._snapshot(profile),
             network_block_all=True,
             auto_stop_interval=10,
             auto_delete_interval=60,
@@ -142,12 +165,17 @@ class DaytonaProvider:
         items = client.list(labels=labels).items
         return items[0] if items else None
 
-    def _find_or_create(self, client: Daytona, thread_id: str):
-        labels = {THREAD_LABEL_KEY: thread_id}
+    def _find_or_create(
+        self,
+        client: Daytona,
+        thread_id: str,
+        profile: SandboxResourceProfile,
+    ):
+        labels = self._labels(thread_id, profile)
         sandbox = self._find_one(client, labels)
         if sandbox is None:
             logger.info("No sandbox for thread %s — creating one", thread_id)
-            return client.create(self._create_params(labels))
+            return client.create(self._create_params(labels, profile))
 
         if sandbox.state in (
             SandboxState.STOPPED,
@@ -167,22 +195,34 @@ class DaytonaProvider:
             )
             with contextlib.suppress(Exception):
                 client.delete(sandbox)
-            return client.create(self._create_params(labels))
+            return client.create(self._create_params(labels, profile))
         elif sandbox.state != SandboxState.STARTED:
             sandbox.wait_for_sandbox_start(timeout=_START_TIMEOUT)
 
         return sandbox
 
-    async def get_or_create_session(self, thread_id: str) -> DaytonaSession:
+    async def get_or_create_session(
+        self,
+        thread_id: str,
+        *,
+        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
+    ) -> DaytonaSession:
         client = await self._get_client()
-        sandbox = await asyncio.to_thread(self._find_or_create, client, thread_id)
+        sandbox = await asyncio.to_thread(
+            self._find_or_create, client, thread_id, profile
+        )
         return DaytonaSession(sandbox, client)
 
-    async def terminate_session(self, thread_id: str) -> None:
+    async def terminate_session(
+        self,
+        thread_id: str,
+        *,
+        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
+    ) -> None:
         client = await self._get_client()
 
         def _kill() -> None:
-            sandbox = self._find_one(client, {THREAD_LABEL_KEY: thread_id})
+            sandbox = self._find_one(client, self._labels(thread_id, profile))
             if sandbox is None:
                 return
             client.delete(sandbox)
