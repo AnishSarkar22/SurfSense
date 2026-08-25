@@ -45,6 +45,9 @@ const timeoutInMilliseconds = Number(
 const maxConcurrentRenders = Number(
   process.env.VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS ?? 1,
 );
+const frameConcurrency = Number(
+  process.env.VIDEO_SANDBOX_FRAME_CONCURRENCY ?? 2,
+);
 const execFileAsync = promisify(execFile);
 const ajv = new Ajv2020({allErrors: true, strict: true});
 
@@ -53,6 +56,9 @@ if (!Number.isFinite(timeoutInMilliseconds) || timeoutInMilliseconds < 7000) {
 }
 if (!Number.isInteger(maxConcurrentRenders) || maxConcurrentRenders < 1) {
   throw new Error("VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS must be a positive integer");
+}
+if (!Number.isInteger(frameConcurrency) || frameConcurrency < 1) {
+  throw new Error("VIDEO_SANDBOX_FRAME_CONCURRENCY must be a positive integer");
 }
 
 function progressWriter() {
@@ -418,6 +424,7 @@ export async function render(argv = process.argv.slice(2)) {
           inputProps: input,
           chromiumOptions: {enableMultiProcessOnLinux: true},
           timeoutInMilliseconds,
+          concurrency: frameConcurrency,
           browserExecutable,
           cancelSignal,
           onProgress: ({progress: fraction, renderedFrames, encodedFrames}) => {

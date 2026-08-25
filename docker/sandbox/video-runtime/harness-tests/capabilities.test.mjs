@@ -238,6 +238,9 @@ test("vendored 720p capabilities are staged deterministically at output bounds",
 
 test("render path is single-pass and emits the complete receipt", () => {
   assert.equal((renderSource.match(/\brenderMedia\(/g) ?? []).length, 1);
+  assert.match(renderSource, /VIDEO_SANDBOX_FRAME_CONCURRENCY \?\? 2/);
+  assert.match(renderSource, /concurrency: frameConcurrency/);
+  assert.match(renderSource, /VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS \?\? 1/);
   assert.doesNotMatch(renderSource, /\bsegment(?:ation|s)?\b|\bstitch(?:ing|ed)?\b/i);
   assert.doesNotMatch(renderSource, /@remotion\/bundler|\bbundle\(/);
   assert.match(renderSource, /new Ajv2020/);
