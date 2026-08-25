@@ -1,86 +1,69 @@
-# Phase 4 — Worker-owned video verification
+# Phase 4 — Preflight, review, render, and verification
 
-**Status:** IMPLEMENTED.
-**Parent spec:** [`00-umbrella-plan.md`](00-umbrella-plan.md).
-**Depends on:** Phase 1, Phase 2b, Phase 3, and the artifact verification framework.
+**Status:** Implemented.
 
-## 1. Outcome
+## Pre-render gates
 
-Verification is the backend-owned gate between rendering and persistence. `execute_video_deliverable()` calls verification services directly; the interactive path and browser do not verify generated output.
+Every candidate `VideoRenderInput` runs through the same static bundle:
 
-The pipeline has two review boundaries:
+1. Zod validation and capability schema/build checks.
+2. `selectComposition()` with exact 1920×1080, 30 fps, frame count, and duration checks.
+3. Risk-still rendering at frame 0, final frame, beat midpoints, and authored keyframes.
+4. ffmpeg contact-sheet creation.
+5. Optional vision review for clipping, overflow, hierarchy, contrast, blank output, and safe margins.
 
-```text
-preflight + generated still review
-  → final MP4 render
-  → structural MP4 verification + signed receipt
-  → receipt-bound streaming save
-```
+Native preflight and still generation are mandatory. If no vision model is available, visual review is recorded as unavailable and does not replace the structural gates. Blocking findings can trigger a bounded declarative repair followed by a fresh preflight/still pass.
 
-## 2. Pre-render review
+## Single full render
 
-The executor runs:
+After review passes, `render.mjs` acquires an admission slot and calls `renderMedia()` exactly once. It renders H.264/AAC/yuv420p with an enforced audio track to a temporary `.mp4`, handles cancellation, atomically renames successful output, and writes `<output>.render.json`.
 
-1. native Remotion preflight;
-2. start/middle/end still rendering for every scene;
-3. one contact sheet;
-4. `review_video_stills()` with the configured vision model when available.
+The render metadata binds:
 
-The review schema normalizes supported model field aliases into a strict result. Its rubric covers clipping, overflow, contrast, hierarchy, blank frames, and safe margins. Only blocking findings trigger repair; warnings can proceed.
+- schema, capability build, and skill versions;
+- SHA-256 of the exact render input;
+- expected duration and frame count;
+- all risk-sample frames and reasons;
+- sorted selected and resolved capability IDs and counts;
+- codec, audio codec, pixel format, dimensions, and fps;
+- measured render seconds and completion timestamp.
 
-If no vision model is configured, still review reports unavailable and does not block the pipeline. Native preflight remains mandatory.
+Selected and resolved IDs must be equal. A render or final verification failure is terminal for that attempt; the executor does not perform a second full render.
 
-At most one preflight/still repair is attempted before that stage fails.
+## Artifact verification
 
-## 3. Video adapter and receipt
+The video adapter runs in the sandbox and requires:
 
-`app/artifacts/verification/formats/video.py` is registered for canonical format `video`, `.mp4`, and MIME type `video/mp4`.
+- valid render metadata matching the live capability index/build;
+- exactly one 1920×1080 H.264 video stream;
+- exactly one non-empty AAC narration stream;
+- positive duration within 0.5 seconds of render metadata;
+- frame count equal to expected frames;
+- narration that does not end more than 0.5 seconds before video;
+- every recorded risk frame to have sufficient grayscale levels and variance;
+- a valid SHA-256 of the exact MP4.
 
-Sandbox verification:
+Only compact findings and the digest cross the sandbox boundary. Generic verification may also use the configured vision model. The verification service signs a receipt bound to workspace, canonical format `video`, exact output path, and primary SHA-256.
 
-- probes the container with ffprobe;
-- requires one 1920×1080 video stream;
-- requires an audio stream with packets;
-- requires positive duration;
-- compares final duration with the segmented-render sidecar within tolerance;
-- extracts a midpoint frame and rejects blank/single-color output;
-- calculates SHA-256 without loading the MP4 into backend memory.
+## Persistence gate and failures
 
-The verification service signs a receipt bound to the output path, format, and digest. Any repair or re-render invalidates the old receipt.
+Before save, the executor rereads the signed receipt and render metadata. Format/path, capability build, skill hash, and frame count must match the final input. Storage recomputes SHA-256 while streaming and rejects changed bytes.
 
-The current adapter uses one midpoint structural frame check. Distributed final-MP4 frame sampling and a final vision pass are not implemented; visual quality is reviewed from the pre-render scene stills.
+Failures map at the worker boundary:
 
-## 4. Duration behavior
+- policy duration errors → `duration_limit`;
+- render/browser/ffmpeg/time-limit errors → `render_failed`;
+- verification or receipt errors → `verification_failed`;
+- quota errors → `quota_exceeded`;
+- remaining author/provider errors → `generation_failed`.
 
-The 180-second limit is enforced before final rendering by:
+Internal diagnostics are bounded, credential-like values are redacted, and public state receives only the stable code.
 
-- measured narration total; and
-- selected Remotion composition metadata.
+## Evidence
 
-Final structural verification checks media consistency against expected segment timing. It does not independently apply a separate `duration <= 180` policy branch.
+- `harness-tests/capabilities.test.mjs` asserts the sole `renderMedia()` call and complete sidecar fields.
+- `tests/unit/artifacts/test_video_verification.py` covers metadata/index agreement, stream/frame/audio requirements, sampled-frame checks, and digest production.
+- `tests/unit/artifacts/test_video_verification_ffmpeg.py` exercises ffmpeg/ffprobe command behavior.
+- executor tests verify that save follows successful verification and exact receipt matching.
 
-## 5. Repair and failure behavior
-
-Post-render structural failure can trigger a backend repair while the shared repair count remains below `VIDEO_SPEC.max_repair_cycles` (two). The executor merges repaired scene code/markdown into the existing authored structure, preserving narration and scene count, then prepares, renders, and verifies again.
-
-Terminal verification failure maps to `verification_failed`; render failures map to `render_failed`; earlier policy failures may retain a more specific code. Public payloads never expose raw ffmpeg, Remotion, provider, sandbox, Celery, path, or stack detail.
-
-## 6. Cancellation and persistence boundary
-
-The worker's database watcher can cancel the executor and terminate the attempt sandbox during review, render, or verification. Heartbeats are attempt-bound; a cancelled or superseded attempt cannot complete the job.
-
-Before persistence, `_save_verified()` reads the receipt and verifies that it covers the exact output path and canonical video format. Streaming storage recomputes SHA-256 and rejects mismatched bytes.
-
-No unverified MP4 can be saved through this executor path.
-
-## 7. Acceptance
-
-- native preflight and blocking still findings gate final rendering;
-- valid output produces a signed receipt bound to its exact SHA-256;
-- corrupt, mute, malformed, wrong-resolution, duration-inconsistent, or midpoint-blank output fails;
-- changing bytes after verification causes streaming save to reject them;
-- repair is bounded and repaired output is re-verified;
-- cancellation prevents verification completion and save;
-- only stable public failure codes leave the worker boundary.
-
-Distributed post-render frame sampling remains a possible hardening task, not an implemented Phase-4 contract.
+These are correctness checks, not published performance measurements.
