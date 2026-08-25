@@ -234,11 +234,10 @@ Ensure each slide has a clear visual mood and natural-sounding speaker transcrip
 
 
 # ---------------------------------------------------------------------------
-# Remotion scene code generation prompt
-# Ported from RemotionTets POC /api/generate system prompt
+# Legacy scene code-generation prompt
 # ---------------------------------------------------------------------------
 
-REMOTION_SCENE_SYSTEM_PROMPT = """
+VIDEO_SCENE_SYSTEM_PROMPT = """
 You are a Remotion component generator that creates cinematic, modern motion graphics.
 Generate a single self-contained React component that uses Remotion.
 
@@ -470,7 +469,7 @@ def build_scene_generation_user_prompt(
     theme: str,
     mode: str,
 ) -> str:
-    """Build the user prompt for generating a single slide's Remotion scene code.
+    """Build the user prompt for generating a single slide's video scene code.
 
     *theme* and *mode* are pre-assigned (by LLM or fallback) before this is called.
     """

@@ -24,8 +24,8 @@ from .prompts import (
     DEFAULT_DURATION_IN_FRAMES,
     FPS,
     REFINE_SCENE_SYSTEM_PROMPT,
-    REMOTION_SCENE_SYSTEM_PROMPT,
     THEME_PRESETS,
+    VIDEO_SCENE_SYSTEM_PROMPT,
     build_scene_generation_user_prompt,
     build_theme_assignment_user_prompt,
     get_slide_generation_prompt,
@@ -79,7 +79,7 @@ async def create_slide_audio(state: State, config: RunnableConfig) -> dict[str, 
     """Generate TTS audio for each slide.
 
     Each slide's speaker_transcripts are generated as individual TTS chunks,
-    then concatenated with ffmpeg (matching the POC in RemotionTets/api/tts).
+    then concatenated with ffmpeg.
     """
 
     session_id = str(uuid.uuid4())
@@ -335,7 +335,7 @@ async def assign_slide_themes(state: State, config: RunnableConfig) -> dict[str,
 async def generate_slide_scene_codes(
     state: State, config: RunnableConfig
 ) -> dict[str, Any]:
-    """Generate Remotion component code for each slide using LLM.
+    """Generate video component code for each slide using the LLM.
 
     Reads pre-assigned themes from state (produced by the parallel
     assign_slide_themes node) and generates scene code concurrently.
@@ -378,7 +378,7 @@ async def generate_slide_scene_codes(
         )
 
         messages = [
-            SystemMessage(content=REMOTION_SCENE_SYSTEM_PROMPT),
+            SystemMessage(content=VIDEO_SCENE_SYSTEM_PROMPT),
             HumanMessage(content=user_prompt),
         ]
 
@@ -460,7 +460,7 @@ async def _refine_if_needed(llm, code: str, slide_number: int) -> str:
             SystemMessage(content=REFINE_SCENE_SYSTEM_PROMPT),
             HumanMessage(
                 content=(
-                    f"Here is the broken Remotion component code:\n\n{code}\n\n"
+                    f"Here is the broken video component code:\n\n{code}\n\n"
                     f"Compilation error:\n{error}\n\nFix the code."
                 )
             ),
@@ -527,7 +527,7 @@ def _basic_syntax_check(code: str) -> str | None:
         return f"Unbalanced brackets: {bracket_count} unclosed"
 
     if "useCurrentFrame" not in code:
-        return "Missing useCurrentFrame() — required for Remotion animations"
+        return "Missing useCurrentFrame() — required for frame-driven animations"
 
     if "AbsoluteFill" not in code:
         return "Missing AbsoluteFill — required as the root layout component"
