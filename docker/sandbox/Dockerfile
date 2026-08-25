@@ -48,33 +48,42 @@ RUN set -euo pipefail \
     && npm install --global docx \
     && node -e "require('docx')"
 
-# ---- Remotion server-side render harness (Node 22 already in base) ----
-# Remotion uses its bundled ffmpeg for rendering. The system binaries support
-# later segment concat and structural/content probes without network access.
+# ---- Static capability-aware video renderer (Node 22 already in base) ----
+# System ffmpeg is retained only for structural probes and bounded contact
+# sheets; final video encoding is one renderMedia() call.
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         libnss3 libdbus-1-3 libatk1.0-0 libgbm1 libasound2t64 libxrandr2 \
         libxkbcommon0 libxfixes3 libxcomposite1 libxdamage1 \
         libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2 \
-        ffmpeg \
+        ffmpeg time \
     && rm -rf /var/lib/apt/lists/*
 
-ENV REMOTION_HOME=/opt/remotion
-COPY remotion/package*.json ${REMOTION_HOME}/
+ENV SURFSENSE_VIDEO_RUNTIME_HOME=/opt/surfsense/video-runtime \
+    SURFSENSE_CAPABILITY_INDEX=/opt/surfsense/capabilities/index.json \
+    SURFSENSE_CAPABILITY_OUTPUT=/opt/surfsense/capabilities
+COPY video-runtime/package*.json ${SURFSENSE_VIDEO_RUNTIME_HOME}/
 RUN set -euo pipefail \
-    && cd ${REMOTION_HOME} \
-    && npm ci \
+    && cd ${SURFSENSE_VIDEO_RUNTIME_HOME} \
+    && npm ci --workspaces=false \
     && npx remotion browser ensure \
     && node -e "require('@remotion/renderer'); require('@remotion/bundler')"
-COPY remotion/ ${REMOTION_HOME}/
+COPY video-runtime/ ${SURFSENSE_VIDEO_RUNTIME_HOME}/
 
-# ---- Baked fonts: the ONLY families scene code may use (offline) ----
-COPY remotion/fonts/ /usr/share/fonts/truetype/surfsense/
+# ---- Baked fonts: the only authorable families (offline) ----
+COPY video-runtime/fonts/ /usr/share/fonts/truetype/surfsense/
 RUN set -euo pipefail \
     && fc-cache -f \
     && for family in Inter Lora "JetBrains Mono"; do \
         fc-list : family | grep -Fqi "${family}"; \
-    done
+    done \
+    && cd ${SURFSENSE_VIDEO_RUNTIME_HOME} \
+    && npm run check \
+    && npm test \
+    && npm run build \
+    && test -s /opt/surfsense/capabilities/index.json \
+    && test -f ${SURFSENSE_VIDEO_RUNTIME_HOME}/bundle/index.html \
+    && npm prune --omit=dev --workspaces=false
 
 # The base image also ships skills. Replace the formats SurfSense owns in one
 # layer so OverlayFS records removed base-image files as deletions.
