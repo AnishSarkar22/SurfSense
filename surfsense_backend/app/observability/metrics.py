@@ -169,15 +169,6 @@ def _video_admission_wait():
 
 
 @lru_cache(maxsize=1)
-def _video_segment_count():
-    return _get_meter().create_histogram(
-        "surfsense.video.segment.count",
-        unit="{segment}",
-        description="Rendered segment count per video.",
-    )
-
-
-@lru_cache(maxsize=1)
 def _video_verify_failures():
     return _get_meter().create_counter(
         "surfsense.video.verify.failures",
@@ -963,10 +954,6 @@ def record_video_admission_wait(seconds: float, *, queue_depth: int) -> None:
     )
 
 
-def record_video_segment_count(count: int) -> None:
-    _record(_video_segment_count(), count, {})
-
-
 def record_video_verify_failure(reason: str) -> None:
     _add(_video_verify_failures(), 1, {"reason": reason})
 
@@ -1091,7 +1078,6 @@ __all__ = [
     "record_tool_call_error",
     "record_video_admission_wait",
     "record_video_render_duration",
-    "record_video_segment_count",
     "record_video_verify_failure",
     "register_runtime_observables",
 ]

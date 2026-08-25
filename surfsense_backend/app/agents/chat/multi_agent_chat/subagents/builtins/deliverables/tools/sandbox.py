@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import shlex
 import time
 import uuid
@@ -26,8 +25,6 @@ _TRANSPORT_GRACE_SECONDS = 5
 _VIDEO_RENDER_GATE = asyncio.Semaphore(
     max(1, app_config.VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS)
 )
-_VIDEO_SEGMENTS_RE = re.compile(r"SURFSENSE_SEGMENT_COUNT=(\d+)")
-_VIDEO_SEGMENT_SECONDS_RE = re.compile(r"SURFSENSE_SEGMENT_SECONDS=([0-9.]+)")
 _video_render_waiters = 0
 
 logger = logging.getLogger(__name__)
@@ -110,9 +107,7 @@ async def _run_bash(session: SandboxSession, command: str) -> ExecResult:
     if "render.mjs" not in command:
         return await session.run_command(command)
     command = (
-        f"export VIDEO_SANDBOX_MAX_FRAMES_PER_SEGMENT="
-        f"{app_config.VIDEO_SANDBOX_MAX_FRAMES_PER_SEGMENT} "
-        f"VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS="
+        "export VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS="
         f"{app_config.VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS}; {command}"
     )
     if not _is_full_video_render(command):
@@ -139,10 +134,6 @@ async def _run_bash(session: SandboxSession, command: str) -> ExecResult:
     finally:
         _VIDEO_RENDER_GATE.release()
         ot_metrics.record_video_render_duration(time.monotonic() - started_at)
-    match = _VIDEO_SEGMENTS_RE.search(result.output)
-    for seconds in _VIDEO_SEGMENT_SECONDS_RE.findall(result.output):
-        ot_metrics.record_video_render_duration(float(seconds), scope="segment")
-    ot_metrics.record_video_segment_count(int(match.group(1)) if match else 1)
     return result
 
 
