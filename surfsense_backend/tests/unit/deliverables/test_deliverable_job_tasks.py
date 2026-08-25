@@ -14,6 +14,7 @@ from app.celery_app import celery_app
 from app.db import DeliverableFailureCode
 from app.deliverables.jobs.dispatch import DELIVERABLE_JOB_TASK
 from app.deliverables.jobs.policy import VIDEO_SPEC
+from app.sandbox import SandboxResourceProfile
 from app.tasks.celery_tasks import deliverable_job_tasks as tasks
 
 pytestmark = pytest.mark.unit
@@ -170,8 +171,8 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
         return SimpleNamespace(id=17)
 
     class Registry:
-        async def terminate(self, owner):
-            terminated.append(owner)
+        async def terminate(self, owner, *, profile):
+            terminated.append((owner, profile))
 
     async def registry():
         return Registry()
@@ -195,7 +196,9 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
 
     assert result == {"status": "ready", "job_id": 17, "artifact_id": 91}
     assert executor_args == (session, job)
-    assert terminated == ["deliverable-job-17-attempt-1"]
+    assert terminated == [
+        ("deliverable-job-17-attempt-1", SandboxResourceProfile.VIDEO_RENDER)
+    ]
     assert billable_kwargs["quota_reserve_tokens"] == 2048
     assert "quota_reserve_micros_override" not in billable_kwargs
     assert billable_kwargs["usage_type"] == "queued_deliverable_generation"
@@ -230,8 +233,8 @@ async def test_cooperative_cancellation_finishes_state_and_cleans_sandbox(
         return SimpleNamespace(id=job_id)
 
     class Registry:
-        async def terminate(self, owner):
-            terminated.append(owner)
+        async def terminate(self, owner, *, profile):
+            terminated.append((owner, profile))
 
     async def registry():
         return Registry()
@@ -254,7 +257,9 @@ async def test_cooperative_cancellation_finishes_state_and_cleans_sandbox(
 
     assert result == {"status": "cancelled", "job_id": 17}
     assert cancelled == [17]
-    assert terminated == ["deliverable-job-17-attempt-1"]
+    assert terminated == [
+        ("deliverable-job-17-attempt-1", SandboxResourceProfile.VIDEO_RENDER)
+    ]
     assert session.rollbacks == 1
     assert session.commits == 2
 
@@ -274,8 +279,8 @@ async def test_cancellation_watcher_stops_work_and_attempt_sandbox(monkeypatch) 
         return "cancelled"
 
     class Registry:
-        async def terminate(self, owner):
-            terminated.append(owner)
+        async def terminate(self, owner, *, profile):
+            terminated.append((owner, profile))
 
     async def registry():
         return Registry()
@@ -292,7 +297,9 @@ async def test_cancellation_watcher_stops_work_and_attempt_sandbox(monkeypatch) 
         )
 
     assert work_cancelled.is_set()
-    assert terminated == ["deliverable-job-17-attempt-2"]
+    assert terminated == [
+        ("deliverable-job-17-attempt-2", SandboxResourceProfile.VIDEO_RENDER)
+    ]
 
 
 async def test_reconciliation_republishes_each_job_to_default_queue(
@@ -348,8 +355,8 @@ async def test_reconciliation_finishes_stale_cancellation_and_attempt_sandbox(
         return job
 
     class Registry:
-        async def terminate(self, owner):
-            terminated.append(owner)
+        async def terminate(self, owner, *, profile):
+            terminated.append((owner, profile))
 
     async def registry():
         return Registry()
@@ -364,7 +371,9 @@ async def test_reconciliation_finishes_stale_cancellation_and_attempt_sandbox(
 
     assert await tasks._reconcile_stale_queued() == 0
     assert cancelled == [(17, "deliverable-job:17:attempt:2")]
-    assert terminated == ["deliverable-job-17-attempt-2"]
+    assert terminated == [
+        ("deliverable-job-17-attempt-2", SandboxResourceProfile.VIDEO_RENDER)
+    ]
 
 
 async def test_terminal_failure_is_persisted_without_raw_public_error(

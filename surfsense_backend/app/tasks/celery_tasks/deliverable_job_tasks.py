@@ -43,7 +43,7 @@ from app.deliverables.video.executor import (
     execute_video_deliverable,
     video_sandbox_owner,
 )
-from app.sandbox import get_registry
+from app.sandbox import SandboxResourceProfile, get_registry
 from app.services.billable_calls import (
     BillingSettlementError,
     QuotaInsufficientError,
@@ -280,7 +280,9 @@ async def _run_with_cancellation(
     outcome = await watcher
     work_task.cancel()
     try:
-        await (await get_registry()).terminate(sandbox_owner)
+        await (await get_registry()).terminate(
+            sandbox_owner, profile=SandboxResourceProfile.VIDEO_RENDER
+        )
     except Exception:
         logger.warning(
             "Could not immediately terminate sandbox %s during cancellation",
@@ -404,7 +406,9 @@ async def _execute_queued_deliverable(
             }
         finally:
             try:
-                await (await get_registry()).terminate(sandbox_owner)
+                await (await get_registry()).terminate(
+                    sandbox_owner, profile=SandboxResourceProfile.VIDEO_RENDER
+                )
             except Exception:
                 logger.warning(
                     "Could not terminate sandbox for queued deliverable job %s",
@@ -483,7 +487,9 @@ async def _reconcile_stale_queued() -> int:
         await session.commit()
     for owner in stale_sandbox_owners:
         try:
-            await (await get_registry()).terminate(owner)
+            await (await get_registry()).terminate(
+                owner, profile=SandboxResourceProfile.VIDEO_RENDER
+            )
         except Exception:
             logger.warning(
                 "Could not terminate stale cancelling sandbox %s",
