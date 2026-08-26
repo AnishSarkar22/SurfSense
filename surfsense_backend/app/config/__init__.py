@@ -583,6 +583,9 @@ class Config:
     SANDBOX_DEFAULT_MEMORY_GIB = int(os.getenv("SANDBOX_DEFAULT_MEMORY_GIB", "2"))
     VIDEO_SANDBOX_CPU = int(os.getenv("VIDEO_SANDBOX_CPU", "4"))
     VIDEO_SANDBOX_MEMORY_GIB = int(os.getenv("VIDEO_SANDBOX_MEMORY_GIB", "8"))
+    VIDEO_SANDBOX_TARGET_DURATION_SECONDS = int(
+        os.getenv("VIDEO_SANDBOX_TARGET_DURATION_SECONDS", "180")
+    )
     VIDEO_SANDBOX_RENDERING_ENABLED = (
         os.getenv("VIDEO_SANDBOX_RENDERING_ENABLED", "FALSE").strip().upper() == "TRUE"
     )
@@ -601,10 +604,13 @@ class Config:
         SANDBOX_DEFAULT_MEMORY_GIB,
         VIDEO_SANDBOX_CPU,
         VIDEO_SANDBOX_MEMORY_GIB,
+        VIDEO_SANDBOX_TARGET_DURATION_SECONDS,
         VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS,
         VIDEO_SANDBOX_FRAME_CONCURRENCY,
     ) < 1:
-        raise ValueError("Sandbox CPU, memory, and concurrency values must be positive")
+        raise ValueError(
+            "Sandbox resource, duration, and concurrency values must be positive"
+        )
     if VIDEO_SANDBOX_FRAME_CONCURRENCY > VIDEO_SANDBOX_CPU:
         raise ValueError(
             "VIDEO_SANDBOX_FRAME_CONCURRENCY cannot exceed VIDEO_SANDBOX_CPU"
