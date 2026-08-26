@@ -18,10 +18,46 @@ import pytest
 
 from app.services.provider_capabilities import (
     derive_supports_image_input,
+    derive_supports_structured_output,
     is_known_text_only_chat_model,
 )
 
 pytestmark = pytest.mark.unit
+
+
+def test_structured_output_uses_openrouter_metadata_as_authoritative() -> None:
+    assert derive_supports_structured_output(
+        provider="openrouter",
+        model_name="anthropic/claude-sonnet-4.6",
+        openrouter_supported_parameters=["structured_outputs", "tools"],
+    )
+    assert not derive_supports_structured_output(
+        provider="openrouter",
+        model_name="perplexity/sonar",
+        openrouter_supported_parameters=["web_search"],
+    )
+
+
+def test_structured_output_support_is_strict_for_known_and_unknown_models(
+    monkeypatch,
+) -> None:
+    import app.services.provider_capabilities as pc
+
+    monkeypatch.setattr(
+        pc.litellm,
+        "supports_response_schema",
+        lambda **kwargs: kwargs["model"].endswith("gpt-5.4"),
+    )
+
+    assert derive_supports_structured_output(
+        provider="azure",
+        model_name="deployment",
+        base_model="gpt-5.4",
+    )
+    assert not derive_supports_structured_output(
+        provider="custom",
+        model_name="unknown-model",
+    )
 
 
 # ---------------------------------------------------------------------------

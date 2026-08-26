@@ -49,6 +49,41 @@ import litellm
 logger = logging.getLogger(__name__)
 
 
+def derive_supports_structured_output(
+    *,
+    provider: str | None = None,
+    model_name: str | None = None,
+    base_model: str | None = None,
+    custom_provider: str | None = None,
+    openrouter_supported_parameters: Iterable[str] | None = None,
+) -> bool:
+    """Return True only when strict response-schema support is explicit."""
+
+    if openrouter_supported_parameters is not None:
+        return "structured_outputs" in set(openrouter_supported_parameters)
+
+    for model_string, custom_llm_provider in _candidate_model_strings(
+        provider=provider,
+        model_name=model_name,
+        base_model=base_model,
+        custom_provider=custom_provider,
+    ):
+        try:
+            if litellm.supports_response_schema(
+                model=model_string,
+                custom_llm_provider=custom_llm_provider,
+            ):
+                return True
+        except Exception as exc:
+            logger.debug(
+                "litellm.supports_response_schema raised for model=%s provider=%s: %s",
+                model_string,
+                custom_llm_provider,
+                exc,
+            )
+    return False
+
+
 def _candidate_model_strings(
     *,
     provider: str | None,
@@ -226,5 +261,6 @@ def is_known_text_only_chat_model(
 
 __all__ = [
     "derive_supports_image_input",
+    "derive_supports_structured_output",
     "is_known_text_only_chat_model",
 ]
