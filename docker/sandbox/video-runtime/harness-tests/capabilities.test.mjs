@@ -3,7 +3,11 @@ import {readdir, readFile} from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
-import {riskFrames, resolvedCapabilityIds} from "../render-utils.mjs";
+import {
+  assertDurationLimit,
+  resolvedCapabilityIds,
+  riskFrames,
+} from "../render-utils.mjs";
 
 const {VideoRenderInputSchema} = await import("../generated/VideoRenderInput.mjs");
 const index = JSON.parse(
@@ -60,6 +64,7 @@ const validInput = {
   build_id: registryBuildId,
   skill_version: "test",
   fps: 30,
+  max_duration_seconds: 210,
   width: 1920,
   height: 1080,
   duration_in_frames: 90,
@@ -166,6 +171,33 @@ test("generated index and trusted registry stay in lockstep", () => {
 test("VideoRenderInput accepts trusted declarative layers", () => {
   const result = VideoRenderInputSchema.safeParse(validInput);
   assert.equal(result.success, true, JSON.stringify(result.error?.issues));
+});
+
+test("duration headroom is accepted through the hard ceiling", () => {
+  assert.equal(
+    VideoRenderInputSchema.safeParse({...validInput, duration_in_frames: 6300}).success,
+    true,
+  );
+  assert.equal(
+    VideoRenderInputSchema.safeParse({...validInput, duration_in_frames: 6301}).success,
+    false,
+  );
+  const futurePolicy = {
+    ...validInput,
+    max_duration_seconds: 330,
+    duration_in_frames: 9900,
+  };
+  assert.equal(VideoRenderInputSchema.safeParse(futurePolicy).success, true);
+  assert.equal(
+    VideoRenderInputSchema.safeParse({...futurePolicy, duration_in_frames: 9901}).success,
+    false,
+  );
+  assert.equal(assertDurationLimit({durationInFrames: 6300, fps: 30}, 210), 210);
+  assert.throws(
+    () => assertDurationLimit({durationInFrames: 6301, fps: 30}, 210),
+    (error) =>
+      error.code === "duration_limit" && error.message.includes("duration limit"),
+  );
 });
 
 test("VideoRenderInput rejects source-era structure before capability validation", () => {

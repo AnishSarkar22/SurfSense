@@ -21,6 +21,7 @@ const input = {
   build_id: registryBuildId,
   skill_version: "smoke-v1",
   fps: 30,
+  max_duration_seconds: durationSeconds + 30,
   width: 1920,
   height: 1080,
   duration_in_frames: durationInFrames,

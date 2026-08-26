@@ -12,6 +12,7 @@ const defaultProps: VideoRenderInput = {
   build_id: registryBuildId,
   skill_version: "video-skill-v1",
   fps: 30,
+  max_duration_seconds: 3,
   width: 1920,
   height: 1080,
   duration_in_frames: 90,

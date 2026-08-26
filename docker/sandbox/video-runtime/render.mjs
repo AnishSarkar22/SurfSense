@@ -230,7 +230,7 @@ async function select(input, serveUrl) {
     inputProps: input,
     browserExecutable,
   });
-  assertDurationLimit(composition, 180);
+  assertDurationLimit(composition, input.max_duration_seconds);
   if (
     composition.width !== 1920 ||
     composition.height !== 1080 ||

@@ -2,11 +2,14 @@ import {createHash} from "node:crypto";
 import {mkdir, rename, stat, writeFile} from "node:fs/promises";
 import path from "node:path";
 
-export function assertDurationLimit(composition, maxDurationSeconds = 180) {
+export function assertDurationLimit(composition, maxDurationSeconds) {
+  if (!Number.isInteger(maxDurationSeconds) || maxDurationSeconds < 1) {
+    throw new Error("maxDurationSeconds must be a positive integer");
+  }
   const durationSeconds = composition.durationInFrames / composition.fps;
   if (durationSeconds > maxDurationSeconds) {
     const error = new Error(
-      `Composition duration ${durationSeconds.toFixed(3)}s exceeds ${maxDurationSeconds}s`,
+      `Composition duration ${durationSeconds.toFixed(3)}s exceeds duration limit of ${maxDurationSeconds}s`,
     );
     error.code = "duration_limit";
     throw error;

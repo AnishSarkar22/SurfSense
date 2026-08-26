@@ -239,9 +239,10 @@ export const VideoRenderInputSchema = z
     build_id: z.string().min(8).max(128),
     skill_version: z.string().min(1).max(128),
     fps: z.literal(30),
+    max_duration_seconds: z.number().int().positive(),
     width: z.literal(1920),
     height: z.literal(1080),
-    duration_in_frames: z.number().int().min(1).max(5400),
+    duration_in_frames: z.number().int().positive(),
     selected_capability_ids: z.array(capabilityId).min(1).max(100),
     beats: z.array(VideoBeatSchema).min(1).max(12),
     transitions: z.array(VideoTransitionSchema).max(11).default([]),
@@ -252,6 +253,9 @@ export const VideoRenderInputSchema = z
   })
   .strict()
   .superRefine((input, context) => {
+    if (input.duration_in_frames > input.max_duration_seconds * input.fps) {
+      context.addIssue({code: "custom", message: "Video exceeds configured duration limit"});
+    }
     const ids = new Set(input.selected_capability_ids);
     for (const beat of input.beats) {
       if (beat.start_frame + beat.duration_in_frames > input.duration_in_frames) {
