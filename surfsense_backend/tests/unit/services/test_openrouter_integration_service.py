@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from app.services.global_model_catalog import materialize_global_model_catalog
 from app.services.openrouter_integration_service import (
     _OPENROUTER_DYNAMIC_MARKER,
     _generate_configs,
@@ -150,10 +151,12 @@ def test_generate_configs_respects_tier():
             pricing={"prompt": "0", "completion": "0"},
         ),
     ]
+    raw[0]["supported_parameters"].append("structured_outputs")
     cfgs = _generate_configs(raw, dict(_SETTINGS_BASE))
     by_model = {c["model_name"]: c for c in cfgs}
 
     paid = by_model["openai/gpt-4o"]
+    assert paid["supported_parameters"] == ["tools", "structured_outputs"]
     assert paid["billing_tier"] == "premium"
     assert paid["rpm"] == 200
     assert paid["tpm"] == 1_000_000
@@ -167,6 +170,26 @@ def test_generate_configs_respects_tier():
     assert free["tpm"] == 100_000
     assert free["anonymous_enabled"] is True
     assert free["router_pool_eligible"] is False
+
+
+def test_global_catalog_preserves_structured_output_metadata() -> None:
+    config = {
+        "id": -100,
+        "name": "Claude",
+        "provider": "openrouter",
+        "model_name": "anthropic/claude-sonnet-4.6",
+        "supported_parameters": ["structured_outputs", "tools"],
+    }
+
+    _, models = materialize_global_model_catalog(
+        chat_configs=[config],
+        image_configs=[],
+    )
+
+    assert models[0]["catalog"]["supported_parameters"] == [
+        "structured_outputs",
+        "tools",
+    ]
 
 
 def test_generate_configs_excludes_upstream_openrouter_free_router():

@@ -34,7 +34,7 @@ def _freeze(value: Any) -> Any:
 
 
 def _catalog_metadata(config: dict[str, Any]) -> dict[str, Any]:
-    return {
+    metadata = {
         "billing_tier": config.get("billing_tier", "free"),
         "quota_reserve_tokens": config.get("quota_reserve_tokens"),
         "rpm": config.get("rpm"),
@@ -56,6 +56,9 @@ def _catalog_metadata(config: dict[str, Any]) -> dict[str, Any]:
         "base_model": _base_model(config),
         "router_pool_eligible": config.get("router_pool_eligible", True),
     }
+    if "supported_parameters" in config:
+        metadata["supported_parameters"] = config["supported_parameters"]
+    return metadata
 
 
 def materialize_global_model_catalog(
