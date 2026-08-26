@@ -88,10 +88,24 @@ class _SupersededAttemptError(Exception):
     """Stop an old worker after a retry has advanced the job attempt."""
 
 
+class UnsupportedVideoModelError(RuntimeError):
+    """The selected chat model cannot enforce the queued-video wire schema."""
+
+
 @asynccontextmanager
 async def _celery_billable_session():
     async with get_celery_session_maker()() as session:
         yield session
+
+
+class _BillableRunnable:
+    def __init__(self, runnable, billing: dict[str, Any]) -> None:
+        self._runnable = runnable
+        self._billing = billing
+
+    async def ainvoke(self, *args, **kwargs):
+        async with billable_call(**self._billing):
+            return await self._runnable.ainvoke(*args, **kwargs)
 
 
 class _BillableQueuedLLM:
@@ -126,6 +140,12 @@ class _BillableQueuedLLM:
         async with billable_call(**self._billing):
             return await self._llm.ainvoke(*args, **kwargs)
 
+    def with_structured_output(self, *args, **kwargs):
+        return _BillableRunnable(
+            self._llm.with_structured_output(*args, **kwargs),
+            self._billing,
+        )
+
     def __getattr__(self, name: str):
         return getattr(self._llm, name)
 
@@ -138,11 +158,13 @@ def classify_deliverable_failure(
         return DeliverableFailureCode.QUOTA_EXCEEDED, False
     if isinstance(exc, BillingSettlementError):
         return DeliverableFailureCode.GENERATION_FAILED, False
+    if isinstance(exc, UnsupportedVideoModelError):
+        return DeliverableFailureCode.MODEL_UNSUPPORTED, False
 
     message = str(exc).lower()
     if "out of credits" in message or "quota" in message:
         return DeliverableFailureCode.QUOTA_EXCEEDED, False
-    if "duration" in message and ("limit" in message or "180" in message):
+    if "duration" in message and "limit" in message:
         return DeliverableFailureCode.DURATION_LIMIT, False
     if "verif" in message or "no verified artifact" in message:
         return DeliverableFailureCode.VERIFICATION_FAILED, False
@@ -303,6 +325,11 @@ async def _execute_claimed_deliverable(
     task_id: str | None,
 ) -> dict[str, Any]:
     llm, agent_config = await _resolve_worker_model(session, job)
+    if not agent_config.supports_structured_output:
+        raise UnsupportedVideoModelError(
+            "the selected model does not support strict structured output "
+            "required for experimental queued video generation"
+        )
     owner_id, billing_tier, base_model = await _resolve_agent_billing_for_workspace(
         session,
         job.workspace_id,

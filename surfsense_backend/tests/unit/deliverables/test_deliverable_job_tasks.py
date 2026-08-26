@@ -97,6 +97,14 @@ def test_failure_classification_is_terminal_or_transient_and_sanitized() -> None
     assert tasks.classify_deliverable_failure(
         RuntimeError("duration limit exceeded")
     ) == (DeliverableFailureCode.DURATION_LIMIT, False)
+    assert tasks.classify_deliverable_failure(
+        RuntimeError(
+            "Composition duration 210.033s exceeds duration limit of 210s"
+        )
+    ) == (DeliverableFailureCode.DURATION_LIMIT, False)
+    assert tasks.classify_deliverable_failure(
+        tasks.UnsupportedVideoModelError("strict structured output is unavailable")
+    ) == (DeliverableFailureCode.MODEL_UNSUPPORTED, False)
 
     diagnostic = tasks.sanitize_internal_error(
         RuntimeError("api_key=super-secret https://user:pass@broker.example/internal")
@@ -104,6 +112,39 @@ def test_failure_classification_is_terminal_or_transient_and_sanitized() -> None
     assert "super-secret" not in diagnostic
     assert "user:pass" not in diagnostic
     assert "[redacted]" in diagnostic
+
+
+async def test_worker_rejects_unsupported_model_before_billing_or_executor(
+    monkeypatch,
+) -> None:
+    billed = False
+    executed = False
+
+    async def resolve_model(*_args, **_kwargs):
+        return object(), SimpleNamespace(supports_structured_output=False)
+
+    async def resolve_billing(*_args, **_kwargs):
+        nonlocal billed
+        billed = True
+
+    async def execute(*_args, **_kwargs):
+        nonlocal executed
+        executed = True
+
+    monkeypatch.setattr(tasks, "_resolve_worker_model", resolve_model)
+    monkeypatch.setattr(tasks, "_resolve_agent_billing_for_workspace", resolve_billing)
+    monkeypatch.setattr(tasks, "execute_video_deliverable", execute)
+
+    with pytest.raises(tasks.UnsupportedVideoModelError):
+        await tasks._execute_claimed_deliverable(
+            _Session(),
+            _job(),
+            job_id=17,
+            task_id="deliverable-job:17:attempt:1",
+        )
+
+    assert billed is False
+    assert executed is False
 
 
 async def test_duplicate_delivery_is_ignored_before_executor_run(monkeypatch) -> None:
@@ -147,11 +188,20 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
         return job
 
     async def resolve_model(*_args, **_kwargs):
-        class LLM:
+        class StructuredLLM:
             async def ainvoke(self, messages):
-                return ("response", messages)
+                return ("structured-response", messages)
 
-        return LLM(), SimpleNamespace(quota_reserve_tokens=2048)
+        class LLM:
+            def with_structured_output(self, schema, **kwargs):
+                assert schema == {"type": "object"}
+                assert kwargs == {"method": "json_schema", "strict": True}
+                return StructuredLLM()
+
+        return LLM(), SimpleNamespace(
+            quota_reserve_tokens=2048,
+            supports_structured_output=True,
+        )
 
     async def resolve_billing(*_args, **_kwargs):
         return SimpleNamespace(), "free", "model"
@@ -164,7 +214,15 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
     async def execute(session_arg, job_arg, llm):
         nonlocal executor_args
         executor_args = (session_arg, job_arg)
-        assert await llm.ainvoke(["author"]) == ("response", ["author"])
+        structured = llm.with_structured_output(
+            {"type": "object"},
+            method="json_schema",
+            strict=True,
+        )
+        assert await structured.ainvoke(["author"]) == (
+            "structured-response",
+            ["author"],
+        )
         return SimpleNamespace(artifact_id=91)
 
     async def complete(*_args, **_kwargs):
@@ -220,7 +278,10 @@ async def test_cooperative_cancellation_finishes_state_and_cleans_sandbox(
         return job
 
     async def resolve_model(*_args, **_kwargs):
-        return object(), SimpleNamespace(quota_reserve_tokens=None)
+        return object(), SimpleNamespace(
+            quota_reserve_tokens=None,
+            supports_structured_output=True,
+        )
 
     async def resolve_billing(*_args, **_kwargs):
         return SimpleNamespace(), "free", "model"

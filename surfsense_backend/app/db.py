@@ -136,6 +136,7 @@ class DeliverableJobStatus(StrEnum):
 
 class DeliverableFailureCode(StrEnum):
     DURATION_LIMIT = "duration_limit"
+    MODEL_UNSUPPORTED = "model_unsupported"
     QUOTA_EXCEEDED = "quota_exceeded"
     GENERATION_FAILED = "generation_failed"
     RENDER_FAILED = "render_failed"
