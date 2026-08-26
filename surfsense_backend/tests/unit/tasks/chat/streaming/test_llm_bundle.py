@@ -30,6 +30,29 @@ class _CapturedChatLiteLLM:
         self.__class__.calls.append(kwargs)
 
 
+def test_bundle_prefers_fresh_openrouter_structured_output_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = {}
+
+    def derive(**kwargs):
+        captured.update(kwargs)
+        return True
+
+    monkeypatch.setattr(llm_bundle, "derive_supports_structured_output", derive)
+
+    assert llm_bundle._supports_structured_output(
+        provider="openrouter",
+        model_name="anthropic/claude-sonnet-4.6",
+        litellm_params=None,
+        catalog={"supported_parameters": ["structured_outputs", "tools"]},
+    )
+    assert captured["openrouter_supported_parameters"] == [
+        "structured_outputs",
+        "tools",
+    ]
+
+
 def test_context_resolution_prefers_persisted_then_catalog_then_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -125,6 +148,11 @@ def _patch_common_bundle_dependencies(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(llm_bundle, "register_model_usage_metadata", lambda **_kw: None)
     monkeypatch.setattr(
         llm_bundle,
+        "derive_supports_structured_output",
+        lambda **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        llm_bundle,
         "has_capability",
         lambda _model, capability: capability in {"chat", "vision"},
     )
@@ -158,6 +186,12 @@ async def test_load_llm_bundle_enables_streaming_for_db_models(
     monkeypatch.setattr(llm_bundle, "_load_db_model", _fake_db_model)
     monkeypatch.setattr(
         llm_bundle,
+        "derive_supports_structured_output",
+        lambda **_kwargs: True,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        llm_bundle,
         "to_litellm",
         lambda _conn, _model_id: (
             "openai/gpt-4o-mini",
@@ -174,6 +208,7 @@ async def test_load_llm_bundle_enables_streaming_for_db_models(
     assert error is None
     assert llm is not None
     assert agent_config is not None
+    assert agent_config.supports_structured_output is True
     assert llm.profile["max_input_tokens"] == 16_384
     assert _CapturedChatLiteLLM.calls == [
         {
