@@ -46,6 +46,7 @@ from app.deliverables.video.narration import (
     synthesize_narration,
 )
 from app.deliverables.video.skill import LoadedVideoSkill, load_video_skill
+from app.deliverables.video.structured_output import provider_json_schema
 from app.deliverables.video.timeline import (
     VideoTimelineDurationError,
     build_video_render_input,
@@ -66,7 +67,6 @@ from app.sandbox.capabilities.schema import (
     CapabilityKind,
 )
 from app.services.llm_service import get_vision_llm
-from app.utils.structured_output import invoke_json
 
 _MAX_BRIEF_CHARS = 16_000
 _MAX_SOURCE_REFERENCES = 25
@@ -191,7 +191,6 @@ async def execute_video_deliverable(
             "source_references": _source_labels(request.source_references),
             "revision_artifact_id": request.revision_artifact_id,
             "capability_taxonomy": _capability_taxonomy(index),
-            "output_schema": CreativeOutline.model_json_schema(),
         },
         model=CreativeOutline,
     )
@@ -209,7 +208,6 @@ async def execute_video_deliverable(
             "source_references": _source_labels(request.source_references),
             "outline": outline.model_dump(mode="json"),
             "capability_disclosure": _authored_capability_disclosure(disclosure),
-            "output_schema": AuthoredVideoPlan.model_json_schema(),
         },
         model=AuthoredVideoPlan,
     )
@@ -406,19 +404,23 @@ async def _invoke_structured(
     payload: dict,
     model: type[BaseModel],
 ):
-    return await asyncio.wait_for(
-        invoke_json(
-            llm,
+    structured_llm = llm.with_structured_output(
+        provider_json_schema(model),
+        method="json_schema",
+        strict=True,
+    )
+    result = await asyncio.wait_for(
+        structured_llm.ainvoke(
             [
                 SystemMessage(content=skill.content),
                 HumanMessage(
                     content=json.dumps(payload, ensure_ascii=False, sort_keys=True)
                 ),
-            ],
-            model,
+            ]
         ),
         timeout=_MODEL_TIMEOUT_SECONDS,
     )
+    return model.model_validate_json(json.dumps(result, ensure_ascii=False))
 
 
 def _retrieve_disclosure(
@@ -545,7 +547,6 @@ async def _compile_with_semantic_repair(
                 ],
                 "authored_video_plan": authored.model_dump(mode="json"),
                 "capability_disclosure": _authored_capability_disclosure(disclosure),
-                "output_schema": AuthoredVideoPlan.model_json_schema(),
             },
             model=AuthoredVideoPlan,
         )
@@ -592,7 +593,6 @@ async def _request_narration_repair(
                 "Rewrite only narration that cannot fit its budget. Preserve beat_id "
                 "and utterance_id exactly. Do not return visual or timing fields."
             ),
-            "output_schema": NarrationRewrite.model_json_schema(),
         },
         model=NarrationRewrite,
     )
@@ -657,7 +657,6 @@ async def _repair_plan(
             "preserve": ["beat_ids", "utterance_ids", "narration", "language"],
             "capability_disclosure": _authored_capability_disclosure(disclosure),
             "current_internal_video_plan": plan.model_dump(mode="json"),
-            "output_schema": AuthoredVideoPlan.model_json_schema(),
         },
         model=AuthoredVideoPlan,
     )

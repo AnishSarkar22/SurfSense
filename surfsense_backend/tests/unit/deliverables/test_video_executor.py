@@ -200,6 +200,35 @@ def test_planning_disclosure_uses_slots_and_only_exposes_font_ids() -> None:
     assert "id" not in slots[1]
 
 
+async def test_structured_invocation_uses_native_schema_without_prompt_formatting() -> None:
+    captured = {}
+
+    class StructuredLLM:
+        async def ainvoke(self, messages):
+            captured["messages"] = messages
+            return _outline().model_dump(mode="json")
+
+    class LLM:
+        def with_structured_output(self, schema, **kwargs):
+            captured["schema"] = schema
+            captured["kwargs"] = kwargs
+            return StructuredLLM()
+
+    outline = await executor._invoke_structured(
+        LLM(),
+        skill=_skill(),
+        payload={"phase": "creative_outline", "brief": "Explain growth"},
+        model=CreativeOutline,
+    )
+
+    prompt = json.loads(captured["messages"][-1].content)
+    assert outline == _outline()
+    assert captured["schema"]["type"] == "object"
+    assert captured["kwargs"] == {"method": "json_schema", "strict": True}
+    assert "output_schema" not in prompt
+    assert "response_instruction" not in prompt
+
+
 async def test_visual_repair_preserves_narration_identity_and_language(
     monkeypatch,
 ) -> None:
@@ -275,7 +304,7 @@ async def test_executor_repairs_wrong_kind_before_tts_and_orders_phases(
                 "beat_id": "opening",
                 "utterance_id": "opening-narration",
                 "audio": "utterance-opening-narration.wav",
-                "duration_seconds": 181.0 if tts_calls == 1 else 2.0,
+                "duration_seconds": 211.0 if tts_calls == 1 else 2.0,
             }
         ]
 
