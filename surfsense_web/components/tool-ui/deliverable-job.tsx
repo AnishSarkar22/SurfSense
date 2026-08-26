@@ -31,6 +31,7 @@ type EnqueueDeliverableJobResult = z.infer<typeof EnqueueDeliverableJobResultSch
 
 const FAILURE_MESSAGES: Record<string, string> = {
 	duration_limit: "The requested video is too long to render. Shorten it and try again.",
+	model_unsupported: "The selected model does not support video generation.",
 	quota_exceeded: "Video generation capacity is unavailable for this request. Try again later.",
 	generation_failed: "The video could not be generated. Please try again.",
 	render_failed: "The video could not be rendered. Please try again.",
