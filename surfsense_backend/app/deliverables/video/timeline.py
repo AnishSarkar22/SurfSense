@@ -38,7 +38,8 @@ HEIGHT: Final = 1080
 FPS: Final = 30
 SAFE_MARGIN: Final = 72
 MAX_GENERATED_ELEMENTS: Final = 200
-MAX_FRAMES: Final = VIDEO_SPEC.max_duration_seconds * FPS
+TARGET_MAX_FRAMES: Final = VIDEO_SPEC.max_duration_seconds * FPS
+HARD_MAX_FRAMES: Final = VIDEO_SPEC.hard_max_duration_seconds * FPS
 WORDS_PER_SECOND: Final = 2.5
 
 
@@ -58,12 +59,12 @@ class VideoTimelineDurationError(ValueError):
         compiled_frames: int,
         suggested_narration_budgets: tuple[NarrationBudget, ...],
     ) -> None:
-        self.max_frames = MAX_FRAMES
+        self.max_frames = HARD_MAX_FRAMES
         self.compiled_frames = compiled_frames
         self.overflow_frames = compiled_frames - self.max_frames
         self.suggested_narration_budgets = suggested_narration_budgets
         super().__init__(
-            f"compiled video exceeds the {VIDEO_SPEC.max_duration_seconds}-second "
+            f"compiled video exceeds the {VIDEO_SPEC.hard_max_duration_seconds}-second "
             f"limit by {self.overflow_frames} frames"
         )
 
@@ -327,18 +328,18 @@ def compile_video_timeline(
         audio_frames.append(math.ceil(measured[beat.beat_id][2] * FPS))
 
     compiled = _compile_with_floors(normalized, measured, floors, audio_frames)
-    if compiled.duration_frames > MAX_FRAMES:
+    if compiled.duration_frames > TARGET_MAX_FRAMES:
         compiled = _compile_with_floors(
             normalized, measured, capability_floors, audio_frames
         )
-    if compiled.duration_frames > MAX_FRAMES:
+    if compiled.duration_frames > HARD_MAX_FRAMES:
         overlap_frames = sum(
             transition.to_frame - transition.from_frame
             for transition in compiled.transitions
         )
         available_excess = max(
             0,
-            MAX_FRAMES + overlap_frames - sum(capability_floors),
+            TARGET_MAX_FRAMES + overlap_frames - sum(capability_floors),
         )
         current_excess = [
             max(0, frames - floor)
@@ -442,6 +443,7 @@ def build_video_render_input(
     return VideoRenderInput(
         build_id=normalized.build_id,
         skill_version=skill_version,
+        max_duration_seconds=VIDEO_SPEC.hard_max_duration_seconds,
         duration_in_frames=timeline.duration_frames,
         selected_capability_ids=normalized.selected_capability_ids,
         beats=tuple(

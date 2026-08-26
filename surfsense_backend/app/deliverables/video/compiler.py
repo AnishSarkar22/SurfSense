@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 from app.deliverables.jobs.policy import VIDEO_SPEC
 from app.deliverables.video.contracts import (
     AuthoredCapabilityLayer,
+    AuthoredCapabilityProp,
     AuthoredMediaLayer,
     AuthoredShapeLayer,
     AuthoredTextLayer,
@@ -230,6 +231,15 @@ def _validate_props(
         ) from exc
 
 
+def _compile_authored_props(
+    props: tuple[AuthoredCapabilityProp, ...],
+) -> dict[str, JsonValue]:
+    return {
+        prop.key: list(prop.value) if isinstance(prop.value, tuple) else prop.value
+        for prop in props
+    }
+
+
 def compile_video_plan(
     authored: AuthoredVideoPlan,
     *,
@@ -294,6 +304,7 @@ def compile_video_plan(
                 selected_roots.add(core_primitives.id)
                 layers.append(MediaLayer(**layer.model_dump(), timing=LayerTiming()))
             elif isinstance(layer, AuthoredCapabilityLayer):
+                props = _compile_authored_props(layer.props)
                 capability = resolver.resolve_slot(
                     layer.capability_slot,
                     CapabilityKind.COMPONENT,
@@ -303,19 +314,22 @@ def compile_video_plan(
                     index,
                     capability.id,
                     CapabilityKind.COMPONENT,
-                    layer.props,
+                    props,
                     path=(*layer_path, "props"),
                     slot=layer.capability_slot,
                 )
                 selected_roots.add(capability.id)
                 if capability.natural_frame_length is not None:
                     floor = max(floor, capability.natural_frame_length)
-                layer_values = layer.model_dump(exclude={"capability_slot"})
+                layer_values = layer.model_dump(
+                    exclude={"capability_slot", "props"}
+                )
                 layers.append(
                     CapabilityLayer(
                         **layer_values,
                         timing=LayerTiming(),
                         capability_id=capability.id,
+                        props=props,
                     )
                 )
         compiled_layers.append(tuple(layers))
@@ -329,11 +343,12 @@ def compile_video_plan(
             CapabilityKind.TRANSITION,
             path=("beats", beat_index, "transition_to_next", "capability_slot"),
         )
+        props = _compile_authored_props(beat.transition_to_next.props)
         _validate_props(
             index,
             transition.id,
             CapabilityKind.TRANSITION,
-            beat.transition_to_next.props,
+            props,
             path=("beats", beat_index, "transition_to_next", "props"),
             slot=beat.transition_to_next.capability_slot,
         )
@@ -351,7 +366,7 @@ def compile_video_plan(
             TransitionSelection(
                 capability_id=transition.id,
                 duration_frames=duration,
-                props=beat.transition_to_next.props,
+                props=props,
             )
         )
 

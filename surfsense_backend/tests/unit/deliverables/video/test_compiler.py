@@ -10,6 +10,7 @@ from app.deliverables.video.compiler import (
 )
 from app.deliverables.video.contracts import (
     AuthoredCapabilityLayer,
+    AuthoredCapabilityProp,
     AuthoredTextLayer,
     AuthoredTransitionSelection,
     AuthoredVideoBeat,
@@ -37,6 +38,7 @@ def _capability(
     *,
     natural_frames: int | None = None,
     dependencies: tuple[str, ...] = (),
+    props_schema: dict[str, object] | None = None,
 ) -> CapabilityEnvelope[dict[str, object]]:
     return CapabilityEnvelope[dict[str, object]](
         id=capability_id,
@@ -49,7 +51,7 @@ def _capability(
         tier=CapabilityTier.VETTED,
         dependencies=dependencies,
         props_schema=(
-            {"type": "object", "additionalProperties": False}
+            props_schema or {"type": "object", "additionalProperties": False}
             if kind in {CapabilityKind.COMPONENT, CapabilityKind.TRANSITION}
             else None
         ),
@@ -76,6 +78,14 @@ def _catalog() -> tuple[CapabilityIndex, object]:
         CapabilityKind.COMPONENT,
         natural_frames=120,
         dependencies=(shared.id,),
+        props_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "data": {"type": "array", "items": {"type": "number"}},
+                "labels": {"type": "array", "items": {"type": "string"}},
+            },
+        },
     )
     index = CapabilityIndex(
         schema_version=1,
@@ -164,6 +174,31 @@ def test_authored_schema_omits_compiler_owned_fields() -> None:
         "schema_version",
         "seed",
     }.isdisjoint(names)
+
+
+def test_authored_capability_props_are_compiled_to_a_runtime_mapping() -> None:
+    index, disclosure = _catalog()
+    authored = _authored()
+    chart = authored.beats[0].layers[0].model_copy(
+        update={
+            "props": (
+                AuthoredCapabilityProp(key="data", value=(12.0, 18.0)),
+                AuthoredCapabilityProp(key="labels", value=("Q1", "Q2")),
+            )
+        }
+    )
+    first_beat = authored.beats[0].model_copy(
+        update={"layers": (chart,)},
+    )
+    authored = authored.model_copy(
+        update={"beats": (first_beat, *authored.beats[1:])},
+    )
+    compiled = compile_video_plan(authored, index=index, disclosure=disclosure)
+
+    assert compiled.beats[0].layers[0].props == {
+        "data": [12.0, 18.0],
+        "labels": ["Q1", "Q2"],
+    }
 
 
 def test_compiler_rejects_slot_used_as_the_wrong_kind() -> None:

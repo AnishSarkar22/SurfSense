@@ -23,6 +23,9 @@ from app.sandbox.capabilities.schema import (
 )
 
 VIDEO_SCHEMA_VERSION = 1
+VIDEO_FPS = 30
+VIDEO_TARGET_MAX_FRAMES = VIDEO_SPEC.max_duration_seconds * VIDEO_FPS
+VIDEO_HARD_MAX_FRAMES = VIDEO_SPEC.hard_max_duration_seconds * VIDEO_FPS
 BeatId = Annotated[
     str, Field(min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9_-]*$")
 ]
@@ -43,7 +46,9 @@ class VisualIntent(StrictVideoModel):
     tags: Annotated[tuple[str, ...], Field(max_length=16)] = ()
     vibe: Annotated[tuple[str, ...], Field(max_length=8)] = ()
     avoid: Annotated[tuple[str, ...], Field(max_length=8)] = ()
-    target_duration_seconds: Annotated[float | None, Field(gt=0, le=180)] = None
+    target_duration_seconds: Annotated[
+        float | None, Field(gt=0, le=VIDEO_SPEC.max_duration_seconds)
+    ] = None
 
 
 class CreativeOutline(StrictVideoModel):
@@ -154,12 +159,36 @@ class AuthoredMediaLayer(StrictVideoModel):
     safe_margin: bool = False
 
 
-class AuthoredCapabilityLayer(StrictVideoModel):
+AuthoredPropScalar = str | int | float | bool
+AuthoredPropValue = AuthoredPropScalar | tuple[AuthoredPropScalar, ...]
+
+
+class AuthoredCapabilityProp(StrictVideoModel):
+    key: Annotated[str, Field(min_length=1, max_length=64)]
+    # ponytail: Flat values cover every disclosed capability today; introduce a
+    # closed nested wire type when a real capability requires nested props.
+    value: AuthoredPropValue
+
+
+class _AuthoredPropsModel(StrictVideoModel):
+    props: Annotated[tuple[AuthoredCapabilityProp, ...], Field(max_length=64)] = ()
+
+    @field_validator("props")
+    @classmethod
+    def unique_prop_keys(
+        cls, value: tuple[AuthoredCapabilityProp, ...]
+    ) -> tuple[AuthoredCapabilityProp, ...]:
+        keys = [prop.key for prop in value]
+        if len(keys) != len(set(keys)):
+            raise ValueError("authored capability prop keys must be unique")
+        return value
+
+
+class AuthoredCapabilityLayer(_AuthoredPropsModel):
     type: Literal["capability"]
     id: LayerId
     bounds: Bounds
     capability_slot: CapabilitySlot
-    props: dict[str, JsonValue] = Field(default_factory=dict)
     generated_elements: Annotated[int, Field(ge=1, le=100)] = 1
     safe_margin: bool = True
 
@@ -207,9 +236,8 @@ class TransitionSelection(StrictVideoModel):
     props: dict[str, JsonValue] = Field(default_factory=dict)
 
 
-class AuthoredTransitionSelection(StrictVideoModel):
+class AuthoredTransitionSelection(_AuthoredPropsModel):
     capability_slot: CapabilitySlot
-    props: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class VideoStyle(StrictVideoModel):
@@ -267,7 +295,9 @@ class VideoBeat(StrictVideoModel):
     ]
     narration: Annotated[str, Field(min_length=2, max_length=8000)]
     layers: Annotated[tuple[DeclarativeLayer, ...], Field(min_length=1, max_length=40)]
-    min_duration_frames: Annotated[int, Field(ge=1, le=5400)] = 1
+    min_duration_frames: Annotated[
+        int, Field(ge=1, le=VIDEO_TARGET_MAX_FRAMES)
+    ] = 1
     transition_to_next: TransitionSelection | None = None
     seed: Annotated[int | None, Field(ge=0, le=2**32 - 1)] = None
 
@@ -442,7 +472,7 @@ class VideoTimeline(StrictVideoModel):
     width: Literal[1920] = 1920
     height: Literal[1080] = 1080
     fps: Literal[30] = 30
-    duration_frames: Annotated[int, Field(gt=0, le=5400)]
+    duration_frames: Annotated[int, Field(gt=0, le=VIDEO_HARD_MAX_FRAMES)]
     beats: tuple[TimelineBeat, ...]
     layers: tuple[TimelineLayer, ...]
     transitions: tuple[TimelineTransition, ...]
@@ -664,9 +694,10 @@ class VideoRenderInput(StrictVideoModel):
     build_id: Annotated[str, Field(min_length=8, max_length=128)]
     skill_version: Annotated[str, Field(min_length=1, max_length=128)]
     fps: Literal[30] = 30
+    max_duration_seconds: Annotated[int, Field(gt=0)]
     width: Literal[1920] = 1920
     height: Literal[1080] = 1080
-    duration_in_frames: Annotated[int, Field(ge=1, le=5400)]
+    duration_in_frames: Annotated[int, Field(ge=1, le=VIDEO_HARD_MAX_FRAMES)]
     selected_capability_ids: Annotated[
         tuple[CapabilityId, ...], Field(min_length=1, max_length=100)
     ]
@@ -679,6 +710,10 @@ class VideoRenderInput(StrictVideoModel):
 
     @model_validator(mode="after")
     def references_are_bounded(self) -> VideoRenderInput:
+        if self.max_duration_seconds != VIDEO_SPEC.hard_max_duration_seconds:
+            raise ValueError("render duration policy does not match the backend")
+        if self.duration_in_frames > self.max_duration_seconds * self.fps:
+            raise ValueError("video duration exceeds the configured hard limit")
         selected = set(self.selected_capability_ids)
         for beat in self.beats:
             if beat.start_frame + beat.duration_in_frames > self.duration_in_frames:

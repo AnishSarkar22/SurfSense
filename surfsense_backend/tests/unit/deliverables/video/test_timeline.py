@@ -11,6 +11,7 @@ from app.deliverables.video.contracts import (
     TransitionSelection,
     VideoBeat,
     VideoPlan,
+    VideoRenderInput,
     VideoStyle,
 )
 from app.deliverables.video.timeline import (
@@ -159,6 +160,7 @@ def test_compiler_uses_measured_audio_and_natural_frames_deterministically() -> 
         "build_id",
         "skill_version",
         "fps",
+        "max_duration_seconds",
         "width",
         "height",
         "duration_in_frames",
@@ -216,7 +218,7 @@ def test_compiler_uses_measured_audio_and_natural_frames_deterministically() -> 
     assert not ({"tsx", "scene", "scenes"} & set(str(document).casefold().split()))
 
 
-def test_compiler_accepts_the_exact_frame_limit() -> None:
+def test_compiler_accepts_the_target_and_hard_frame_limits() -> None:
     measured = _narration()
     measured[0]["duration_seconds"] = 90
     measured[1]["duration_seconds"] = 90
@@ -224,6 +226,39 @@ def test_compiler_accepts_the_exact_frame_limit() -> None:
     timeline = compile_video_timeline(_without_transition(), measured)
 
     assert timeline.duration_frames == 5400
+
+    measured[0]["duration_seconds"] = 105
+    measured[1]["duration_seconds"] = 105
+
+    timeline = compile_video_timeline(_without_transition(), measured)
+
+    assert timeline.duration_frames == 6300
+
+
+@pytest.mark.parametrize("duration_seconds", [180.13, 205.0])
+def test_compiler_accepts_measured_narration_headroom(duration_seconds) -> None:
+    measured = _narration()
+    measured[0]["duration_seconds"] = duration_seconds
+    measured[1]["duration_seconds"] = 0.01
+
+    timeline = compile_video_timeline(_without_transition(), measured)
+
+    assert 5400 < timeline.duration_frames <= 6300
+
+
+def test_render_input_contract_uses_the_hard_frame_limit() -> None:
+    document = build_video_render_input(
+        _without_transition(),
+        _narration(),
+        skill_version="skill-v1",
+    ).model_dump(by_alias=True)
+    document["duration_in_frames"] = 6300
+
+    assert VideoRenderInput.model_validate(document).duration_in_frames == 6300
+
+    document["duration_in_frames"] = 6301
+    with pytest.raises(ValidationError):
+        VideoRenderInput.model_validate(document)
 
 
 def test_compiler_removes_discretionary_holds_before_rejecting_duration() -> None:
@@ -238,17 +273,17 @@ def test_compiler_removes_discretionary_holds_before_rejecting_duration() -> Non
 
 def test_compiler_reports_structured_narration_repair_budgets() -> None:
     measured = _narration()
-    measured[0]["duration_seconds"] = 100
-    measured[1]["duration_seconds"] = 100
+    measured[0]["duration_seconds"] = 110
+    measured[1]["duration_seconds"] = 110
 
     with pytest.raises(VideoTimelineDurationError) as raised:
         compile_video_timeline(_without_transition(), measured)
 
     error = raised.value
     assert (error.max_frames, error.compiled_frames, error.overflow_frames) == (
-        5400,
-        6000,
-        600,
+        6300,
+        6600,
+        300,
     )
     assert [
         (budget.beat_id, budget.max_seconds, budget.max_words)
@@ -270,8 +305,8 @@ def test_compiler_rejects_unsafe_bounds_transition_and_narration_gaps() -> None:
         compile_video_timeline(_plan(), _narration()[:1])
 
     too_long = _narration()
-    too_long[0]["duration_seconds"] = 180
-    with pytest.raises(ValueError, match="180-second"):
+    too_long[0]["duration_seconds"] = 211
+    with pytest.raises(ValueError, match="210-second"):
         compile_video_timeline(_plan(), too_long)
 
 
