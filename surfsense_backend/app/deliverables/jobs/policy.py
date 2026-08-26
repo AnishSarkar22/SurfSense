@@ -1,13 +1,16 @@
-"""Trusted, version-controlled policy for queued deliverable kinds."""
+"""Central policy for queued deliverable kinds."""
 
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Final
 
+from app.config import config as app_config
+
 
 @dataclass(frozen=True, slots=True)
 class DeliverableKindSpec:
     max_duration_seconds: int
+    duration_headroom_seconds: int
     max_beats: int
     repair_cycles: int
     soft_time_limit_seconds: int
@@ -16,6 +19,7 @@ class DeliverableKindSpec:
     def __post_init__(self) -> None:
         if (
             self.max_duration_seconds <= 0
+            or self.duration_headroom_seconds < 0
             or self.max_beats <= 0
             or self.repair_cycles < 0
             or self.soft_time_limit_seconds <= 0
@@ -28,6 +32,11 @@ class DeliverableKindSpec:
         return self.repair_cycles
 
     @property
+    def hard_max_duration_seconds(self) -> int:
+        """Absolute ceiling; planning and repairs still target the configured max."""
+        return self.max_duration_seconds + self.duration_headroom_seconds
+
+    @property
     def soft_time_limit(self) -> int:
         return self.soft_time_limit_seconds
 
@@ -38,7 +47,8 @@ class DeliverableKindSpec:
 
 VIDEO_KIND: Final = "video"
 VIDEO_SPEC: Final = DeliverableKindSpec(
-    max_duration_seconds=180,
+    max_duration_seconds=app_config.VIDEO_SANDBOX_TARGET_DURATION_SECONDS,
+    duration_headroom_seconds=30,
     max_beats=12,
     repair_cycles=2,
     soft_time_limit_seconds=3600,
