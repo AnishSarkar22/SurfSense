@@ -63,6 +63,16 @@ async def test_parses_literal_control_characters_inside_model_strings():
     assert shape == _Shape(name="first line\nsecond line", count=2)
 
 
+async def test_rejects_an_unexpected_envelope():
+    reply = (
+        '{"shape": {"name": "wrapped", "count": 4}, '
+        '"repair_summary": "Fixed diagnostics"}'
+    )
+
+    with pytest.raises(StructuredOutputError):
+        await _parse(reply)
+
+
 async def test_raises_when_there_is_no_json_object():
     with pytest.raises(StructuredOutputError):
         await _parse("I could not produce that.")
