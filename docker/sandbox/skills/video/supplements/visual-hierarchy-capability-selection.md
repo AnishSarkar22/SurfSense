@@ -1,15 +1,15 @@
 # Visual hierarchy and capability selection
 
-Choose capabilities from disclosed metadata, then make the composition read at
-a glance.
+Choose capabilities from the disclosed public authoring API, then make the
+composition read at a glance.
 
-- Start from the beat's visual intent and information shape: comparison,
+- Start from the current narrative purpose and information shape: comparison,
   sequence, metric, relationship, quote, interface state, or atmosphere.
 - Treat `use_for` as positive evidence and `avoid_for` as a real warning.
   Compare category, tags, vibe, native canvas, natural length, and prop schema
-  before selecting a slot.
-- Use only disclosed slots and valid props. Never infer an ID from a slot's
-  metadata or assume two slots share an API.
+  before importing a capability.
+- Import only documented capability exports and use their declared props. Never
+  import capability implementation paths or assume two components share an API.
 - Prefer one expressive capability supported by quiet core primitives. Add a
   second atom only when it communicates a distinct relationship.
 - Keep a coherent vibe. A deliberate contrast may mark a narrative turn, but
@@ -21,6 +21,7 @@ a glance.
 - Protect safe margins and reading order. Avoid dense corners, equal emphasis
   everywhere, tiny labels, and important content beneath captions.
 - Respect native canvas metadata and staging behavior. If a capability cannot
-  remain legible and unclipped in its assigned region, choose a simpler one.
+  remain legible and unclipped in its assigned region, adapt it or create a
+  simpler job-local component.
 - Use core primitives when no specialist is a strong semantic fit. Never force
   a capability merely because it is available.

@@ -13,8 +13,8 @@ Every asset must earn its place and remain understandable.
   text. Pure decoration should not carry essential information.
 - Maintain readable contrast, safe margins, and text size throughout motion.
   Do not rely on color alone to distinguish status, series, or direction.
-- Keep captions synchronized to the utterance timing and within the designated
-  caption-safe region. Use concise phrase grouping and stable placement.
+- If captions are used, synchronize them to measured narration cue timing. Use
+  concise phrase grouping and placement that remains readable with the composition.
 - Avoid placing essential labels, controls, faces, or data behind captions.
   When the lower frame is busy, simplify or reposition the composition.
 - Do not burn duplicate narration text into the main layout. Captions provide
@@ -23,4 +23,4 @@ Every asset must earn its place and remain understandable.
 - Check names, numbers, punctuation, casing, line breaks, and reading order in
   stills. Caption overflow, orphaned words, or low contrast is blocking.
 - Prefer visible focus and comprehension over visual density. If content cannot
-  be made legible within its beat, reduce it or split the idea.
+  be made legible in its available time, reduce it or simplify the treatment.
