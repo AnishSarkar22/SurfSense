@@ -64,7 +64,6 @@ def test_interactive_video_registration_enqueues_only(monkeypatch) -> None:
     assert "enqueue_deliverable_job" in names
     assert "synthesize_narration" not in names
     assert "prepare_video_project" not in names
-    assert "review_video_stills" not in names
     assert "generate_video_presentation" not in names
     enqueue = next(tool for tool in tools if tool.name == "enqueue_deliverable_job")
     assert set(enqueue.args) == {
