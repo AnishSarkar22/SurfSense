@@ -15,7 +15,7 @@ from app.artifacts.service import ArtifactSaved
 from app.deliverables.video import executor
 from app.deliverables.video.contracts import CreativeVideoProject
 from app.deliverables.video.skill import LoadedVideoSkill
-from app.deliverables.video.timeline import NarrationBudget, VideoTimelineDurationError
+from app.deliverables.video.timeline import NarrationTarget, VideoTimelineDurationError
 from app.sandbox import SandboxResourceProfile
 from app.sandbox.capabilities.schema import (
     CapabilityEnvelope,
@@ -386,7 +386,7 @@ async def test_narration_repair_changes_text_only_and_resynthesizes_changed_cues
     monkeypatch,
 ) -> None:
     rewrite = executor.NarrationRewrite.model_validate(
-        {"cues": ({"cue_id": "opening", "text": "Growth continued."},)}
+        {"cues": ({"cue_id": "opening", "text": "Growth continued very strongly."},)}
     )
     invoke = AsyncMock(return_value=rewrite)
     monkeypatch.setattr(executor, "_invoke_structured", invoke)
@@ -397,28 +397,38 @@ async def test_narration_repair_changes_text_only_and_resynthesizes_changed_cues
         project=_project(),
         duration_error=VideoTimelineDurationError(
             compiled_frames=6000,
-            suggested_narration_budgets=(
-                NarrationBudget(
+            suggested_narration_targets=(
+                NarrationTarget(
                     cue_id="opening",
-                    max_seconds=2,
-                    max_words=3,
+                    target_seconds=2,
+                    target_words=3,
                 ),
             ),
         ),
     )
 
     assert repaired.narration_cues[0].cue_id == "opening"
-    assert repaired.narration_cues[0].text == "Growth continued."
+    assert repaired.narration_cues[0].text == "Growth continued very strongly."
     assert repaired.source_files == _project().source_files
     assert repaired.language == _project().language
     assert requests == [
         {
             "cue_id": "opening",
-            "transcript": "Growth continued.",
-            "max_words": 3,
+            "transcript": "Growth continued very strongly.",
         }
     ]
     assert invoke.await_args.kwargs["model"] is executor.NarrationRewrite
+    assert invoke.await_args.kwargs["payload"]["targets"] == [
+        {
+            "cue_id": "opening",
+            "target_seconds": 2,
+            "target_words": 3,
+        }
+    ]
+    assert (
+        "measured audio duration determines acceptance"
+        in invoke.await_args.kwargs["payload"]["instructions"]
+    )
 
 
 async def test_source_repair_protects_cue_identity_text_and_language(

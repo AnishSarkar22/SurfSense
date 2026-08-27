@@ -181,45 +181,6 @@ async def test_oversized_measurement_is_returned_for_timeline_repair(
     assert result[0]["duration_seconds"] == 180.000001
 
 
-async def test_max_words_is_rejected_before_billing_or_tts(monkeypatch) -> None:
-    billing_called = False
-    tts_called = False
-
-    async def resolve_billing(*_args, **_kwargs):
-        nonlocal billing_called
-        billing_called = True
-
-    async def synthesize(*_args):
-        nonlocal tts_called
-        tts_called = True
-        return b"audio"
-
-    monkeypatch.setattr(
-        narration,
-        "_resolve_agent_billing_for_workspace",
-        resolve_billing,
-    )
-    monkeypatch.setattr(narration, "_synthesize", synthesize)
-
-    with pytest.raises(ValueError, match="has 3 words; max_words is 2"):
-        await narration.synthesize_narration(
-            [
-                {
-                    "cue_id": "opening",
-                    "transcript": "One two three.",
-                    "max_words": 2,
-                }
-            ],
-            "/workspace/video-render-abc",
-            workspace_id=7,
-            thread_id=41,
-            session=_Sandbox(),
-        )
-
-    assert billing_called is False
-    assert tts_called is False
-
-
 def test_selective_audio_replacement_preserves_order_and_untouched_rows() -> None:
     opening = {
         "cue_id": "opening",

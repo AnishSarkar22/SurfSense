@@ -648,10 +648,6 @@ async def _request_narration_repair(
     project: CreativeVideoProject,
     duration_error: VideoTimelineDurationError,
 ) -> tuple[CreativeVideoProject, list[NarrationUtterance]]:
-    budgets = {
-        budget.cue_id: budget
-        for budget in duration_error.suggested_narration_budgets
-    }
     rewrite = await _invoke_structured(
         llm,
         skill=skill,
@@ -661,13 +657,13 @@ async def _request_narration_repair(
                 "compiled_frames": duration_error.compiled_frames,
                 "overflow_frames": duration_error.overflow_frames,
             },
-            "budgets": [
+            "targets": [
                 {
-                    "cue_id": budget.cue_id,
-                    "max_seconds": budget.max_seconds,
-                    "max_words": budget.max_words,
+                    "cue_id": target.cue_id,
+                    "target_seconds": target.target_seconds,
+                    "target_words": target.target_words,
                 }
-                for budget in duration_error.suggested_narration_budgets
+                for target in duration_error.suggested_narration_targets
             ],
             "narration_cues": [
                 {"cue_id": cue.cue_id, "text": cue.text}
@@ -676,7 +672,8 @@ async def _request_narration_repair(
             "instructions": (
                 "Return cue text only. Preserve every cue_id exactly and in order. "
                 "Rewrite only cues that need shortening. Return no source, visual, "
-                "language, timing, command, or operational fields."
+                "language, timing, command, or operational fields. Aim for the "
+                "per-cue targets; measured audio duration determines acceptance."
             ),
         },
         model=NarrationRewrite,
@@ -690,12 +687,6 @@ async def _request_narration_repair(
     replacements: list[NarrationUtterance] = []
     rewritten: dict[str, str] = {}
     for cue in rewrite.cues:
-        budget = budgets[cue.cue_id]
-        if len(cue.text.split()) > budget.max_words:
-            raise ValueError(
-                f"narration repair for {cue.cue_id!r} exceeds its "
-                f"{budget.max_words}-word budget"
-            )
         if cue.text == original[cue.cue_id].text:
             continue
         rewritten[cue.cue_id] = cue.text
@@ -703,7 +694,6 @@ async def _request_narration_repair(
             {
                 "cue_id": cue.cue_id,
                 "transcript": cue.text,
-                "max_words": budget.max_words,
             }
         )
     if not replacements:

@@ -132,7 +132,7 @@ def test_scheduler_accepts_target_and_hard_headroom(duration_seconds: float) -> 
     assert timeline.duration_in_frames <= 6300
 
 
-def test_scheduler_reports_cue_budgets_targeting_soft_limit() -> None:
+def test_scheduler_reports_advisory_cue_targets_for_soft_limit() -> None:
     measured = _narration()
     measured[0]["duration_seconds"] = 110
     measured[1]["duration_seconds"] = 110
@@ -147,8 +147,8 @@ def test_scheduler_reports_cue_budgets_targeting_soft_limit() -> None:
         300,
     )
     assert [
-        (budget.cue_id, budget.max_seconds, budget.max_words)
-        for budget in error.suggested_narration_budgets
+        (target.cue_id, target.target_seconds, target.target_words)
+        for target in error.suggested_narration_targets
     ] == [
         ("opening", 90.0, 225),
         ("close", 90.0, 225),

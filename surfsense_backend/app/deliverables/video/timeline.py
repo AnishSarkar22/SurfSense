@@ -28,10 +28,10 @@ WORDS_PER_SECOND: Final = 2.5
 
 
 @dataclass(frozen=True, slots=True)
-class NarrationBudget:
+class NarrationTarget:
     cue_id: str
-    max_seconds: float
-    max_words: int
+    target_seconds: float
+    target_words: int
 
 
 class VideoTimelineDurationError(ValueError):
@@ -41,12 +41,12 @@ class VideoTimelineDurationError(ValueError):
         self,
         *,
         compiled_frames: int,
-        suggested_narration_budgets: tuple[NarrationBudget, ...],
+        suggested_narration_targets: tuple[NarrationTarget, ...],
     ) -> None:
         self.max_frames = HARD_MAX_FRAMES
         self.compiled_frames = compiled_frames
         self.overflow_frames = compiled_frames - self.max_frames
-        self.suggested_narration_budgets = suggested_narration_budgets
+        self.suggested_narration_targets = suggested_narration_targets
         super().__init__(
             f"compiled video exceeds the {VIDEO_SPEC.hard_max_duration_seconds}-second "
             f"limit by {self.overflow_frames} frames"
@@ -136,12 +136,12 @@ def _measured_by_cue(
     return measured
 
 
-def _repair_budgets(
+def _repair_targets(
     cue_ids: Sequence[str], audio_frames: Sequence[int]
-) -> tuple[NarrationBudget, ...]:
+) -> tuple[NarrationTarget, ...]:
     total = sum(audio_frames)
     remaining = TARGET_MAX_FRAMES
-    budgets: list[NarrationBudget] = []
+    targets: list[NarrationTarget] = []
     for index, (cue_id, frames) in enumerate(
         zip(cue_ids, audio_frames, strict=True)
     ):
@@ -151,15 +151,15 @@ def _repair_budgets(
             else TARGET_MAX_FRAMES * frames // total
         )
         remaining -= target_frames
-        max_seconds = target_frames / FPS
-        budgets.append(
-            NarrationBudget(
+        target_seconds = target_frames / FPS
+        targets.append(
+            NarrationTarget(
                 cue_id=cue_id,
-                max_seconds=max_seconds,
-                max_words=max(1, math.floor(max_seconds * WORDS_PER_SECOND)),
+                target_seconds=target_seconds,
+                target_words=max(1, math.floor(target_seconds * WORDS_PER_SECOND)),
             )
         )
-    return tuple(budgets)
+    return tuple(targets)
 
 
 def compile_video_timeline(
@@ -183,7 +183,7 @@ def compile_video_timeline(
     if duration_in_frames > HARD_MAX_FRAMES:
         raise VideoTimelineDurationError(
             compiled_frames=duration_in_frames,
-            suggested_narration_budgets=_repair_budgets(cue_ids, audio_frames),
+            suggested_narration_targets=_repair_targets(cue_ids, audio_frames),
         )
 
     cues: list[RuntimeNarrationCue] = []

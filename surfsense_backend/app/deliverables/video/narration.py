@@ -9,7 +9,7 @@ import re
 import shlex
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import NotRequired, TypedDict
+from typing import TypedDict
 
 from app.config import config as app_config
 from app.db import shielded_async_session
@@ -44,7 +44,6 @@ _LEGACY_ENGLISH_VOICE_ID: dict[TtsProvider, str] = {
 class NarrationUtterance(TypedDict):
     cue_id: str
     transcript: str
-    max_words: NotRequired[int]
 
 
 class NarrationAudio(TypedDict):
@@ -201,22 +200,6 @@ def _validated_utterances(
             raise ValueError(f"duplicate cue_id: {cue_id}")
         if not isinstance(transcript, str) or not transcript.strip():
             raise ValueError(f"cue {cue_id!r} transcript must not be empty")
-        max_words = utterance.get("max_words")
-        if max_words is not None:
-            if (
-                isinstance(max_words, bool)
-                or not isinstance(max_words, int)
-                or max_words < 1
-            ):
-                raise ValueError(
-                    f"cue {cue_id!r} max_words must be positive"
-                )
-            word_count = len(transcript.split())
-            if word_count > max_words:
-                raise ValueError(
-                    f"cue {cue_id!r} has {word_count} words; "
-                    f"max_words is {max_words}"
-                )
         cue_ids.add(cue_id)
         validated.append((cue_id, transcript.strip()))
     return validated
