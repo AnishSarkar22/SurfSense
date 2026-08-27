@@ -68,8 +68,8 @@ def test_video_policy_is_bounded() -> None:
     assert spec.max_duration_seconds == 180
     assert spec.duration_headroom_seconds == 30
     assert spec.hard_max_duration_seconds == 210
-    assert spec.max_beats == 12
-    assert spec.repair_cycles == 2
+    assert spec.max_narration_cues == 12
+    assert spec.repair_cycles == 1
     assert 0 < spec.soft_time_limit_seconds < spec.hard_time_limit_seconds
 
 
@@ -77,7 +77,7 @@ def test_duration_headroom_scales_with_the_configured_target() -> None:
     spec = DeliverableKindSpec(
         max_duration_seconds=300,
         duration_headroom_seconds=30,
-        max_beats=12,
+        max_narration_cues=12,
         repair_cycles=2,
         soft_time_limit_seconds=3600,
         hard_time_limit_seconds=3900,

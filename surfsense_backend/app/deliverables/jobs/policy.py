@@ -11,7 +11,7 @@ from app.config import config as app_config
 class DeliverableKindSpec:
     max_duration_seconds: int
     duration_headroom_seconds: int
-    max_beats: int
+    max_narration_cues: int
     repair_cycles: int
     soft_time_limit_seconds: int
     hard_time_limit_seconds: int
@@ -20,7 +20,7 @@ class DeliverableKindSpec:
         if (
             self.max_duration_seconds <= 0
             or self.duration_headroom_seconds < 0
-            or self.max_beats <= 0
+            or self.max_narration_cues <= 0
             or self.repair_cycles < 0
             or self.soft_time_limit_seconds <= 0
             or self.hard_time_limit_seconds <= self.soft_time_limit_seconds
@@ -49,8 +49,8 @@ VIDEO_KIND: Final = "video"
 VIDEO_SPEC: Final = DeliverableKindSpec(
     max_duration_seconds=app_config.VIDEO_SANDBOX_TARGET_DURATION_SECONDS,
     duration_headroom_seconds=30,
-    max_beats=12,
-    repair_cycles=2,
+    max_narration_cues=12,
+    repair_cycles=1,
     soft_time_limit_seconds=3600,
     hard_time_limit_seconds=3900,
 )

@@ -68,7 +68,7 @@ def _patch_dependencies(monkeypatch):
     return captured, requests
 
 
-async def test_synthesis_preserves_billing_concurrency_and_beat_identities(
+async def test_synthesis_preserves_billing_concurrency_and_cue_identities(
     monkeypatch,
 ) -> None:
     billing, requests = _patch_dependencies(monkeypatch)
@@ -77,13 +77,11 @@ async def test_synthesis_preserves_billing_concurrency_and_beat_identities(
     result = await narration.synthesize_narration(
         [
             {
-                "beat_id": "opening",
-                "utterance_id": "opening-ja",
+                "cue_id": "opening",
                 "transcript": "  最初の説明。 ",
             },
             {
-                "beat_id": "close",
-                "utterance_id": "close-ja",
+                "cue_id": "close",
                 "transcript": "次の説明。",
             },
         ],
@@ -96,27 +94,25 @@ async def test_synthesis_preserves_billing_concurrency_and_beat_identities(
 
     assert result == [
         {
-            "beat_id": "opening",
-            "utterance_id": "opening-ja",
-            "audio": "utterance-opening-ja.wav",
+            "cue_id": "opening",
+            "audio": "narration-opening.wav",
             "duration_seconds": 0.25,
         },
         {
-            "beat_id": "close",
-            "utterance_id": "close-ja",
-            "audio": "utterance-close-ja.wav",
+            "cue_id": "close",
+            "audio": "narration-close.wav",
             "duration_seconds": 0.25,
         },
     ]
     assert requests == ["最初の説明。", "次の説明。"]
     assert set(sandbox.writes) == {
-        "/workspace/video-render-abc/public/utterance-opening-ja.wav",
-        "/workspace/video-render-abc/public/utterance-close-ja.wav",
+        "/workspace/video-render-abc/public/narration-opening.wav",
+        "/workspace/video-render-abc/public/narration-close.wav",
     }
     assert billing["usage_type"] == "video_presentation_generation"
     assert billing["call_details"] == {
         "thread_id": 41,
-        "beat_count": 2,
+        "cue_count": 2,
         "language": "ja",
         "tts_service": narration.app_config.TTS_SERVICE,
     }
@@ -148,8 +144,7 @@ async def test_path_confinement_prevents_paid_synthesis(
         await narration.synthesize_narration(
             [
                 {
-                    "beat_id": "opening",
-                    "utterance_id": "opening",
+                    "cue_id": "opening",
                     "transcript": "Narration.",
                 }
             ],
@@ -173,8 +168,7 @@ async def test_oversized_measurement_is_returned_for_timeline_repair(
     result = await narration.synthesize_narration(
         [
             {
-                "beat_id": "opening",
-                "utterance_id": "opening",
+                "cue_id": "opening",
                 "transcript": "Narration.",
             }
         ],
@@ -211,8 +205,7 @@ async def test_max_words_is_rejected_before_billing_or_tts(monkeypatch) -> None:
         await narration.synthesize_narration(
             [
                 {
-                    "beat_id": "opening",
-                    "utterance_id": "opening",
+                    "cue_id": "opening",
                     "transcript": "One two three.",
                     "max_words": 2,
                 }
@@ -229,26 +222,22 @@ async def test_max_words_is_rejected_before_billing_or_tts(monkeypatch) -> None:
 
 def test_selective_audio_replacement_preserves_order_and_untouched_rows() -> None:
     opening = {
-        "beat_id": "opening",
-        "utterance_id": "opening",
+        "cue_id": "opening",
         "audio": "opening.wav",
         "duration_seconds": 1.0,
     }
     middle = {
-        "beat_id": "middle",
-        "utterance_id": "middle",
+        "cue_id": "middle",
         "audio": "middle.wav",
         "duration_seconds": 2.0,
     }
     close = {
-        "beat_id": "close",
-        "utterance_id": "close",
+        "cue_id": "close",
         "audio": "close.wav",
         "duration_seconds": 3.0,
     }
     replacement = {
-        "beat_id": "middle",
-        "utterance_id": "middle",
+        "cue_id": "middle",
         "audio": "middle-repaired.wav",
         "duration_seconds": 1.5,
     }
@@ -268,7 +257,7 @@ def test_selective_audio_replacement_preserves_order_and_untouched_rows() -> Non
             [
                 {
                     **replacement,
-                    "beat_id": "unknown",
+                    "cue_id": "unknown",
                 }
             ],
         )

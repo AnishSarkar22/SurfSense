@@ -1,4 +1,4 @@
-"""Trusted narration synthesis for beat-based declarative videos."""
+"""Trusted synthesis and measurement for ordered narration cues."""
 
 from __future__ import annotations
 
@@ -42,15 +42,13 @@ _LEGACY_ENGLISH_VOICE_ID: dict[TtsProvider, str] = {
 
 
 class NarrationUtterance(TypedDict):
-    beat_id: str
-    utterance_id: str
+    cue_id: str
     transcript: str
     max_words: NotRequired[int]
 
 
 class NarrationAudio(TypedDict):
-    beat_id: str
-    utterance_id: str
+    cue_id: str
     audio: str
     duration_seconds: float
 
@@ -62,32 +60,24 @@ def merge_narration_audio(
     """Replace selected measured rows without changing timeline order."""
 
     original_by_id: dict[str, NarrationAudio] = {}
-    beat_ids: set[str] = set()
     for row in original:
-        beat_id = row["beat_id"]
-        utterance_id = row["utterance_id"]
-        if beat_id in beat_ids or utterance_id in original_by_id:
-            raise ValueError("original narration identities must be unique")
-        beat_ids.add(beat_id)
-        original_by_id[utterance_id] = row
+        cue_id = row["cue_id"]
+        if cue_id in original_by_id:
+            raise ValueError("original narration cue IDs must be unique")
+        original_by_id[cue_id] = row
 
     replacement_by_id: dict[str, NarrationAudio] = {}
-    replacement_beats: set[str] = set()
     for row in replacements:
-        beat_id = row["beat_id"]
-        utterance_id = row["utterance_id"]
-        if beat_id in replacement_beats or utterance_id in replacement_by_id:
-            raise ValueError("replacement narration identities must be unique")
-        original_row = original_by_id.get(utterance_id)
-        if original_row is None or original_row["beat_id"] != beat_id:
+        cue_id = row["cue_id"]
+        if cue_id in replacement_by_id:
+            raise ValueError("replacement narration cue IDs must be unique")
+        if cue_id not in original_by_id:
             raise ValueError(
-                f"replacement narration identity is not covered by original: "
-                f"{beat_id}/{utterance_id}"
+                f"replacement narration cue is not covered by original: {cue_id}"
             )
-        replacement_beats.add(beat_id)
-        replacement_by_id[utterance_id] = row
+        replacement_by_id[cue_id] = row
 
-    return [replacement_by_id.get(row["utterance_id"], row) for row in original]
+    return [replacement_by_id.get(row["cue_id"], row) for row in original]
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,7 +134,7 @@ async def _synthesize(transcript: str, voice: VoiceRef, language: str) -> bytes:
     return audio.data
 
 
-def _public_audio_path(workdir: str, utterance_id: str, extension: str) -> str:
+def _public_audio_path(workdir: str, cue_id: str, extension: str) -> str:
     candidate = PurePosixPath(workdir)
     if (
         not candidate.is_absolute()
@@ -155,12 +145,12 @@ def _public_audio_path(workdir: str, utterance_id: str, extension: str) -> str:
         raise ValueError(
             "workdir must be an absolute directory below /workspace without '..'"
         )
-    if _IDENTITY.fullmatch(utterance_id) is None:
-        raise ValueError("utterance_id must be a safe stable identity")
+    if _IDENTITY.fullmatch(cue_id) is None:
+        raise ValueError("cue_id must be a safe stable identity")
     if not extension or not extension.isalnum():
         raise ValueError("TTS provider returned an invalid audio container")
     return str(
-        candidate / "public" / f"utterance-{utterance_id}.{extension.casefold()}"
+        candidate / "public" / f"narration-{cue_id}.{extension.casefold()}"
     )
 
 
@@ -194,31 +184,23 @@ def _validated_utterances(
 ) -> list[tuple[str, str, str]]:
     if not utterances:
         raise ValueError("utterances must contain at least one narration transcript")
-    if len(utterances) > VIDEO_SPEC.max_beats:
+    if len(utterances) > VIDEO_SPEC.max_narration_cues:
         raise ValueError(
-            f"utterances exceeds the {VIDEO_SPEC.max_beats}-beat video limit"
+            "utterances exceeds the "
+            f"{VIDEO_SPEC.max_narration_cues}-cue video limit"
         )
 
-    validated: list[tuple[str, str, str]] = []
-    beat_ids: set[str] = set()
-    utterance_ids: set[str] = set()
+    validated: list[tuple[str, str]] = []
+    cue_ids: set[str] = set()
     for utterance in utterances:
-        beat_id = utterance["beat_id"]
-        utterance_id = utterance["utterance_id"]
+        cue_id = utterance["cue_id"]
         transcript = utterance["transcript"]
-        if not isinstance(beat_id, str) or _IDENTITY.fullmatch(beat_id) is None:
-            raise ValueError("beat_id must be a safe stable identity")
-        if (
-            not isinstance(utterance_id, str)
-            or _IDENTITY.fullmatch(utterance_id) is None
-        ):
-            raise ValueError("utterance_id must be a safe stable identity")
-        if beat_id in beat_ids:
-            raise ValueError(f"duplicate beat_id: {beat_id}")
-        if utterance_id in utterance_ids:
-            raise ValueError(f"duplicate utterance_id: {utterance_id}")
+        if not isinstance(cue_id, str) or _IDENTITY.fullmatch(cue_id) is None:
+            raise ValueError("cue_id must be a safe stable identity")
+        if cue_id in cue_ids:
+            raise ValueError(f"duplicate cue_id: {cue_id}")
         if not isinstance(transcript, str) or not transcript.strip():
-            raise ValueError(f"utterance {utterance_id!r} transcript must not be empty")
+            raise ValueError(f"cue {cue_id!r} transcript must not be empty")
         max_words = utterance.get("max_words")
         if max_words is not None:
             if (
@@ -227,17 +209,16 @@ def _validated_utterances(
                 or max_words < 1
             ):
                 raise ValueError(
-                    f"utterance {utterance_id!r} max_words must be positive"
+                    f"cue {cue_id!r} max_words must be positive"
                 )
             word_count = len(transcript.split())
             if word_count > max_words:
                 raise ValueError(
-                    f"utterance {utterance_id!r} has {word_count} words; "
+                    f"cue {cue_id!r} has {word_count} words; "
                     f"max_words is {max_words}"
                 )
-        beat_ids.add(beat_id)
-        utterance_ids.add(utterance_id)
-        validated.append((beat_id, utterance_id, transcript.strip()))
+        cue_ids.add(cue_id)
+        validated.append((cue_id, transcript.strip()))
     return validated
 
 
@@ -256,8 +237,8 @@ async def synthesize_narration(
     narration = _resolve_narration(language)
     extension = get_text_to_speech().container
     paths = [
-        _public_audio_path(workdir, utterance_id, extension)
-        for _, utterance_id, _ in validated
+        _public_audio_path(workdir, cue_id, extension)
+        for cue_id, _ in validated
     ]
 
     async with shielded_async_session() as billing_session:
@@ -279,7 +260,7 @@ async def synthesize_narration(
             usage_type="video_presentation_generation",
             call_details={
                 "thread_id": thread_id,
-                "beat_count": len(validated),
+                "cue_count": len(validated),
                 "language": narration.language,
                 "tts_service": app_config.TTS_SERVICE,
             },
@@ -287,7 +268,7 @@ async def synthesize_narration(
             audio_by_utterance = await asyncio.gather(
                 *(
                     _synthesize(transcript, narration.voice, narration.language)
-                    for _, _, transcript in validated
+                    for _, transcript in validated
                 )
             )
     except QuotaInsufficientError:
@@ -306,12 +287,11 @@ async def synthesize_narration(
     )
     return [
         {
-            "beat_id": beat_id,
-            "utterance_id": utterance_id,
+            "cue_id": cue_id,
             "audio": filename,
             "duration_seconds": duration,
         }
-        for (beat_id, utterance_id, _), filename, duration in zip(
+        for (cue_id, _), filename, duration in zip(
             validated, filenames, durations, strict=True
         )
     ]

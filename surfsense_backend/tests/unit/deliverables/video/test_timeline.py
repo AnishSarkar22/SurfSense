@@ -3,17 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.deliverables.video.contracts import (
-    Bounds,
-    CapabilityLayer,
-    LayerTiming,
-    TextLayer,
-    TransitionSelection,
-    VideoBeat,
-    VideoPlan,
-    VideoRenderInput,
-    VideoStyle,
-)
+from app.deliverables.video.contracts import CreativeVideoProject, VideoRenderInput
 from app.deliverables.video.timeline import (
     VideoTimelineDurationError,
     build_video_render_input,
@@ -23,261 +13,132 @@ from app.deliverables.video.timeline import (
 pytestmark = pytest.mark.unit
 
 
-def _plan(*, transition_frames: int = 10, unsafe_x: int = 100) -> VideoPlan:
-    return VideoPlan(
-        build_id="build-12345678",
-        title="Quarterly update",
-        selected_capability_ids=(
-            "font.inter",
-            "video.component.animated-bar-chart",
-            "video.transition.whip-pan",
+def _project() -> CreativeVideoProject:
+    return CreativeVideoProject(
+        narration_cues=(
+            {"cue_id": "opening", "text": "Revenue grew in every region."},
+            {"cue_id": "close", "text": "The team is ready for durable growth."},
         ),
-        style=VideoStyle(
-            primary_font_id="font.inter",
-            palette=("#101828", "#FFFFFF"),
+        source_files=(
+            {
+                "path": "JobComposition.tsx",
+                "source": "export const JobComposition = () => null;",
+            },
         ),
-        beats=(
-            VideoBeat(
-                beat_id="opening",
-                utterance_id="opening-narration",
-                narration="Revenue grew in every region.",
-                layers=(
-                    CapabilityLayer(
-                        type="capability",
-                        id="metrics",
-                        bounds=Bounds(x=unsafe_x, y=100, width=1200, height=700),
-                        capability_id="video.component.animated-bar-chart",
-                        props={"data": [12, 18], "labels": ["Q1", "Q2"]},
-                        generated_elements=12,
-                    ),
-                ),
-                transition_to_next=TransitionSelection(
-                    capability_id="video.transition.whip-pan",
-                    duration_frames=transition_frames,
-                ),
-            ),
-            VideoBeat(
-                beat_id="close",
-                utterance_id="close-narration",
-                narration="The team is positioned for durable growth.",
-                layers=(
-                    TextLayer(
-                        type="text",
-                        id="headline",
-                        bounds=Bounds(x=100, y=100, width=1000, height=300),
-                        timing=LayerTiming(start_frame=0),
-                        text="Durable growth",
-                        font_id="font.inter",
-                        font_size=72,
-                        color="#FFFFFF",
-                    ),
-                ),
-            ),
-        ),
+        assets=({"id": "logo", "path": "assets/logo.svg", "kind": "svg"},),
     )
 
 
 def _narration() -> list[dict[str, object]]:
     return [
         {
-            "beat_id": "opening",
-            "utterance_id": "opening-narration",
-            "audio": "utterance-opening-narration.wav",
+            "cue_id": "opening",
+            "audio": "narration-opening.wav",
             "duration_seconds": 0.5,
         },
         {
-            "beat_id": "close",
-            "utterance_id": "close-narration",
-            "audio": "utterance-close-narration.wav",
-            "duration_seconds": 1.0,
+            "cue_id": "close",
+            "audio": "narration-close.wav",
+            "duration_seconds": 1.01,
         },
     ]
 
 
-def _without_transition(*, min_duration_frames: int = 1) -> VideoPlan:
-    plan = _plan()
-    return plan.model_copy(
-        update={
-            "beats": tuple(
-                beat.model_copy(
-                    update={
-                        "min_duration_frames": min_duration_frames,
-                        "transition_to_next": None,
-                    }
-                )
-                for beat in plan.beats
-            )
-        }
-    )
-
-
-def test_compiler_uses_measured_audio_and_natural_frames_deterministically() -> None:
-    first = compile_video_timeline(
-        _plan(),
-        _narration(),
-        capability_natural_frames={
-            "video.component.animated-bar-chart": 45,
-        },
-    )
-    second = compile_video_timeline(
-        _plan(),
-        _narration(),
-        capability_natural_frames={
-            "video.component.animated-bar-chart": 45,
-        },
-    )
+def test_scheduler_uses_measured_audio_sequentially_and_deterministically() -> None:
+    first = compile_video_timeline(_project(), _narration())
+    second = compile_video_timeline(_project(), _narration())
 
     assert first == second
-    assert (first.width, first.height, first.fps) == (1920, 1080, 30)
-    assert first.beats[0].from_frame == 0
-    assert first.beats[0].to_frame == 45
-    assert first.beats[1].from_frame == 35
-    assert first.narration[0].to_frame == 15
-    assert first.narration[1].from_frame == 35
-    assert first.duration_frames == 65
-    assert (first.transitions[0].from_frame, first.transitions[0].to_frame) == (
-        35,
-        45,
+    assert first.duration_in_frames == 46
+    assert [
+        (cue.cue_id, cue.start_frame, cue.duration_in_frames)
+        for cue in first.narration_cues
+    ] == [("opening", 0, 15), ("close", 15, 31)]
+    assert first.audio_tracks[1].start_frame == 15
+    assert first.audio_tracks[1].duration_in_frames == 31
+
+
+def test_builder_emits_the_exact_runtime_interface() -> None:
+    render_input = build_video_render_input(
+        _project(),
+        _narration(),
+        build_id="build-12345678",
+        selected_capability_ids=("video.component.chart", "font.inter"),
+        sample_frames=(
+            {"frame": 0, "reason": "first"},
+            {"frame": 45, "reason": "final"},
+        ),
     )
 
-    render_input = build_video_render_input(
-        _plan(),
-        _narration(),
-        skill_version="skill-v1",
-        capability_natural_frames={
-            "video.component.animated-bar-chart": 45,
-        },
-    )
-    assert render_input.duration_in_frames == first.duration_frames
-    assert render_input.beats[0].start_frame == first.beats[0].from_frame
-    assert render_input.audio_tracks[1].start_frame == first.narration[1].from_frame
-    assert render_input.selected_capability_ids == tuple(
-        sorted(render_input.selected_capability_ids)
-    )
-    document = render_input.model_dump(mode="json", by_alias=True, exclude_none=True)
+    document = render_input.model_dump(mode="json")
     assert set(document) == {
         "schema_version",
         "build_id",
-        "skill_version",
         "fps",
         "max_duration_seconds",
         "width",
         "height",
         "duration_in_frames",
         "selected_capability_ids",
-        "beats",
-        "transitions",
+        "narration_cues",
         "audio_tracks",
-        "captions",
+        "assets",
+        "sample_frames",
         "watermark",
         "seed",
     }
-    assert document["beats"][0] == {
-        "id": "opening",
-        "utterance_id": "opening-narration",
-        "start_frame": 0,
-        "duration_in_frames": 45,
-        "background": "#0B1020",
-        "layers": [
-            {
-                "id": "metrics",
-                "from": 0,
-                "duration_in_frames": 45,
-                "x": 100.0,
-                "y": 100.0,
-                "width": 1200.0,
-                "height": 700.0,
-                "opacity": 1.0,
-                "rotation": 0.0,
-                "scale": 1.0,
-                "z_index": 0,
-                "keyframes": [],
-                "type": "component",
-                "capability_id": "video.component.animated-bar-chart",
-                "props": {"data": [12.0, 18.0], "labels": ["Q1", "Q2"]},
-            }
-        ],
-    }
-    assert document["transitions"] == [
-        {
-            "capability_id": "video.transition.whip-pan",
-            "from_beat_id": "opening",
-            "to_beat_id": "close",
-            "start_frame": 35,
-            "duration_in_frames": 10,
-            "props": {},
-        }
+    assert document["narration_cues"] == [
+        {"cue_id": "opening", "start_frame": 0, "duration_in_frames": 15},
+        {"cue_id": "close", "start_frame": 15, "duration_in_frames": 31},
     ]
     assert document["audio_tracks"][1] == {
-        "utterance_id": "close-narration",
-        "src": "utterance-close-narration.wav",
-        "start_frame": 35,
-        "duration_in_frames": 30,
+        "cue_id": "close",
+        "src": "narration-close.wav",
+        "start_frame": 15,
+        "duration_in_frames": 31,
         "volume": 1.0,
     }
-    assert not ({"tsx", "scene", "scenes"} & set(str(document).casefold().split()))
+    assert document["assets"] == [
+        {"id": "logo", "path": "assets/logo.svg", "kind": "svg"}
+    ]
+    assert document["sample_frames"][0] == {"frame": 0, "reason": "first"}
+    assert document["sample_frames"][-1] == {"frame": 45, "reason": "final"}
+    assert {sample["reason"] for sample in document["sample_frames"]} >= {
+        "cue-start:close",
+        "cue-end:opening",
+    }
+    assert document["selected_capability_ids"] == [
+        "font.inter",
+        "video.component.chart",
+    ]
 
 
-def test_compiler_accepts_the_target_and_hard_frame_limits() -> None:
-    measured = _narration()
-    measured[0]["duration_seconds"] = 90
-    measured[1]["duration_seconds"] = 90
-
-    timeline = compile_video_timeline(_without_transition(), measured)
-
-    assert timeline.duration_frames == 5400
-
-    measured[0]["duration_seconds"] = 105
-    measured[1]["duration_seconds"] = 105
-
-    timeline = compile_video_timeline(_without_transition(), measured)
-
-    assert timeline.duration_frames == 6300
-
-
-@pytest.mark.parametrize("duration_seconds", [180.13, 205.0])
-def test_compiler_accepts_measured_narration_headroom(duration_seconds) -> None:
-    measured = _narration()
-    measured[0]["duration_seconds"] = duration_seconds
-    measured[1]["duration_seconds"] = 0.01
-
-    timeline = compile_video_timeline(_without_transition(), measured)
-
-    assert 5400 < timeline.duration_frames <= 6300
-
-
-def test_render_input_contract_uses_the_hard_frame_limit() -> None:
-    document = build_video_render_input(
-        _without_transition(),
-        _narration(),
-        skill_version="skill-v1",
-    ).model_dump(by_alias=True)
-    document["duration_in_frames"] = 6300
-
-    assert VideoRenderInput.model_validate(document).duration_in_frames == 6300
-
-    document["duration_in_frames"] = 6301
-    with pytest.raises(ValidationError):
-        VideoRenderInput.model_validate(document)
-
-
-def test_compiler_removes_discretionary_holds_before_rejecting_duration() -> None:
+@pytest.mark.parametrize("duration_seconds", [180.0, 209.99, 210.0])
+def test_scheduler_accepts_target_and_hard_headroom(duration_seconds: float) -> None:
+    project = _project().model_copy(
+        update={"narration_cues": (_project().narration_cues[0],)}
+    )
     timeline = compile_video_timeline(
-        _without_transition(min_duration_frames=3000),
-        _narration(),
+        project,
+        [
+            {
+                "cue_id": "opening",
+                "audio": "opening.wav",
+                "duration_seconds": duration_seconds,
+            }
+        ],
     )
 
-    assert timeline.duration_frames == 45
-    assert [beat.to_frame - beat.from_frame for beat in timeline.beats] == [15, 30]
+    assert timeline.duration_in_frames <= 6300
 
 
-def test_compiler_reports_structured_narration_repair_budgets() -> None:
+def test_scheduler_reports_cue_budgets_targeting_soft_limit() -> None:
     measured = _narration()
     measured[0]["duration_seconds"] = 110
     measured[1]["duration_seconds"] = 110
 
     with pytest.raises(VideoTimelineDurationError) as raised:
-        compile_video_timeline(_without_transition(), measured)
+        compile_video_timeline(_project(), measured)
 
     error = raised.value
     assert (error.max_frames, error.compiled_frames, error.overflow_frames) == (
@@ -286,7 +147,7 @@ def test_compiler_reports_structured_narration_repair_budgets() -> None:
         300,
     )
     assert [
-        (budget.beat_id, budget.max_seconds, budget.max_words)
+        (budget.cue_id, budget.max_seconds, budget.max_words)
         for budget in error.suggested_narration_budgets
     ] == [
         ("opening", 90.0, 225),
@@ -294,35 +155,35 @@ def test_compiler_reports_structured_narration_repair_budgets() -> None:
     ]
 
 
-def test_compiler_rejects_unsafe_bounds_transition_and_narration_gaps() -> None:
-    with pytest.raises(ValueError, match="safe margin"):
-        compile_video_timeline(_plan(unsafe_x=10), _narration())
-
-    with pytest.raises(ValueError, match="half an adjacent beat"):
-        compile_video_timeline(_plan(transition_frames=20), _narration())
-
+def test_scheduler_rejects_missing_duplicate_and_unsafe_measurements() -> None:
     with pytest.raises(ValueError, match="coverage mismatch"):
-        compile_video_timeline(_plan(), _narration()[:1])
+        compile_video_timeline(_project(), _narration()[:1])
 
-    too_long = _narration()
-    too_long[0]["duration_seconds"] = 211
-    with pytest.raises(ValueError, match="210-second"):
-        compile_video_timeline(_plan(), too_long)
+    duplicate = [_narration()[0], _narration()[0]]
+    with pytest.raises(ValueError, match="must be unique"):
+        compile_video_timeline(_project(), duplicate)
+
+    unsafe = _narration()
+    unsafe[0]["audio"] = "../outside.wav"
+    with pytest.raises(ValueError, match="confined"):
+        compile_video_timeline(_project(), unsafe)
 
 
-def test_contract_forbids_generated_code_and_requires_complete_sentences() -> None:
-    document = _plan().model_dump()
-    document["beats"][0]["tsx"] = "export default function ArbitraryCode() {}"
+def test_runtime_contract_rejects_timing_drift_and_visual_structures() -> None:
+    document = build_video_render_input(
+        _project(),
+        _narration(),
+        build_id="build-12345678",
+    ).model_dump()
+    document["audio_tracks"][1]["start_frame"] = 16
+    with pytest.raises(ValidationError, match="must match"):
+        VideoRenderInput.model_validate(document)
 
-    with pytest.raises(ValidationError, match="tsx"):
-        VideoPlan.model_validate(document)
-
-    beat = _plan().beats[0].model_dump()
-    beat["narration"] = "An incomplete fragment"
-    with pytest.raises(ValidationError, match="complete sentences"):
-        VideoBeat.model_validate(beat)
-
-    schema_text = str(VideoPlan.model_json_schema()).casefold()
-    assert "scene" not in schema_text
-    assert "slide" not in schema_text
-    assert "tsx" not in schema_text
+    document = build_video_render_input(
+        _project(),
+        _narration(),
+        build_id="build-12345678",
+    ).model_dump()
+    document["beats"] = []
+    with pytest.raises(ValidationError, match="beats"):
+        VideoRenderInput.model_validate(document)
