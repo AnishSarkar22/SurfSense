@@ -4,6 +4,7 @@ import path from "node:path";
 import {fileURLToPath, pathToFileURL} from "node:url";
 import {bundle} from "@remotion/bundler";
 import {atomicWriteJson, directoryHash} from "../render-utils.mjs";
+import {authoringModules} from "./authoring-modules.mjs";
 import {validateSource} from "./validate-source.mjs";
 
 const runtimeRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -67,15 +68,18 @@ export async function bundleJob(argv = process.argv.slice(2)) {
         ...config,
         resolve: {
           ...config.resolve,
+          modules: [
+            path.join(runtimeRoot, "node_modules"),
+            ...(config.resolve?.modules ?? []),
+          ],
           alias: {
             ...(config.resolve?.alias ?? {}),
             [`${trustedJobModule}$`]: path.join(sourceDir, "JobComposition.tsx"),
-            "@surfsense/video$": path.join(runtimeRoot, "src", "authoring.tsx"),
-            "@surfsense/video/capabilities$": path.join(
-              runtimeRoot,
-              "src",
-              "generated",
-              "public-capabilities.ts",
+            ...Object.fromEntries(
+              Object.entries(authoringModules).map(([specifier, source]) => [
+                `${specifier}$`,
+                path.join(runtimeRoot, source),
+              ]),
             ),
           },
         },

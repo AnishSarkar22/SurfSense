@@ -2,6 +2,7 @@ import {readFile, readdir, lstat} from "node:fs/promises";
 import path from "node:path";
 import {fileURLToPath, pathToFileURL} from "node:url";
 import ts from "typescript";
+import {authoringModules} from "./authoring-modules.mjs";
 
 const runtimeRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const allowedPackages = new Set([
@@ -10,8 +11,7 @@ const allowedPackages = new Set([
   "@remotion/fonts",
   "@remotion/media",
   "@remotion/transitions",
-  "@surfsense/video",
-  "@surfsense/video/capabilities",
+  ...Object.keys(authoringModules),
 ]);
 const forbiddenIdentifiers = new Set([
   "cancelAnimationFrame",
@@ -215,10 +215,24 @@ export async function validateSource(sourceRoot) {
     noEmit: true,
     skipLibCheck: true,
     baseUrl: runtimeRoot,
-    paths: {
-      "@surfsense/video": ["src/authoring.tsx"],
-      "@surfsense/video/capabilities": ["src/generated/public-capabilities.ts"],
-    },
+    paths: Object.fromEntries([
+      ...Object.entries(authoringModules).map(([specifier, source]) => [
+        specifier,
+        [source],
+      ]),
+      ...[...allowedPackages]
+        .filter((specifier) => !specifier.startsWith("@surfsense/"))
+        .flatMap((specifier) => {
+          const source =
+            specifier === "react"
+              ? "node_modules/@types/react"
+              : `node_modules/${specifier}`;
+          return [
+            [specifier, [source]],
+            [`${specifier}/*`, [`${source}/*`]],
+          ];
+        }),
+    ]),
   };
   const program = ts.createProgram(files, options);
   const diagnostics = ts.getPreEmitDiagnostics(program);
