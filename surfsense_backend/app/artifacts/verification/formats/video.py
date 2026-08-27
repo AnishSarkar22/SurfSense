@@ -21,6 +21,34 @@ _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _BUILD_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _CAPABILITY_ID_RE = re.compile(r"^(?:font|video\.(?:component|transition|renderer))\.")
 _MAX_SAMPLE_FRAMES = 36
+_SCHEMA_VERSION = 1
+_RENDER_SETTINGS = {
+    "codec": "h264",
+    "audio_codec": "aac",
+    "pixel_format": "yuv420p",
+    "width": _WIDTH,
+    "height": _HEIGHT,
+    "fps": 30,
+}
+_RECEIPT_FIELDS = {
+    "schema_version",
+    "build_id",
+    "capability_build_id",
+    "runtime_build_id",
+    "input_sha256",
+    "source_sha256",
+    "bundle_sha256",
+    "expected_duration_seconds",
+    "expected_frame_count",
+    "sample_frames",
+    "selected_capability_ids",
+    "imported_capability_ids",
+    "resolved_capability_ids",
+    "selected_capability_count",
+    "resolved_capability_count",
+    "render_settings",
+    "render_seconds",
+}
 
 
 def reject_buffered_video_check(_: bytes) -> StructuralCheckResult:
@@ -35,6 +63,8 @@ async def _run(session: SandboxSession, command: str, label: str) -> str:
 
 
 def _positive_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
     try:
         parsed = float(value)
     except (TypeError, ValueError):
@@ -52,10 +82,10 @@ def _positive_int(value: Any) -> int | None:
     return parsed if parsed > 0 and parsed == value else None
 
 
-def _capability_ids(value: Any) -> tuple[str, ...] | None:
+def _capability_ids(value: Any, *, allow_empty: bool = False) -> tuple[str, ...] | None:
     if (
         not isinstance(value, list)
-        or not value
+        or (not allow_empty and not value)
         or any(
             not isinstance(item, str) or not _CAPABILITY_ID_RE.match(item)
             for item in value
@@ -65,6 +95,10 @@ def _capability_ids(value: Any) -> tuple[str, ...] | None:
     ):
         return None
     return tuple(value)
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and _SHA256_RE.fullmatch(value) is not None
 
 
 async def _render_metadata(session: SandboxSession, path: str) -> dict[str, Any]:
@@ -83,29 +117,38 @@ async def _render_metadata(session: SandboxSession, path: str) -> dict[str, Any]
 
     expected_duration = _positive_float(data.get("expected_duration_seconds"))
     expected_frames = _positive_int(data.get("expected_frame_count"))
+    render_seconds = _positive_float(data.get("render_seconds"))
     build_id = data.get("build_id")
+    runtime_build_id = data.get("runtime_build_id")
     selected = _capability_ids(data.get("selected_capability_ids"))
     resolved = _capability_ids(data.get("resolved_capability_ids"))
-    samples = data.get("beat_sample_frames")
+    imported = _capability_ids(data.get("imported_capability_ids"), allow_empty=True)
+    samples = data.get("sample_frames")
     settings = data.get("render_settings")
     if (
-        expected_duration is None
+        set(data) != _RECEIPT_FIELDS
+        or data.get("schema_version") != _SCHEMA_VERSION
+        or expected_duration is None
         or expected_frames is None
+        or render_seconds is None
+        or expected_duration != expected_frames / _RENDER_SETTINGS["fps"]
         or not isinstance(build_id, str)
         or not _BUILD_ID_RE.fullmatch(build_id)
+        or not isinstance(runtime_build_id, str)
+        or not _BUILD_ID_RE.fullmatch(runtime_build_id)
+        or not _is_sha256(data.get("input_sha256"))
+        or not _is_sha256(data.get("source_sha256"))
+        or not _is_sha256(data.get("bundle_sha256"))
+        or data.get("capability_build_id") != build_id
         or selected is None
         or resolved is None
-        or resolved != selected
+        or imported is None
+        or not set(imported).issubset(selected)
         or data.get("selected_capability_count") != len(selected)
         or data.get("resolved_capability_count") != len(resolved)
         or not isinstance(samples, list)
-        or not 2 <= len(samples) <= _MAX_SAMPLE_FRAMES
-        or not isinstance(settings, dict)
-        or settings.get("codec") != "h264"
-        or settings.get("audio_codec") != "aac"
-        or settings.get("width") != _WIDTH
-        or settings.get("height") != _HEIGHT
-        or settings.get("fps") != 30
+        or not 1 <= len(samples) <= _MAX_SAMPLE_FRAMES
+        or settings != _RENDER_SETTINGS
     ):
         raise ValueError("Video render metadata is invalid")
 
@@ -113,20 +156,16 @@ async def _render_metadata(session: SandboxSession, path: str) -> dict[str, Any]
     for sample in samples:
         if (
             not isinstance(sample, dict)
+            or set(sample) != {"frame", "reason"}
             or not isinstance(sample.get("frame"), int)
             or isinstance(sample.get("frame"), bool)
             or not 0 <= sample["frame"] < expected_frames
             or not isinstance(sample.get("reason"), str)
-            or not sample["reason"]
+            or not 1 <= len(sample["reason"]) <= 160
         ):
             raise ValueError("Video render metadata is invalid")
         frames.append(sample["frame"])
-    if (
-        frames != sorted(frames)
-        or len(frames) != len(set(frames))
-        or frames[0] != 0
-        or frames[-1] != expected_frames - 1
-    ):
+    if frames != sorted(frames) or len(frames) != len(set(frames)):
         raise ValueError("Video render metadata is invalid")
 
     index_result = await session.run_command(
@@ -144,10 +183,30 @@ async def _render_metadata(session: SandboxSession, path: str) -> dict[str, Any]
         raise ValueError("Video capability index is invalid") from exc
     if (
         not isinstance(index, dict)
+        or index.get("schema_version") != data["schema_version"]
         or index.get("build_id") != build_id
+        or index.get("runtime_build_id") != runtime_build_id
         or not set(selected).issubset(known_ids)
         or not set(resolved).issubset(known_ids)
+        or not set(imported).issubset(known_ids)
     ):
+        raise ValueError("Video capability metadata does not match the sandbox build")
+    expected_resolved = tuple(
+        sorted(
+            {
+                "video.renderer.master",
+                *imported,
+                *(
+                    capability_id
+                    for capability_id in selected
+                    if capability_id.startswith("font.")
+                ),
+            }
+            & set(selected)
+            & known_ids
+        )
+    )
+    if resolved != expected_resolved:
         raise ValueError("Video capability metadata does not match the sandbox build")
     return data
 
@@ -189,10 +248,7 @@ async def check_video(session: SandboxSession, path: str) -> SandboxCheckResult:
         video_stream = video_streams[0]
         if video_stream.get("codec_name") != "h264":
             findings.append("Video stream must use H.264")
-        if (
-            video_stream.get("width") != _WIDTH
-            or video_stream.get("height") != _HEIGHT
-        ):
+        if video_stream.get("width") != _WIDTH or video_stream.get("height") != _HEIGHT:
             findings.append(f"Video resolution must be {_WIDTH}x{_HEIGHT}")
     if len(audio_streams) != 1:
         findings.append("Video must contain exactly one narration audio stream")
@@ -230,7 +286,7 @@ async def check_video(session: SandboxSession, path: str) -> SandboxCheckResult:
         if frame_count != metadata["expected_frame_count"]:
             findings.append("Video frame count does not match its render metadata")
 
-    sample_frames = [sample["frame"] for sample in metadata["beat_sample_frames"]]
+    sample_frames = [sample["frame"] for sample in metadata["sample_frames"]]
     if sample_frames:
         select = "+".join(f"eq(n\\,{frame})" for frame in sample_frames)
         frame_stats_text = await _run(

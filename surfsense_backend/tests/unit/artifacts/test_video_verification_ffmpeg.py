@@ -13,6 +13,9 @@ pytestmark = pytest.mark.skipif(
     reason="ffmpeg and ffprobe are required",
 )
 
+BUILD_ID = "0123456789abcdefabcd"
+RUNTIME_BUILD_ID = "fedcba9876543210abcd"
+
 
 class LocalCommandSession:
     session_id = "local-ffmpeg"
@@ -22,7 +25,9 @@ class LocalCommandSession:
             return ExecResult(
                 json.dumps(
                     {
-                        "build_id": "0123456789abcdefabcd",
+                        "schema_version": 1,
+                        "build_id": BUILD_ID,
+                        "runtime_build_id": RUNTIME_BUILD_ID,
                         "capabilities": [
                             {"id": "font.inter"},
                             {"id": "video.renderer.master"},
@@ -56,13 +61,19 @@ async def _make_fixture(path, *, black=False, audio=True):
     path.with_name(f"{path.name}.render.json").write_text(
         json.dumps(
             {
-                "build_id": "0123456789abcdefabcd",
+                "schema_version": 1,
+                "build_id": BUILD_ID,
+                "capability_build_id": BUILD_ID,
+                "runtime_build_id": RUNTIME_BUILD_ID,
+                "input_sha256": "c" * 64,
+                "source_sha256": "d" * 64,
+                "bundle_sha256": "e" * 64,
                 "expected_duration_seconds": 1,
                 "expected_frame_count": 30,
-                "beat_sample_frames": [
-                    {"frame": 0, "reason": "first-content"},
-                    {"frame": 15, "reason": "beat:one:midpoint"},
-                    {"frame": 29, "reason": "last-content"},
+                "sample_frames": [
+                    {"frame": 0, "reason": "opening"},
+                    {"frame": 15, "reason": "middle"},
+                    {"frame": 29, "reason": "closing"},
                 ],
                 "selected_capability_ids": [
                     "font.inter",
@@ -72,6 +83,7 @@ async def _make_fixture(path, *, black=False, audio=True):
                     "font.inter",
                     "video.renderer.master",
                 ],
+                "imported_capability_ids": [],
                 "selected_capability_count": 2,
                 "resolved_capability_count": 2,
                 "render_settings": {
@@ -82,6 +94,7 @@ async def _make_fixture(path, *, black=False, audio=True):
                     "height": 1080,
                     "fps": 30,
                 },
+                "render_seconds": 0.5,
             }
         )
     )
@@ -108,6 +121,5 @@ async def test_real_ffmpeg_video_fixtures_cover_structural_gate(tmp_path):
     metadata = json.loads(sidecar.read_text())
     metadata["expected_duration_seconds"] = 3
     sidecar.write_text(json.dumps(metadata))
-    assert "render metadata" in " ".join(
-        (await check_video(session, str(valid))).structural.findings
-    )
+    with pytest.raises(ValueError, match="render metadata is invalid"):
+        await check_video(session, str(valid))
