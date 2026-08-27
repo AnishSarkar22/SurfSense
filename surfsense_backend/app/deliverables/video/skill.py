@@ -11,13 +11,18 @@ from app.sandbox import SandboxSession
 
 _SKILL_ROOT = PurePosixPath("/opt/skills/video")
 _SKILL_PATH = _SKILL_ROOT / "SKILL.md"
+_AUTHORING_CONTRACT_PATH = PurePosixPath(
+    "/opt/surfsense/video-runtime/src/authoring-contract.ts"
+)
 _MAX_SUPPLEMENTS = 8
 _MAX_SKILL_BYTES = 96 * 1024
+_MAX_AUTHORING_CONTRACT_BYTES = 16 * 1024
 
 
 @dataclass(frozen=True, slots=True)
 class LoadedVideoSkill:
     content: str
+    authoring_contract: str
 
 
 def _frontmatter(source: str) -> dict:
@@ -57,7 +62,7 @@ def _supplement_paths(metadata: dict) -> tuple[PurePosixPath, ...]:
 
 
 async def load_video_skill(session: SandboxSession) -> LoadedVideoSkill:
-    """Load the root and its closed supplement set from the live sandbox image."""
+    """Load model guidance and its exact authoring contract from the live image."""
     root_bytes = await session.read_file(str(_SKILL_PATH))
     try:
         root = root_bytes.decode("utf-8")
@@ -79,4 +84,17 @@ async def load_video_skill(session: SandboxSession) -> LoadedVideoSkill:
         relative = str(path.relative_to(_SKILL_ROOT))
         parts.append(f"\n\n<!-- {relative} -->\n\n{text}")
 
-    return LoadedVideoSkill(content="".join(parts))
+    contract_bytes = await session.read_file(str(_AUTHORING_CONTRACT_PATH))
+    if len(contract_bytes) > _MAX_AUTHORING_CONTRACT_BYTES:
+        raise ValueError("video authoring contract exceeds its context budget")
+    try:
+        authoring_contract = contract_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("video authoring contract must be UTF-8") from exc
+    if not authoring_contract.strip():
+        raise ValueError("video authoring contract must not be empty")
+
+    return LoadedVideoSkill(
+        content="".join(parts),
+        authoring_contract=authoring_contract,
+    )

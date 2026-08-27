@@ -73,7 +73,10 @@ def _project(
 
 
 def _skill() -> LoadedVideoSkill:
-    return LoadedVideoSkill(content="Author a complete CreativeVideoProject.")
+    return LoadedVideoSkill(
+        content="Author a complete CreativeVideoProject.",
+        authoring_contract="export type NarrationCueState = { cueId: string };",
+    )
 
 
 def _capability(capability_id: str, kind: CapabilityKind) -> CapabilityEnvelope:
@@ -170,7 +173,7 @@ def test_request_and_model_contract_exclude_operational_fields() -> None:
 
 
 def test_disclosure_exposes_full_public_catalog_with_import_names() -> None:
-    disclosure = executor._public_capability_disclosure(_index())
+    disclosure = executor.build_public_capability_catalog(_index())
 
     assert disclosure["build_id"] == _index().build_id
     assert disclosure["module"] == "@surfsense/video/capabilities"
@@ -208,8 +211,38 @@ async def test_structured_invocation_uses_billing_compatible_native_schema() -> 
     assert project == _project()
     assert captured["schema"]["type"] == "object"
     assert captured["kwargs"] == {"method": "json_schema", "strict": True}
+    assert _skill().authoring_contract in captured["messages"][1].content
     assert "output_schema" not in prompt
     assert "response_instruction" not in prompt
+
+
+async def test_authoring_contract_is_sent_only_to_source_generating_calls() -> None:
+    captured: list[list] = []
+
+    class StructuredLLM:
+        async def ainvoke(self, messages):
+            captured.append(messages)
+            return _project().model_dump(mode="json")
+
+    class LLM:
+        def with_structured_output(self, _schema, **_kwargs):
+            return StructuredLLM()
+
+    for call_kind in ("source_repair", "narration_repair"):
+        await executor._invoke_structured(
+            LLM(),
+            skill=_skill(),
+            payload={"diagnostics": []},
+            model=CreativeVideoProject,
+            call_kind=call_kind,
+        )
+
+    assert _skill().authoring_contract in captured[0][1].content
+    assert len(captured[0]) == 3
+    assert len(captured[1]) == 2
+    assert all(
+        _skill().authoring_contract not in message.content for message in captured[1]
+    )
 
 
 async def test_materialization_confines_model_source_and_commands() -> None:

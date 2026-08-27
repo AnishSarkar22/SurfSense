@@ -46,8 +46,8 @@ from app.deliverables.video.timeline import (
 from app.observability import metrics as ot_metrics
 from app.sandbox import SandboxResourceProfile, SandboxSession, get_registry
 from app.sandbox.capabilities import (
+    build_public_capability_catalog,
     load_capability_index,
-    validate_disclosable_capabilities,
 )
 from app.sandbox.capabilities.schema import (
     CapabilityId,
@@ -59,7 +59,7 @@ from app.services.llm_service import get_vision_llm
 _MAX_BRIEF_CHARS = 16_000
 _MAX_SOURCE_REFERENCES = 25
 _MAX_SOURCE_REFERENCE_CHARS = 1_000
-_MODEL_TIMEOUT_SECONDS = 120
+_MODEL_TIMEOUT_SECONDS = 10 * 60
 _FINDINGS_CHARS = 16_000
 _STAGED_ASSETS = (
     {"id": "surfsense-icon", "path": "icon-128.svg", "kind": "svg"},
@@ -248,10 +248,9 @@ async def execute_video_deliverable(
         load_video_skill(sandbox),
         load_capability_index(sandbox, image_digest=None),
     )
-    validate_disclosable_capabilities(index)
     if index.runtime_build_id is None:
         raise ValueError("video capability index lacks a runtime build identity")
-    disclosure = _public_capability_disclosure(index)
+    disclosure = build_public_capability_catalog(index)
 
     await heartbeat("authoring", 15)
     async with _phase_timing("authoring", job_id=job.id):
@@ -269,7 +268,7 @@ async def execute_video_deliverable(
                 "instructions": (
                     "Return the complete CreativeVideoProject. Author only source files, "
                     "narration cues, language, and declared assets. Never return commands, "
-                    "render phases, capability slots, beats, outlines, or compiler inputs."
+                    "render phases, or artifact operations."
                 ),
             },
             model=CreativeVideoProject,
@@ -467,47 +466,6 @@ def _source_labels(references: list[str]) -> list[dict[str, str]]:
     ]
 
 
-def _public_capability_disclosure(index: CapabilityIndex) -> dict[str, object]:
-    public: list[dict[str, object]] = []
-    for capability in index.capabilities:
-        if capability.kind is CapabilityKind.RENDERER:
-            continue
-        export_name = capability.declaration.get("public_export")
-        if capability.kind in {
-            CapabilityKind.COMPONENT,
-            CapabilityKind.TRANSITION,
-        } and not isinstance(export_name, str):
-            continue
-        public.append(
-            {
-                "id": capability.id,
-                "kind": capability.kind.value,
-                "export_name": export_name,
-                "category": capability.category,
-                "summary": capability.summary,
-                "tags": list(capability.tags),
-                "vibe": list(capability.vibe),
-                "use_for": list(capability.use_for),
-                "avoid_for": list(capability.avoid_for),
-                "natural_frame_length": capability.natural_frame_length,
-                "dependencies": list(capability.dependencies),
-                "native_canvas": (
-                    capability.native_canvas.model_dump(mode="json")
-                    if capability.native_canvas is not None
-                    else None
-                ),
-                "props_schema": capability.props_schema,
-            }
-        )
-    if not public:
-        raise ValueError("generated public video capability catalog is empty")
-    return {
-        "build_id": index.build_id,
-        "module": "@surfsense/video/capabilities",
-        "capabilities": public,
-    }
-
-
 def _technical_limits() -> dict[str, object]:
     return {
         "canvas": {"width": 1920, "height": 1080},
@@ -523,18 +481,6 @@ def _technical_limits() -> dict[str, object]:
             "path": "JobComposition.tsx",
             "named_export": "JobComposition",
             "accepts_props": False,
-        },
-        "authoring_api": {
-            "module": "@surfsense/video",
-            "exports": [
-                "useVideoRuntime()",
-                "useNarrationCue(cueId?)",
-                "useNarrationCues()",
-                "useAsset(assetId)",
-                "useSeededRandom(key, frame?)",
-            ],
-            "capability_module": "@surfsense/video/capabilities",
-            "capability_import_style": "named imports only",
         },
         "allowed_imports": [
             "react",
@@ -570,15 +516,22 @@ async def _invoke_structured(
         method="json_schema",
         strict=True,
     )
+    messages = [SystemMessage(content=skill.content)]
+    if call_kind != "narration_repair":
+        messages.append(
+            SystemMessage(
+                content=(
+                    "The following TypeScript is the exact @surfsense/video public "
+                    "authoring contract. Use only these exports and field names.\n\n"
+                    f"```typescript\n{skill.authoring_contract}\n```"
+                )
+            )
+        )
+    messages.append(
+        HumanMessage(content=json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    )
     result = await asyncio.wait_for(
-        structured_llm.ainvoke(
-            [
-                SystemMessage(content=skill.content),
-                HumanMessage(
-                    content=json.dumps(payload, ensure_ascii=False, sort_keys=True)
-                ),
-            ]
-        ),
+        structured_llm.ainvoke(messages),
         timeout=_MODEL_TIMEOUT_SECONDS,
     )
     return model.model_validate_json(json.dumps(result, ensure_ascii=False))

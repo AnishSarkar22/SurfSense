@@ -4,8 +4,16 @@ from app.deliverables.video.skill import load_video_skill
 from tests.utils.fake_sandbox import FakeSandboxSession
 
 
-def _session(root: str, **supplements: str) -> FakeSandboxSession:
-    files = {"/opt/skills/video/SKILL.md": root.encode()}
+def _session(
+    root: str,
+    *,
+    contract: bytes = b"export type NarrationCueState = { cueId: string };",
+    **supplements: str,
+) -> FakeSandboxSession:
+    files = {
+        "/opt/skills/video/SKILL.md": root.encode(),
+        "/opt/surfsense/video-runtime/src/authoring-contract.ts": contract,
+    }
     files.update(
         {
             f"/opt/skills/video/supplements/{name}.md": value.encode()
@@ -31,6 +39,9 @@ supplement_allowlist:
     assert "# Narrative" in loaded.content
     assert "# Review" in loaded.content
     assert "# Ignore" not in loaded.content
+    assert loaded.authoring_contract == (
+        "export type NarrationCueState = { cueId: string };"
+    )
 
 
 @pytest.mark.parametrize(
