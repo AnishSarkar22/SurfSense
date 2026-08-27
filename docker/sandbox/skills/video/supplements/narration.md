@@ -20,8 +20,8 @@ Write for listening, then let measured speech determine the timeline.
 - If measured narration exceeds the duration budget, accept one narration-only
   repair using the supplied per-cue word budgets. Preserve cue identities,
   rewrite only changed narration, and leave source files untouched.
-- If visual review fails, repair visuals without changing narration. Change an
-  utterance only when its wording, factual accuracy, pronunciation, or meaning
-  is itself defective; changed narration requires new measured audio timing.
+- When deterministic preflight requires a source repair, preserve narration.
+  Change an utterance only when its wording, factual accuracy, pronunciation,
+  or meaning is itself defective; changed narration requires new measured timing.
 - Leave enough visual quiet around dense spoken ideas. Silence and holds may
   support comprehension, but should not conceal missing content.

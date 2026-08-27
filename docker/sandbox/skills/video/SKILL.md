@@ -21,7 +21,7 @@ Create one coherent narrated video as a confined Remotion source project.
 Author only visible content and narration: React components, composition,
 motion, local asset references, and stable narration cues. The backend owns
 source materialization, dependency policy, TTS, measured cue timing, typecheck,
-bundling, review scheduling, rendering, verification, persistence, and retries.
+bundling, deterministic preflight, rendering, verification, persistence, and retries.
 Never return commands, package manifests, build configuration, lifecycle
 actions, or artifact operations.
 
@@ -55,7 +55,7 @@ actions, or artifact operations.
    assets. Use the fixed JobComposition export and runtime authoring APIs.
 6. Consume backend-provided measured cue intervals rather than estimating speech
    timing or probing audio. Use frame-driven Remotion APIs for all animation.
-7. When given build or still-review findings, make one coordinated source/content
+7. When given build or preflight findings, make one coordinated source/content
    repair. Preserve narration unless the supplied diagnosis requires rewriting it.
 
 ## Operating principles

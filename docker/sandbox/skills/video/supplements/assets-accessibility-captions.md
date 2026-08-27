@@ -20,7 +20,7 @@ Every asset must earn its place and remain understandable.
 - Do not burn duplicate narration text into the main layout. Captions provide
   the verbatim speech layer; on-screen copy should communicate hierarchy,
   evidence, or emphasis.
-- Check names, numbers, punctuation, casing, line breaks, and reading order in
-  stills. Caption overflow, orphaned words, or low contrast is blocking.
+- Keep names, numbers, punctuation, casing, line breaks, and reading order
+  correct throughout the timeline. Prevent caption overflow and orphaned words.
 - Prefer visible focus and comprehension over visual density. If content cannot
   be made legible in its available time, reduce it or simplify the treatment.
