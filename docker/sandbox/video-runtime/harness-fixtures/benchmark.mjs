@@ -1,5 +1,5 @@
 import {spawn} from "node:child_process";
-import {mkdtemp, readFile, rm, stat} from "node:fs/promises";
+import {mkdir, mkdtemp, readFile, rm, stat} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import path from "node:path";
 import {performance} from "node:perf_hooks";
@@ -16,7 +16,6 @@ const indexPath =
   process.env.SURFSENSE_CAPABILITY_INDEX ??
   path.join(root, "generated", "capabilities", "index.json");
 const required = [
-  path.join(root, "bundle", "index.html"),
   path.join(root, "generated", "VideoRenderInput.mjs"),
   indexPath,
 ];
@@ -25,7 +24,7 @@ for (const file of required) {
     await stat(file);
   } catch {
     throw new Error(
-      `Benchmark prerequisite is missing: ${file}. Build the image or run npm run build once.`,
+      `Benchmark prerequisite is missing: ${file}. Build the image or run npm run generate once.`,
     );
   }
 }
@@ -55,7 +54,7 @@ const run = (command, args, options = {}) =>
     });
   });
 
-const measure = async (work, phase, args) => {
+const measure = async (work, job, phase, args) => {
   const memoryFile = path.join(work, `${phase}.max-rss-kb`);
   const started = performance.now();
   await run("/usr/bin/time", [
@@ -65,8 +64,8 @@ const measure = async (work, phase, args) => {
     memoryFile,
     process.execPath,
     "render.mjs",
-    "--bundle-dir",
-    path.join(root, "bundle"),
+    "--job-dir",
+    job,
     ...args,
   ]);
   return {
@@ -84,15 +83,37 @@ for (const durationSeconds of durations) {
   try {
     const input = path.join(work, "input.json");
     const stills = path.join(work, "stills");
+    const job = path.join(work, "job");
+    const publicDir = path.join(work, "public");
     const output = path.join(work, `${durationSeconds}s.mp4`);
     await run(process.execPath, [
       "harness-fixtures/smoke-input.mjs",
       input,
       String(durationSeconds),
     ]);
-    const preflight = await measure(work, "preflight", ["--preflight", input]);
-    const riskStills = await measure(work, "stills", ["--stills", input, stills]);
-    const render = await measure(work, "render", [input, output]);
+    await run(process.execPath, [
+      "scripts/bundle-job.mjs",
+      "--source-dir",
+      "harness-fixtures/job-source",
+      "--out-dir",
+      job,
+    ]);
+    await mkdir(publicDir);
+    await run(process.execPath, [
+      "harness-fixtures/write-silence.mjs",
+      path.join(publicDir, "silence.wav"),
+      String(durationSeconds),
+    ]);
+    await run(process.execPath, [
+      "scripts/finalize-job.mjs",
+      "--job-dir",
+      job,
+      "--public-dir",
+      publicDir,
+    ]);
+    const preflight = await measure(work, job, "preflight", ["--preflight", input]);
+    const riskStills = await measure(work, job, "stills", ["--stills", input, stills]);
+    const render = await measure(work, job, "render", [input, output]);
     const outputBytes = (await stat(output)).size;
     const receipt = JSON.parse(await readFile(`${output}.render.json`, "utf8"));
     console.log(

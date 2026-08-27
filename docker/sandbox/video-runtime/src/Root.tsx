@@ -1,7 +1,7 @@
 import type React from "react";
 import {Composition} from "remotion";
 import {registryBuildId} from "./generated/capability-registry";
-import {MasterComposition} from "./MasterComposition";
+import {TrustedVideoHost} from "./TrustedVideoHost";
 import {
   type VideoRenderInput,
   VideoRenderInputSchema,
@@ -10,52 +10,31 @@ import {
 const defaultProps: VideoRenderInput = {
   schema_version: 1,
   build_id: registryBuildId,
-  skill_version: "video-skill-v1",
   fps: 30,
   max_duration_seconds: 3,
   width: 1920,
   height: 1080,
   duration_in_frames: 90,
-  selected_capability_ids: [
-    "video.renderer.master",
-    "video.component.core.primitives",
-    "font.inter",
-  ],
-  beats: [
+  selected_capability_ids: ["video.renderer.master", "font.inter"],
+  narration_cues: [
     {
-      id: "preview",
-      utterance_id: "preview",
+      cue_id: "preview",
       start_frame: 0,
       duration_in_frames: 90,
-      background: "#020617",
-      layers: [
-        {
-          id: "preview-title",
-          type: "text",
-          from: 0,
-          duration_in_frames: 90,
-          x: 240,
-          y: 390,
-          width: 1440,
-          height: 300,
-          opacity: 1,
-          rotation: 0,
-          scale: 1,
-          z_index: 1,
-          keyframes: [],
-          text: "SurfSense",
-          color: "#f8fafc",
-          font_id: "font.inter",
-          font_size: 112,
-          font_weight: 600,
-          align: "center",
-        },
-      ],
     },
   ],
-  transitions: [],
   audio_tracks: [],
-  captions: [],
+  assets: [],
+  sample_frames: [
+    {
+      frame: 0,
+      reason: "first-content",
+    },
+    {
+      frame: 89,
+      reason: "last-content",
+    },
+  ],
   watermark: true,
   seed: "preview",
 };
@@ -63,7 +42,7 @@ const defaultProps: VideoRenderInput = {
 export const Root: React.FC = () => (
   <Composition
     id="Main"
-    component={MasterComposition}
+    component={TrustedVideoHost}
     width={1920}
     height={1080}
     fps={30}

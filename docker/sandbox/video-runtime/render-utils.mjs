@@ -1,5 +1,5 @@
 import {createHash} from "node:crypto";
-import {mkdir, rename, stat, writeFile} from "node:fs/promises";
+import {mkdir, readFile, readdir, rename, stat, writeFile} from "node:fs/promises";
 import path from "node:path";
 
 export function assertDurationLimit(composition, maxDurationSeconds) {
@@ -21,6 +21,29 @@ export function inputHash(source) {
   return createHash("sha256").update(source).digest("hex");
 }
 
+export async function directoryHash(directory) {
+  const root = path.resolve(directory);
+  const hash = createHash("sha256");
+  const visit = async (current) => {
+    const entries = await readdir(current, {withFileTypes: true});
+    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      const target = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        await visit(target);
+      } else if (entry.isFile()) {
+        hash.update(path.relative(root, target).replaceAll(path.sep, "/"));
+        hash.update("\0");
+        hash.update(await readFile(target));
+        hash.update("\0");
+      } else {
+        throw new Error(`Prepared bundle contains unsupported entry: ${target}`);
+      }
+    }
+  };
+  await visit(root);
+  return hash.digest("hex");
+}
+
 export async function atomicWriteJson(filePath, value) {
   await mkdir(path.dirname(filePath), {recursive: true});
   const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
@@ -32,11 +55,7 @@ export async function assertBundleAssets(input, bundleDir) {
   const publicDir = path.resolve(bundleDir, "public");
   const sources = [
     ...input.audio_tracks.map(({src}) => src),
-    ...input.beats.flatMap(({layers}) =>
-      layers
-        .filter(({type}) => type === "image" || type === "video")
-        .map(({src}) => src),
-    ),
+    ...input.assets.map(({path: assetPath}) => assetPath),
   ];
   for (const source of new Set(sources)) {
     const target = path.resolve(publicDir, source);
@@ -62,42 +81,11 @@ export async function assertBundleAssets(input, bundleDir) {
 const clampFrame = (frame, totalFrames) =>
   Math.max(0, Math.min(totalFrames - 1, Math.round(frame)));
 
-export function riskFrames(input, limit = 36) {
+export function neutralSampleFrames(input, limit = 36) {
   const totalFrames = input.duration_in_frames;
-  const samples = new Map([
-    [0, "first-content"],
-    [totalFrames - 1, "last-content"],
-  ]);
-  for (const beat of input.beats) {
-    samples.set(
-      clampFrame(beat.start_frame + (beat.duration_in_frames - 1) / 2, totalFrames),
-      `beat:${beat.id}:midpoint`,
-    );
-    for (const layer of beat.layers) {
-      for (const keyframe of layer.keyframes ?? []) {
-        samples.set(
-          clampFrame(beat.start_frame + layer.from + keyframe.frame, totalFrames),
-          `beat:${beat.id}:keyframe`,
-        );
-      }
-    }
-  }
-  for (const transition of input.transitions) {
-    samples.set(clampFrame(transition.start_frame, totalFrames), "transition:start");
-    samples.set(
-      clampFrame(
-        transition.start_frame + transition.duration_in_frames / 2,
-        totalFrames,
-      ),
-      "transition:midpoint",
-    );
-    samples.set(
-      clampFrame(
-        transition.start_frame + transition.duration_in_frames - 1,
-        totalFrames,
-      ),
-      "transition:end",
-    );
+  const samples = new Map();
+  for (const sample of input.sample_frames) {
+    samples.set(clampFrame(sample.frame, totalFrames), sample.reason);
   }
   return [...samples.entries()]
     .sort(([left], [right]) => left - right)
@@ -105,20 +93,12 @@ export function riskFrames(input, limit = 36) {
     .map(([frame, reason]) => ({frame, reason}));
 }
 
-export function resolvedCapabilityIds(input, trustedIds) {
+export function resolvedCapabilityIds(input, trustedIds, importedCapabilityIds = []) {
   const selected = new Set(input.selected_capability_ids);
-  const used = new Set(["video.renderer.master"]);
+  const used = new Set(["video.renderer.master", ...importedCapabilityIds]);
   for (const id of selected) {
     if (id.startsWith("font.")) used.add(id);
   }
-  for (const beat of input.beats) {
-    for (const layer of beat.layers) {
-      if (layer.capability_id) used.add(layer.capability_id);
-      else used.add("video.component.core.primitives");
-      if (layer.font_id) used.add(layer.font_id);
-    }
-  }
-  for (const transition of input.transitions) used.add(transition.capability_id);
   return [...used]
     .filter((id) => selected.has(id) && trustedIds.has(id))
     .sort();

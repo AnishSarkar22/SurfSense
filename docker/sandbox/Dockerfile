@@ -67,7 +67,7 @@ RUN set -euo pipefail \
     && cd ${SURFSENSE_VIDEO_RUNTIME_HOME} \
     && npm ci --workspaces=false \
     && npx remotion browser ensure \
-    && node -e "require('@remotion/renderer'); require('@remotion/bundler')"
+    && node -e "require('@remotion/renderer'); require('@remotion/bundler'); require('typescript')"
 COPY video-runtime/ ${SURFSENSE_VIDEO_RUNTIME_HOME}/
 
 # ---- Baked fonts: the only authorable families (offline) ----
@@ -82,8 +82,8 @@ RUN set -euo pipefail \
     && npm test \
     && npm run build \
     && test -s /opt/surfsense/capabilities/index.json \
-    && test -f ${SURFSENSE_VIDEO_RUNTIME_HOME}/bundle/index.html \
-    && npm prune --omit=dev --workspaces=false
+    && npm prune --omit=dev --workspaces=false \
+    && node -e "require('@remotion/bundler'); require('typescript'); require('@types/react/package.json')"
 
 # The base image also ships skills. Replace the formats SurfSense owns in one
 # layer so OverlayFS records removed base-image files as deletions.

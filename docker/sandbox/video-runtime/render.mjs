@@ -11,14 +11,14 @@ import {
   renderStill,
   selectComposition,
 } from "@remotion/renderer";
-import Ajv2020 from "ajv/dist/2020.js";
 import {
   assertBundleAssets,
   assertDurationLimit,
   atomicWriteJson,
+  directoryHash,
   inputHash,
+  neutralSampleFrames,
   resolvedCapabilityIds,
-  riskFrames,
 } from "./render-utils.mjs";
 
 const {VideoRenderInputSchema} = await import("./generated/VideoRenderInput.mjs");
@@ -49,8 +49,6 @@ const frameConcurrency = Number(
   process.env.VIDEO_SANDBOX_FRAME_CONCURRENCY ?? 2,
 );
 const execFileAsync = promisify(execFile);
-const ajv = new Ajv2020({allErrors: true, strict: true});
-
 if (!Number.isFinite(timeoutInMilliseconds) || timeoutInMilliseconds < 7000) {
   throw new Error("VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS must be at least 7000");
 }
@@ -177,47 +175,37 @@ async function loadInput(propsPath) {
     error.code = "invalid_capability";
     throw error;
   }
-  const capabilityById = new Map(index.capabilities.map((capability) => [capability.id, capability]));
-  const validators = new Map();
-  const validateProps = (capabilityId, expectedKind, props) => {
-    const capability = capabilityById.get(capabilityId);
-    if (capability?.kind !== expectedKind || !capability.props_schema) {
-      const error = new Error(
-        `${capabilityId} is not an authored ${expectedKind} capability`,
-      );
-      error.code = "invalid_capability";
-      throw error;
-    }
-    let validate = validators.get(capabilityId);
-    if (!validate) {
-      validate = ajv.compile(capability.props_schema);
-      validators.set(capabilityId, validate);
-    }
-    if (!validate(props)) {
-      const error = new Error(
-        `Invalid props for ${capabilityId}: ${ajv.errorsText(validate.errors)}`,
-      );
-      error.code = "invalid_capability_props";
-      error.issues = validate.errors;
-      throw error;
-    }
-  };
-  for (const beat of result.data.beats) {
-    for (const layer of beat.layers) {
-      if (layer.type === "component") {
-        validateProps(layer.capability_id, "component", layer.props);
-      }
-    }
-  }
-  for (const transition of result.data.transitions) {
-    validateProps(transition.capability_id, "transition", transition.props);
-  }
   return {
     input: result.data,
     source,
     index,
     trustedIds,
   };
+}
+
+async function loadPreparedJob(jobDir, input, index) {
+  const manifest = JSON.parse(await readFile(path.join(jobDir, "job.json"), "utf8"));
+  const serveUrl = path.join(jobDir, "bundle");
+  if (
+    manifest.schema_version !== 1 ||
+    manifest.capability_build_id !== index.build_id ||
+    manifest.runtime_build_id !== index.runtime_build_id
+  ) {
+    throw new Error("Prepared job build identity does not match the video runtime");
+  }
+  const actualBundleHash = await directoryHash(serveUrl);
+  if (manifest.bundle_sha256 !== actualBundleHash) {
+    const error = new Error("Prepared job bundle hash mismatch");
+    error.code = "bundle_hash_mismatch";
+    throw error;
+  }
+  const undeclared = manifest.imported_capability_ids.filter(
+    (id) => !input.selected_capability_ids.includes(id),
+  );
+  if (undeclared.length > 0) {
+    throw new Error(`Job source imported undeclared capabilities: ${undeclared.join(", ")}`);
+  }
+  return {manifest, serveUrl};
 }
 
 async function select(input, serveUrl) {
@@ -303,19 +291,19 @@ async function renderStills({
 }
 
 export async function render(argv = process.argv.slice(2)) {
-  const bundleOption = argv.indexOf("--bundle-dir");
+  const bundleOption = argv.indexOf("--job-dir");
   if (
     bundleOption === -1 ||
     !argv[bundleOption + 1] ||
-    argv.indexOf("--bundle-dir", bundleOption + 1) !== -1
+    argv.indexOf("--job-dir", bundleOption + 1) !== -1
   ) {
     throw new Error(
-      "Usage: node render.mjs --bundle-dir bundle --preflight props.json | " +
-        "--bundle-dir bundle --stills props.json outdir | " +
-        "--bundle-dir bundle props.json out.mp4",
+      "Usage: node render.mjs --job-dir job --preflight props.json | " +
+        "--job-dir job --stills props.json outdir | " +
+        "--job-dir job props.json out.mp4",
     );
   }
-  const serveUrl = path.resolve(argv[bundleOption + 1]);
+  const jobDir = path.resolve(argv[bundleOption + 1]);
   const positional = argv.filter(
     (_, index) => index !== bundleOption && index !== bundleOption + 1,
   );
@@ -334,9 +322,9 @@ export async function render(argv = process.argv.slice(2)) {
     positional.length !== expected
   ) {
     throw new Error(
-      "Usage: node render.mjs --bundle-dir bundle --preflight props.json | " +
-        "--bundle-dir bundle --stills props.json outdir | " +
-        "--bundle-dir bundle props.json out.mp4",
+      "Usage: node render.mjs --job-dir job --preflight props.json | " +
+        "--job-dir job --stills props.json outdir | " +
+        "--job-dir job props.json out.mp4",
     );
   }
 
@@ -350,26 +338,34 @@ export async function render(argv = process.argv.slice(2)) {
   try {
     progress.write({phase, progress: 0});
     const {input, source, index, trustedIds} = await loadInput(propsPath);
+    const {manifest, serveUrl} = await loadPreparedJob(jobDir, input, index);
     await assertBundleAssets(input, serveUrl);
     cancellation.assertActive();
     phase = "select_composition";
     progress.write({phase, progress: 0});
     const composition = await select(input, serveUrl);
-    const samples = riskFrames(input);
-    const resolvedIds = resolvedCapabilityIds(input, trustedIds);
+    const samples = neutralSampleFrames(input);
+    const resolvedIds = resolvedCapabilityIds(
+      input,
+      trustedIds,
+      manifest.imported_capability_ids,
+    );
     const baseReceipt = {
       schema_version: input.schema_version,
       build_id: index.build_id,
-      skill_version: input.skill_version,
+      capability_build_id: index.build_id,
+      runtime_build_id: index.runtime_build_id,
       input_sha256: inputHash(source),
+      source_sha256: manifest.source_sha256,
+      bundle_sha256: manifest.bundle_sha256,
       expected_duration_seconds: input.duration_in_frames / input.fps,
       expected_frame_count: input.duration_in_frames,
-      beat_sample_frames: samples,
+      sample_frames: samples,
       selected_capability_ids: [...input.selected_capability_ids].sort(),
+      imported_capability_ids: [...manifest.imported_capability_ids].sort(),
       resolved_capability_ids: resolvedIds,
       selected_capability_count: input.selected_capability_ids.length,
       resolved_capability_count: resolvedIds.length,
-      render_workdir: rootDir,
       render_settings: {
         codec: "h264",
         audio_codec: "aac",
@@ -444,7 +440,6 @@ export async function render(argv = process.argv.slice(2)) {
       await atomicWriteJson(`${outputPath}.render.json`, {
         ...baseReceipt,
         render_seconds: (Date.now() - startedAt) / 1000,
-        completed_at: new Date().toISOString(),
       });
     } catch (error) {
       await rm(stagedOutput, {force: true});

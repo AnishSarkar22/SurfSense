@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
-import {mkdir, mkdtemp, rm, writeFile} from "node:fs/promises";
+import {mkdir, mkdtemp, readFile, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import path from "node:path";
 import test from "node:test";
-import {assertBundleAssets} from "../render-utils.mjs";
+import {assertBundleAssets, directoryHash} from "../render-utils.mjs";
+import {finalizeJob} from "../scripts/finalize-job.mjs";
 
 const inputFor = (src) => ({
   audio_tracks: [{src}],
-  beats: [{layers: []}],
+  assets: [],
 });
 
 test("job bundles validate assets without cross-job fallback", async () => {
@@ -35,6 +36,52 @@ test("job bundles validate assets without cross-job fallback", async () => {
     await assert.rejects(
       assertBundleAssets(inputFor("../first.wav"), firstBundle),
       (error) => error.code === "asset_path_escape",
+    );
+  } finally {
+    await rm(root, {recursive: true, force: true});
+  }
+});
+
+test("finalizing narration updates assets and reseals the prepared bundle", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "surfsense-finalize-job-"));
+  const jobDir = path.join(root, "job");
+  const bundleDir = path.join(jobDir, "bundle");
+  const publicDir = path.join(root, "public");
+  try {
+    await Promise.all([
+      mkdir(path.join(bundleDir, "public"), {recursive: true}),
+      mkdir(publicDir, {recursive: true}),
+    ]);
+    await writeFile(path.join(bundleDir, "index.html"), "bundle");
+    await writeFile(path.join(publicDir, "narration.wav"), "first");
+    await writeFile(
+      path.join(jobDir, "job.json"),
+      JSON.stringify({schema_version: 1, bundle_sha256: "0".repeat(64)}),
+    );
+
+    const first = await finalizeJob([
+      "--job-dir",
+      jobDir,
+      "--public-dir",
+      publicDir,
+    ]);
+    assert.equal(first.bundle_sha256, await directoryHash(bundleDir));
+    assert.equal(
+      await readFile(path.join(bundleDir, "public", "narration.wav"), "utf8"),
+      "first",
+    );
+
+    await writeFile(path.join(publicDir, "narration.wav"), "replacement");
+    const second = await finalizeJob([
+      "--job-dir",
+      jobDir,
+      "--public-dir",
+      publicDir,
+    ]);
+    assert.notEqual(second.bundle_sha256, first.bundle_sha256);
+    assert.equal(
+      await readFile(path.join(bundleDir, "public", "narration.wav"), "utf8"),
+      "replacement",
     );
   } finally {
     await rm(root, {recursive: true, force: true});
