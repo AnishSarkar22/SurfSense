@@ -23,7 +23,15 @@ const defaultProps: VideoRenderInput = {
       duration_in_frames: 90,
     },
   ],
-  audio_tracks: [],
+  audio_tracks: [
+    {
+      cue_id: "preview",
+      src: "narration/preview.wav",
+      start_frame: 0,
+      duration_in_frames: 90,
+      volume: 1,
+    },
+  ],
   assets: [],
   sample_frames: [
     {

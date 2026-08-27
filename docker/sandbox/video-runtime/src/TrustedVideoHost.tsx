@@ -3,7 +3,7 @@ import {Audio} from "@remotion/media";
 import type React from "react";
 import {useEffect, useState} from "react";
 import {AbsoluteFill, Sequence, staticFile, useDelayRender} from "remotion";
-import {VideoRuntimeProvider} from "./authoring";
+import {VideoRuntimeProvider} from "./authoring-context";
 import {
   fontCapabilities,
   registryBuildId,

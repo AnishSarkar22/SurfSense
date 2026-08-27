@@ -49,7 +49,7 @@ export const AssetSchema = z
 export const SampleFrameSchema = z
   .object({
     frame: z.number().int().nonnegative(),
-    reason: z.string().min(1).max(160),
+    reason: z.string().min(1).max(128),
   })
   .strict();
 
