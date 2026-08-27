@@ -180,7 +180,7 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
 ) -> None:
     session = _Session()
     job = _job()
-    billable_kwargs = {}
+    billable_kwargs = []
     executor_args = ()
     terminated = []
 
@@ -208,21 +208,26 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
 
     @asynccontextmanager
     async def billable(**kwargs):
-        billable_kwargs.update(kwargs)
+        billable_kwargs.append(kwargs)
         yield object()
 
     async def execute(session_arg, job_arg, llm):
         nonlocal executor_args
         executor_args = (session_arg, job_arg)
-        structured = llm.with_structured_output(
-            {"type": "object"},
-            method="json_schema",
-            strict=True,
-        )
-        assert await structured.ainvoke(["author"]) == (
-            "structured-response",
-            ["author"],
-        )
+        for call_kind in (
+            "initial_content",
+            "source_repair",
+            "narration_repair",
+        ):
+            structured = llm.for_queued_video_call(call_kind).with_structured_output(
+                {"type": "object"},
+                method="json_schema",
+                strict=True,
+            )
+            assert await structured.ainvoke(["author"]) == (
+                "structured-response",
+                ["author"],
+            )
         return SimpleNamespace(artifact_id=91)
 
     async def complete(*_args, **_kwargs):
@@ -257,13 +262,21 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
     assert terminated == [
         ("deliverable-job-17-attempt-1", SandboxResourceProfile.VIDEO_RENDER)
     ]
-    assert billable_kwargs["quota_reserve_tokens"] == 2048
-    assert "quota_reserve_micros_override" not in billable_kwargs
-    assert billable_kwargs["usage_type"] == "queued_deliverable_generation"
-    assert billable_kwargs["call_details"] == {
-        "deliverable_job_id": 17,
-        "kind": "video",
-    }
+    assert len(billable_kwargs) == 3
+    assert all(call["quota_reserve_tokens"] == 2048 for call in billable_kwargs)
+    assert [
+        call["call_details"]["video_call_kind"] for call in billable_kwargs
+    ] == ["initial_content", "source_repair", "narration_repair"]
+    assert all("quota_reserve_micros_override" not in call for call in billable_kwargs)
+    assert all(
+        call["usage_type"] == "queued_deliverable_generation"
+        for call in billable_kwargs
+    )
+    assert all(
+        call["call_details"]["deliverable_job_id"] == 17
+        and call["call_details"]["kind"] == "video"
+        for call in billable_kwargs
+    )
 
 
 async def test_cooperative_cancellation_finishes_state_and_cleans_sandbox(

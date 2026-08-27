@@ -1,5 +1,3 @@
-import hashlib
-
 import pytest
 
 from app.deliverables.video.skill import load_video_skill
@@ -30,11 +28,9 @@ supplement_allowlist:
         _session(root, narrative="# Narrative", review="# Review", ignored="# Ignore")
     )
 
-    assert loaded.files == ("SKILL.md", "supplements/narrative.md", "supplements/review.md")
     assert "# Narrative" in loaded.content
     assert "# Review" in loaded.content
     assert "# Ignore" not in loaded.content
-    assert loaded.sha256 == hashlib.sha256(loaded.content.encode()).hexdigest()
 
 
 @pytest.mark.parametrize(

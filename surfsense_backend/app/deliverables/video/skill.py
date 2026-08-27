@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
@@ -19,8 +18,6 @@ _MAX_SKILL_BYTES = 96 * 1024
 @dataclass(frozen=True, slots=True)
 class LoadedVideoSkill:
     content: str
-    sha256: str
-    files: tuple[str, ...]
 
 
 def _frontmatter(source: str) -> dict:
@@ -69,7 +66,6 @@ async def load_video_skill(session: SandboxSession) -> LoadedVideoSkill:
 
     supplement_paths = _supplement_paths(_frontmatter(root))
     parts = [root]
-    files = [str(_SKILL_PATH.relative_to(_SKILL_ROOT))]
     total_bytes = len(root_bytes)
     for path in supplement_paths:
         data = await session.read_file(str(path))
@@ -81,12 +77,6 @@ async def load_video_skill(session: SandboxSession) -> LoadedVideoSkill:
         except UnicodeDecodeError as exc:
             raise ValueError(f"video skill supplement must be UTF-8: {path.name}") from exc
         relative = str(path.relative_to(_SKILL_ROOT))
-        files.append(relative)
         parts.append(f"\n\n<!-- {relative} -->\n\n{text}")
 
-    content = "".join(parts)
-    return LoadedVideoSkill(
-        content=content,
-        sha256=hashlib.sha256(content.encode()).hexdigest(),
-        files=tuple(files),
-    )
+    return LoadedVideoSkill(content="".join(parts))

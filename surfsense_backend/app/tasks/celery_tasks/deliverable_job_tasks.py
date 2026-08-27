@@ -136,18 +136,31 @@ class _BillableQueuedLLM:
             "billable_session_factory": _celery_billable_session,
         }
 
-    async def ainvoke(self, *args, **kwargs):
-        async with billable_call(**self._billing):
-            return await self._llm.ainvoke(*args, **kwargs)
+    def for_queued_video_call(self, call_kind: str):
+        if call_kind not in {
+            "initial_content",
+            "source_repair",
+            "narration_repair",
+        }:
+            raise ValueError(f"unsupported queued video call kind: {call_kind!r}")
+        scoped = object.__new__(type(self))
+        scoped._llm = self._llm
+        scoped._billing = {
+            **self._billing,
+            "call_details": {
+                **self._billing["call_details"],
+                "video_call_kind": call_kind,
+            },
+        }
+        return scoped
 
     def with_structured_output(self, *args, **kwargs):
+        if "video_call_kind" not in self._billing["call_details"]:
+            raise RuntimeError("queued video billing scope is required")
         return _BillableRunnable(
             self._llm.with_structured_output(*args, **kwargs),
             self._billing,
         )
-
-    def __getattr__(self, name: str):
-        return getattr(self._llm, name)
 
 
 def classify_deliverable_failure(

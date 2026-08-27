@@ -1,11 +1,14 @@
-"""Queued, capability-aware orchestration for the static video renderer."""
+"""Queued orchestration for agent-authored, backend-confined video projects."""
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import shlex
+import time
+from contextlib import asynccontextmanager
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
 
@@ -28,18 +31,7 @@ from app.config import config as app_config
 from app.db import DeliverableJob
 from app.deliverables.jobs.policy import VIDEO_KIND, VIDEO_SPEC
 from app.deliverables.jobs.service import heartbeat_deliverable_job
-from app.deliverables.video.compiler import (
-    VideoCompilerError,
-    compile_video_plan,
-    disclosed_capability_slots,
-)
-from app.deliverables.video.contracts import (
-    AuthoredVideoPlan,
-    CreativeOutline,
-    NarrationRewrite,
-    VideoPlan,
-    VideoRenderInput,
-)
+from app.deliverables.video.contracts import CreativeVideoProject, VideoRenderInput
 from app.deliverables.video.narration import (
     NarrationUtterance,
     merge_narration_audio,
@@ -51,18 +43,14 @@ from app.deliverables.video.timeline import (
     VideoTimelineDurationError,
     build_video_render_input,
 )
+from app.observability import metrics as ot_metrics
 from app.sandbox import SandboxResourceProfile, SandboxSession, get_registry
 from app.sandbox.capabilities import (
-    CapabilityFilter,
-    RetrievalQuery,
-    build_capability_disclosure,
     load_capability_index,
-    retrieve_capabilities,
     validate_disclosable_capabilities,
 )
-from app.sandbox.capabilities.retrieval import RetrievedCapability
 from app.sandbox.capabilities.schema import (
-    CapabilityDisclosure,
+    CapabilityId,
     CapabilityIndex,
     CapabilityKind,
 )
@@ -73,14 +61,10 @@ _MAX_SOURCE_REFERENCES = 25
 _MAX_SOURCE_REFERENCE_CHARS = 1_000
 _MODEL_TIMEOUT_SECONDS = 120
 _FINDINGS_CHARS = 16_000
-logger = logging.getLogger(__name__)
-_ALWAYS_DISCLOSED_CAPABILITY_IDS = (
-    "video.renderer.master",
-    "video.component.core.primitives",
-    "font.inter",
-    "font.lora",
-    "font.jetbrains-mono",
+_STAGED_ASSETS = (
+    {"id": "surfsense-icon", "path": "icon-128.svg", "kind": "svg"},
 )
+logger = logging.getLogger(__name__)
 
 
 class DeliverableJobCancellationError(Exception):
@@ -120,6 +104,67 @@ class VideoJobRequestV1(BaseModel):
         return normalized
 
 
+class _NarrationRewriteCue(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    cue_id: Annotated[
+        str, Field(min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    ]
+    text: Annotated[str, Field(min_length=1, max_length=8000)]
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("rewritten cue text must not be empty")
+        return normalized
+
+
+class NarrationRewrite(BaseModel):
+    """The only model repair contract that is not a complete video project."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    cues: Annotated[
+        tuple[_NarrationRewriteCue, ...],
+        Field(min_length=1, max_length=VIDEO_SPEC.max_narration_cues),
+    ]
+
+
+class PreparedJobManifest(BaseModel):
+    """Trusted result of source validation and one per-revision bundle."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    schema_version: Literal[1]
+    source_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    bundle_sha256: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    runtime_build_id: Annotated[
+        str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$")
+    ]
+    capability_build_id: Annotated[
+        str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$")
+    ]
+    imported_capability_ids: Annotated[
+        tuple[CapabilityId, ...], Field(max_length=100)
+    ] = ()
+
+    @field_validator("imported_capability_ids")
+    @classmethod
+    def unique_sorted_capability_ids(
+        cls, values: tuple[CapabilityId, ...]
+    ) -> tuple[CapabilityId, ...]:
+        if tuple(sorted(set(values))) != values:
+            raise ValueError("imported capability IDs must be sorted and unique")
+        return values
+
+
+def _validated_job_manifest(value: object) -> PreparedJobManifest:
+    return PreparedJobManifest.model_validate_json(
+        json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    )
+
+
 class VideoExecutionResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -127,7 +172,7 @@ class VideoExecutionResult(BaseModel):
     generation: int
     title: str
     output_path: str
-    beat_count: int
+    cue_count: int
     duration_seconds: float
     repair_count: Annotated[int, Field(ge=0, le=VIDEO_SPEC.max_repair_cycles)]
 
@@ -136,12 +181,38 @@ def video_sandbox_owner(job_id: int, attempt_count: int) -> str:
     return f"deliverable-job-{job_id}-attempt-{attempt_count}"
 
 
+@asynccontextmanager
+async def _phase_timing(phase: str, *, job_id: int):
+    started = time.perf_counter()
+    outcome = "ok"
+    try:
+        yield
+    except BaseException:
+        outcome = "error"
+        raise
+    finally:
+        elapsed_seconds = time.perf_counter() - started
+        logger.info(
+            "video_executor_phase",
+            extra={
+                "video_phase": phase,
+                "video_job_id": job_id,
+                "video_phase_status": outcome,
+                "elapsed_seconds": elapsed_seconds,
+            },
+        )
+        ot_metrics.record_perf_elapsed(
+            elapsed_seconds * 1000,
+            label=f"video_executor.{phase.replace('/', '_')}",
+        )
+
+
 async def execute_video_deliverable(
     session: AsyncSession,
     job: DeliverableJob,
     llm,
 ) -> VideoExecutionResult:
-    """Plan, narrate, preflight, render once, verify, and persist one job."""
+    """Author once, prepare one trusted bundle, render, verify, and persist."""
 
     if not app_config.VIDEO_SANDBOX_RENDERING_ENABLED:
         raise RuntimeError("static sandbox video rendering is disabled")
@@ -177,171 +248,181 @@ async def execute_video_deliverable(
         load_video_skill(sandbox),
         load_capability_index(sandbox, image_digest=None),
     )
-    _validate_required_capabilities(index)
     validate_disclosable_capabilities(index)
+    if index.runtime_build_id is None:
+        raise ValueError("video capability index lacks a runtime build identity")
+    disclosure = _public_capability_disclosure(index)
 
-    await heartbeat("outlining", 10)
-    outline = await _invoke_structured(
-        llm,
-        skill=skill,
-        payload={
-            "phase": "creative_outline",
-            "title": job.title,
-            "brief": request.brief,
-            "source_references": _source_labels(request.source_references),
-            "revision_artifact_id": request.revision_artifact_id,
-            "capability_taxonomy": _capability_taxonomy(index),
-        },
-        model=CreativeOutline,
-    )
-    await heartbeat("retrieving", 18)
-    disclosure = _retrieve_disclosure(index, outline)
+    await heartbeat("authoring", 15)
+    async with _phase_timing("authoring", job_id=job.id):
+        project = await _invoke_structured(
+            llm,
+            skill=skill,
+            payload={
+                "request_title": job.title,
+                "brief": request.brief,
+                "source_references": _source_labels(request.source_references),
+                "revision_artifact_id": request.revision_artifact_id,
+                "public_capabilities": disclosure,
+                "available_assets": list(_STAGED_ASSETS),
+                "technical_limits": _technical_limits(),
+                "instructions": (
+                    "Return the complete CreativeVideoProject. Author only source files, "
+                    "narration cues, language, and declared assets. Never return commands, "
+                    "render phases, capability slots, beats, outlines, or compiler inputs."
+                ),
+            },
+            model=CreativeVideoProject,
+            call_kind="initial_content",
+        )
+    await _materialize_project(sandbox, workdir, project)
 
-    await heartbeat("planning", 25)
-    authored = await _invoke_structured(
-        llm,
-        skill=skill,
-        payload={
-            "phase": "video_plan",
-            "request_title": job.title,
-            "brief": request.brief,
-            "source_references": _source_labels(request.source_references),
-            "outline": outline.model_dump(mode="json"),
-            "capability_disclosure": _authored_capability_disclosure(disclosure),
-        },
-        model=AuthoredVideoPlan,
+    await heartbeat("preparing_content", 30)
+    narration_task = asyncio.create_task(
+        _timed_tts(sandbox, workdir, project, request, job)
     )
-    plan = await _compile_with_semantic_repair(
-        llm,
-        skill=skill,
-        authored=authored,
-        index=index,
-        disclosure=disclosure,
+    bundle_task = asyncio.create_task(_timed_bundle(sandbox, workdir, job.id))
+    narration_result, bundle_result = await asyncio.gather(
+        narration_task, bundle_task, return_exceptions=True
     )
+    if isinstance(narration_result, BaseException):
+        raise narration_result
 
-    await heartbeat("narrating", 35)
-    narration = await synthesize_narration(
-        [
-            {
-                "beat_id": beat.beat_id,
-                "utterance_id": beat.utterance_id,
-                "transcript": beat.narration,
-            }
-            for beat in plan.beats
-        ],
-        str(workdir),
-        workspace_id=job.workspace_id,
-        thread_id=request.root_thread_id,
-        session=sandbox,
-        language=plan.language,
-    )
-    natural_frames = {
-        capability.id: capability.natural_frame_length
-        for capability in index.capabilities
-        if capability.natural_frame_length is not None
-    }
+    repairs = 0
+    if isinstance(bundle_result, BaseException):
+        if VIDEO_SPEC.max_repair_cycles < 1:
+            raise bundle_result
+        project = await _repair_project(
+            llm,
+            skill=skill,
+            project=project,
+            findings=str(bundle_result),
+            visual_only=True,
+        )
+        repairs = 1
+        await _materialize_project(sandbox, workdir, project)
+        bundle_result = await _timed_bundle(sandbox, workdir, job.id)
+    narration = narration_result
+    manifest = await _finalize_job_assets(sandbox, workdir, job.id)
+
     try:
-        render_input = build_video_render_input(
-            plan,
-            narration,
-            skill_version=skill.sha256,
-            capability_natural_frames=natural_frames,
+        render_input = _trusted_render_input(
+            project, narration, index=index, manifest=manifest
         )
     except VideoTimelineDurationError as exc:
-        await heartbeat("repairing_narration", 44)
-        plan, replacement_requests = await _request_narration_repair(
-            llm,
-            skill=skill,
-            plan=plan,
-            duration_error=exc,
+        await heartbeat("repairing_narration", 45)
+        project, replacements = await _request_narration_repair(
+            llm, skill=skill, project=project, duration_error=exc
         )
-        replacements = await synthesize_narration(
-            replacement_requests,
-            str(workdir),
-            workspace_id=job.workspace_id,
-            thread_id=request.root_thread_id,
-            session=sandbox,
-            language=plan.language,
+        async with _phase_timing("TTS", job_id=job.id):
+            replacement_audio = await synthesize_narration(
+                replacements,
+                str(workdir),
+                workspace_id=job.workspace_id,
+                thread_id=request.root_thread_id,
+                session=sandbox,
+                language=project.language,
+            )
+        narration = merge_narration_audio(narration, replacement_audio)
+        manifest = await _finalize_job_assets(sandbox, workdir, job.id)
+        render_input = _trusted_render_input(
+            project, narration, index=index, manifest=manifest
         )
-        narration = merge_narration_audio(narration, replacements)
-        render_input = build_video_render_input(
-            plan,
-            narration,
-            skill_version=skill.sha256,
-            capability_natural_frames=natural_frames,
-        )
-    await _publish_job_assets(sandbox, workdir)
 
-    vision_llm = await get_vision_llm(
-        session, job.workspace_id, usage_type="video_still_review"
+    props_path = await _write_render_input(sandbox, workdir, render_input)
+    await heartbeat("preflight", 55)
+    preflight_issue = await _timed_preflight(
+        sandbox, workdir, props_path, job_id=job.id
     )
-    repairs = 0
-    while True:
-        props_path = await _write_render_input(sandbox, workdir, render_input)
-        await heartbeat("reviewing", min(72, 48 + repairs * 12))
-        issue = await _preflight_and_review(
-            sandbox,
-            vision_llm=vision_llm,
-            workdir=workdir,
-            props_path=props_path,
-        )
-        if issue is None:
-            break
+    if preflight_issue is not None:
         if repairs >= VIDEO_SPEC.max_repair_cycles:
-            raise RuntimeError(f"video preflight/still review failed: {issue}")
-        await heartbeat("repairing", min(76, 60 + repairs * 8))
-        plan = await _repair_plan(
+            raise RuntimeError(f"video preflight failed: {preflight_issue}")
+        project, narration, manifest, render_input, props_path = await _content_repair(
             llm,
+            sandbox=sandbox,
             skill=skill,
-            plan=plan,
-            findings=issue,
+            before=project,
+            narration=narration,
+            findings=preflight_issue,
+            visual_only=True,
+            workdir=workdir,
             index=index,
-            disclosure=disclosure,
+            job_id=job.id,
         )
-        render_input = build_video_render_input(
-            plan,
-            narration,
-            skill_version=skill.sha256,
-            capability_natural_frames=natural_frames,
+        repairs = 1
+        repeated_issue = await _timed_preflight(
+            sandbox, workdir, props_path, job_id=job.id
         )
-        repairs += 1
+        if repeated_issue is not None:
+            raise RuntimeError(f"video preflight failed: {repeated_issue}")
+
+    await heartbeat("reviewing", 65)
+    visual_issue = await _timed_stills_review(
+        sandbox,
+        workdir=workdir,
+        props_path=props_path,
+        job_id=job.id,
+        session=session,
+        workspace_id=job.workspace_id,
+    )
+    if visual_issue is not None and repairs < VIDEO_SPEC.max_repair_cycles:
+        project, narration, manifest, render_input, props_path = await _content_repair(
+            llm,
+            sandbox=sandbox,
+            skill=skill,
+            before=project,
+            narration=narration,
+            findings=visual_issue,
+            visual_only=True,
+            workdir=workdir,
+            index=index,
+            job_id=job.id,
+        )
+        repairs = 1
+        deterministic_issue = await _timed_preflight(
+            sandbox, workdir, props_path, job_id=job.id
+        )
+        if deterministic_issue is not None:
+            raise RuntimeError(f"video preflight failed: {deterministic_issue}")
 
     await heartbeat("rendering", 80)
-    await _render(sandbox, workdir, props_path, output_path)
+    async with _phase_timing("render", job_id=job.id):
+        await _render(sandbox, workdir, props_path, output_path)
+
     await heartbeat("verifying", 90)
-    verification_llm = await get_vision_llm(
-        session, job.workspace_id, usage_type="artifact_verification"
-    )
-    verification = await verify_artifact(
-        sandbox,
-        output_path,
-        workspace_id=job.workspace_id,
-        vision_llm=verification_llm,
-    )
-    if not verification.verified:
-        raise RuntimeError(
-            "video verification failed: " + "; ".join(verification.findings)
+    async with _phase_timing("verification", job_id=job.id):
+        verification = await verify_artifact(
+            sandbox,
+            output_path,
+            workspace_id=job.workspace_id,
+            vision_llm=None,
         )
+        if not verification.verified:
+            raise RuntimeError(
+                "video verification failed: " + "; ".join(verification.findings)
+            )
 
     await heartbeat("saving", 95)
-    saved = await _save_verified(
-        session,
-        sandbox,
-        job=job,
-        request=request,
-        plan=plan,
-        render_input=render_input,
-        skill=skill,
-        index=index,
-        output_path=output_path,
-    )
-    await _cleanup_attempt(sandbox, workdir, output_path)
+    async with _phase_timing("persistence", job_id=job.id):
+        saved = await _save_verified(
+            session,
+            sandbox,
+            job=job,
+            request=request,
+            project=project,
+            render_input=render_input,
+            index=index,
+            manifest=manifest,
+            output_path=output_path,
+        )
+    async with _phase_timing("cleanup", job_id=job.id):
+        await _cleanup_attempt(sandbox, workdir, output_path)
     return VideoExecutionResult(
         artifact_id=saved.artifact_id,
         generation=saved.generation,
         title=saved.title,
         output_path=output_path,
-        beat_count=len(plan.beats),
+        cue_count=len(project.narration_cues),
         duration_seconds=render_input.duration_in_frames / render_input.fps,
         repair_count=repairs,
     )
@@ -374,19 +455,8 @@ async def _stage_runtime(sandbox: SandboxSession, workdir: PurePosixPath) -> Non
         sandbox,
         f"rm -rf -- {quoted} && mkdir -p -- {quoted} && "
         f"cp -a --reflink=auto /opt/surfsense/video-runtime/. {quoted}/ && "
-        f"rm -f -- {quoted}/cancel",
+        f"mkdir -p -- {quoted}/source {quoted}/public && rm -f -- {quoted}/cancel",
         "stage prebuilt video runtime",
-    )
-
-
-async def _publish_job_assets(sandbox: SandboxSession, workdir: PurePosixPath) -> None:
-    """Copy job-authored public files into the prebuilt bundle's serve root."""
-
-    await _run_checked(
-        sandbox,
-        f"cp -a --reflink=auto {shlex.quote(str(workdir / 'public'))}/. "
-        f"{shlex.quote(str(workdir / 'bundle' / 'public'))}/",
-        "publish job-local video assets",
     )
 
 
@@ -397,14 +467,105 @@ def _source_labels(references: list[str]) -> list[dict[str, str]]:
     ]
 
 
+def _public_capability_disclosure(index: CapabilityIndex) -> dict[str, object]:
+    public: list[dict[str, object]] = []
+    for capability in index.capabilities:
+        if capability.kind is CapabilityKind.RENDERER:
+            continue
+        export_name = capability.declaration.get("public_export")
+        if capability.kind in {
+            CapabilityKind.COMPONENT,
+            CapabilityKind.TRANSITION,
+        } and not isinstance(export_name, str):
+            continue
+        public.append(
+            {
+                "id": capability.id,
+                "kind": capability.kind.value,
+                "export_name": export_name,
+                "category": capability.category,
+                "summary": capability.summary,
+                "tags": list(capability.tags),
+                "vibe": list(capability.vibe),
+                "use_for": list(capability.use_for),
+                "avoid_for": list(capability.avoid_for),
+                "natural_frame_length": capability.natural_frame_length,
+                "dependencies": list(capability.dependencies),
+                "native_canvas": (
+                    capability.native_canvas.model_dump(mode="json")
+                    if capability.native_canvas is not None
+                    else None
+                ),
+                "props_schema": capability.props_schema,
+            }
+        )
+    if not public:
+        raise ValueError("generated public video capability catalog is empty")
+    return {
+        "build_id": index.build_id,
+        "module": "@surfsense/video/capabilities",
+        "capabilities": public,
+    }
+
+
+def _technical_limits() -> dict[str, object]:
+    return {
+        "canvas": {"width": 1920, "height": 1080},
+        "fps": 30,
+        "target_duration_seconds": VIDEO_SPEC.max_duration_seconds,
+        "hard_max_duration_seconds": VIDEO_SPEC.hard_max_duration_seconds,
+        "max_narration_cues": VIDEO_SPEC.max_narration_cues,
+        "max_source_files": 32,
+        "max_source_bytes": 256 * 1024,
+        "source_root": "source",
+        "public_asset_root": "public",
+        "required_entrypoint": {
+            "path": "JobComposition.tsx",
+            "named_export": "JobComposition",
+            "accepts_props": False,
+        },
+        "authoring_api": {
+            "module": "@surfsense/video",
+            "exports": [
+                "useVideoRuntime()",
+                "useNarrationCue(cueId?)",
+                "useNarrationCues()",
+                "useAsset(assetId)",
+                "useSeededRandom(key, frame?)",
+            ],
+            "capability_module": "@surfsense/video/capabilities",
+            "capability_import_style": "named imports only",
+        },
+        "allowed_imports": [
+            "react",
+            "remotion",
+            "@remotion/fonts",
+            "@remotion/media",
+            "@remotion/transitions",
+            "@surfsense/video",
+            "@surfsense/video/capabilities",
+        ],
+        "forbidden_runtime_apis": [
+            "commands",
+            "dynamic imports",
+            "network access",
+            "wall-clock time",
+            "randomness",
+        ],
+    }
+
+
 async def _invoke_structured(
     llm,
     *,
     skill: LoadedVideoSkill,
     payload: dict,
     model: type[BaseModel],
+    call_kind: Literal["initial_content", "source_repair", "narration_repair"],
 ):
-    structured_llm = llm.with_structured_output(
+    scope = getattr(llm, "for_queued_video_call", None)
+    call_llm = scope(call_kind) if callable(scope) else llm
+    structured_llm = call_llm.with_structured_output(
         provider_json_schema(model),
         method="json_schema",
         strict=True,
@@ -423,151 +584,160 @@ async def _invoke_structured(
     return model.model_validate_json(json.dumps(result, ensure_ascii=False))
 
 
-def _retrieve_disclosure(
-    index: CapabilityIndex, outline: CreativeOutline
-) -> CapabilityDisclosure:
-    by_id = index.by_id()
-    retrieved = [
-        RetrievedCapability(
-            capability=by_id[capability_id],
-            score=10**9,
-            matched_terms=("required",),
-        )
-        for capability_id in _ALWAYS_DISCLOSED_CAPABILITY_IDS
-    ]
-    known_categories = {capability.category for capability in index.capabilities}
-    for intent in outline.visual_intents:
-        categories = frozenset(set(intent.categories) & known_categories)
-        retrieved.extend(
-            retrieve_capabilities(
-                index,
-                RetrievalQuery(
-                    text=" ".join(
-                        (intent.description, *intent.categories, *intent.tags)
-                    ),
-                    facets=CapabilityFilter(
-                        domains=frozenset({"video"}),
-                        kinds=frozenset(
-                            {
-                                CapabilityKind.FONT,
-                                CapabilityKind.COMPONENT,
-                                CapabilityKind.TRANSITION,
-                            }
-                        ),
-                        categories=categories,
-                        maximum_natural_frames=(
-                            round(intent.target_duration_seconds * 30)
-                            if intent.target_duration_seconds is not None
-                            else None
-                        ),
-                    ),
-                    desired_vibe=intent.vibe,
-                    avoid=intent.avoid,
-                    top_k=3,
-                ),
-            )
-        )
-    return build_capability_disclosure(index.build_id, retrieved)
+async def _materialize_project(
+    sandbox: SandboxSession,
+    workdir: PurePosixPath,
+    project: CreativeVideoProject,
+) -> None:
+    """Write validated model content only to its two fixed backend-owned roots."""
 
-
-def _validate_required_capabilities(index: CapabilityIndex) -> None:
-    missing = set(_ALWAYS_DISCLOSED_CAPABILITY_IDS) - set(index.by_id())
-    if missing:
-        raise ValueError(f"live capability index lacks required IDs: {sorted(missing)}")
-
-
-def _capability_taxonomy(index: CapabilityIndex) -> dict[str, object]:
-    """Expose bounded vocabulary; concrete capabilities are retrieved after outlining."""
-
-    visible = tuple(
-        capability
-        for capability in index.capabilities
-        if capability.kind is not CapabilityKind.RENDERER
-    )
-    return {
-        "capability_count": len(visible),
-        "kinds": sorted({capability.kind.value for capability in visible}),
-        "categories": sorted({capability.category for capability in visible}),
-        "vibes": sorted({vibe for capability in visible for vibe in capability.vibe}),
+    available = {
+        (asset["id"], asset["path"], asset["kind"]) for asset in _STAGED_ASSETS
     }
-
-
-def _authored_capability_disclosure(
-    disclosure: CapabilityDisclosure,
-) -> dict[str, object]:
-    slots = []
-    font_ids = []
-    for slot, candidate in disclosed_capability_slots(disclosure):
-        metadata = {
-            "category": candidate.category,
-            "summary": candidate.summary,
-            "tags": list(candidate.tags),
-            "vibe": list(candidate.vibe),
-            "use_for": list(candidate.use_for),
-            "avoid_for": list(candidate.avoid_for),
-            "natural_frame_length": candidate.natural_frame_length,
+    declared = {(asset.id, asset.path, asset.kind) for asset in project.assets}
+    if not declared.issubset(available):
+        raise ValueError("video project references an asset that was not staged")
+    source_root = workdir / "source"
+    source_directories = sorted(
+        {
+            str(source_root / PurePosixPath(source_file.path).parent)
+            for source_file in project.source_files
+            if PurePosixPath(source_file.path).parent != PurePosixPath(".")
         }
-        slots.append(
-            {
-                "slot": slot,
-                "kind": candidate.kind.value,
-                "metadata": metadata,
-                "props_schema": candidate.props_schema,
-            }
+    )
+    directories = " ".join(
+        shlex.quote(path) for path in (str(source_root), *source_directories)
+    )
+    await _run_checked(
+        sandbox,
+        f"rm -rf -- {shlex.quote(str(source_root))} "
+        f"{shlex.quote(str(workdir / 'job'))} && "
+        f"mkdir -p -- {directories} "
+        f"{shlex.quote(str(workdir / 'public'))}",
+        "reset job-authored video source",
+    )
+    for source_file in project.source_files:
+        await sandbox.write_file(
+            str(workdir / "source" / source_file.path), source_file.source.encode()
         )
-        if candidate.kind is CapabilityKind.FONT:
-            font_ids.append(candidate.id)
-    return {
-        "build_id": disclosure.build_id,
-        "capability_slots": slots,
-        "font_ids": font_ids,
-    }
 
 
-async def _compile_with_semantic_repair(
-    llm,
+async def _timed_tts(
+    sandbox: SandboxSession,
+    workdir: PurePosixPath,
+    project: CreativeVideoProject,
+    request: VideoJobRequestV1,
+    job: DeliverableJob,
+):
+    async with _phase_timing("TTS", job_id=job.id):
+        return await synthesize_narration(
+            [
+                {"cue_id": cue.cue_id, "transcript": cue.text}
+                for cue in project.narration_cues
+            ],
+            str(workdir),
+            workspace_id=job.workspace_id,
+            thread_id=request.root_thread_id,
+            session=sandbox,
+            language=project.language,
+        )
+
+
+def _bundle_command(workdir: PurePosixPath) -> str:
+    return (
+        f"cd -- {shlex.quote(str(workdir))} && node scripts/bundle-job.mjs "
+        f"--source-dir {shlex.quote(str(workdir / 'source'))} "
+        f"--out-dir {shlex.quote(str(workdir / 'job'))}"
+    )
+
+
+async def _timed_bundle(
+    sandbox: SandboxSession, workdir: PurePosixPath, job_id: int
+) -> dict:
+    async with _phase_timing("source validation/bundle", job_id=job_id):
+        await _run_checked(
+            sandbox, _bundle_command(workdir), "validate and bundle video source"
+        )
+        try:
+            manifest = json.loads(
+                (await sandbox.read_file(str(workdir / "job" / "job.json"))).decode()
+            )
+        except (FileNotFoundError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("prepared video job manifest is missing or invalid") from exc
+        return _validated_job_manifest(manifest).model_dump(mode="json")
+
+
+def _finalize_command(workdir: PurePosixPath) -> str:
+    return (
+        f"cd -- {shlex.quote(str(workdir))} && node scripts/finalize-job.mjs "
+        f"--job-dir {shlex.quote(str(workdir / 'job'))} "
+        f"--public-dir {shlex.quote(str(workdir / 'public'))}"
+    )
+
+
+async def _finalize_job_assets(
+    sandbox: SandboxSession, workdir: PurePosixPath, job_id: int
+) -> dict:
+    async with _phase_timing("asset staging", job_id=job_id):
+        await _run_checked(
+            sandbox,
+            _finalize_command(workdir),
+            "stage and seal video assets",
+        )
+        return await _read_job_manifest(sandbox, workdir)
+
+
+def _trusted_render_input(
+    project: CreativeVideoProject,
+    narration,
     *,
-    skill: LoadedVideoSkill,
-    authored: AuthoredVideoPlan,
     index: CapabilityIndex,
-    disclosure: CapabilityDisclosure,
-) -> VideoPlan:
-    try:
-        return compile_video_plan(authored, index=index, disclosure=disclosure)
-    except VideoCompilerError as exc:
-        if VIDEO_SPEC.max_repair_cycles < 1:
-            raise
-        repaired = await _invoke_structured(
-            llm,
-            skill=skill,
-            payload={
-                "phase": "semantic_compile_repair",
-                "diagnostics": [
-                    diagnostic.model_dump(mode="json") for diagnostic in exc.diagnostics
-                ],
-                "authored_video_plan": authored.model_dump(mode="json"),
-                "capability_disclosure": _authored_capability_disclosure(disclosure),
-            },
-            model=AuthoredVideoPlan,
-        )
-        return compile_video_plan(repaired, index=index, disclosure=disclosure)
+    manifest: dict,
+) -> VideoRenderInput:
+    prepared = _validated_job_manifest(manifest)
+    if prepared.capability_build_id != index.build_id:
+        raise ValueError("prepared job capability build does not match loaded index")
+    if (
+        index.runtime_build_id is None
+        or prepared.runtime_build_id != index.runtime_build_id
+    ):
+        raise ValueError("prepared job runtime build does not match loaded index")
+    imported = prepared.imported_capability_ids
+    unknown = set(imported) - set(index.by_id())
+    if unknown:
+        raise ValueError(f"prepared job imported unknown capabilities: {sorted(unknown)}")
+    selected_capability_ids = {
+        "video.renderer.master",
+        *imported,
+        *(
+            capability.id
+            for capability in index.capabilities
+            if capability.kind is CapabilityKind.FONT
+        ),
+    }
+    return build_video_render_input(
+        project,
+        narration,
+        build_id=index.build_id,
+        selected_capability_ids=selected_capability_ids,
+    )
 
 
 async def _request_narration_repair(
     llm,
     *,
     skill: LoadedVideoSkill,
-    plan: VideoPlan,
+    project: CreativeVideoProject,
     duration_error: VideoTimelineDurationError,
-) -> tuple[VideoPlan, list[NarrationUtterance]]:
+) -> tuple[CreativeVideoProject, list[NarrationUtterance]]:
     budgets = {
-        budget.beat_id: budget for budget in duration_error.suggested_narration_budgets
+        budget.cue_id: budget
+        for budget in duration_error.suggested_narration_budgets
     }
     rewrite = await _invoke_structured(
         llm,
         skill=skill,
         payload={
-            "phase": "narration_duration_repair",
             "diagnostics": {
                 "max_frames": duration_error.max_frames,
                 "compiled_frames": duration_error.compiled_frames,
@@ -575,101 +745,149 @@ async def _request_narration_repair(
             },
             "budgets": [
                 {
-                    "beat_id": budget.beat_id,
+                    "cue_id": budget.cue_id,
                     "max_seconds": budget.max_seconds,
                     "max_words": budget.max_words,
                 }
                 for budget in duration_error.suggested_narration_budgets
             ],
-            "narration": [
-                {
-                    "beat_id": beat.beat_id,
-                    "utterance_id": beat.utterance_id,
-                    "narration": beat.narration,
-                }
-                for beat in plan.beats
+            "narration_cues": [
+                {"cue_id": cue.cue_id, "text": cue.text}
+                for cue in project.narration_cues
             ],
             "instructions": (
-                "Rewrite only narration that cannot fit its budget. Preserve beat_id "
-                "and utterance_id exactly. Do not return visual or timing fields."
+                "Return cue text only. Preserve every cue_id exactly and in order. "
+                "Rewrite only cues that need shortening. Return no source, visual, "
+                "language, timing, command, or operational fields."
             ),
         },
         model=NarrationRewrite,
+        call_kind="narration_repair",
     )
-    original_by_beat = {beat.beat_id: beat for beat in plan.beats}
-    rewritten_text: dict[str, str] = {}
-    replacement_requests: list[NarrationUtterance] = []
-    for item in rewrite.beats:
-        original = original_by_beat.get(item.beat_id)
-        if original is None or original.utterance_id != item.utterance_id:
+    original = {cue.cue_id: cue for cue in project.narration_cues}
+    if [cue.cue_id for cue in rewrite.cues] != [
+        cue.cue_id for cue in project.narration_cues
+    ]:
+        raise ValueError("narration repair changed protected cue identity or order")
+    replacements: list[NarrationUtterance] = []
+    rewritten: dict[str, str] = {}
+    for cue in rewrite.cues:
+        budget = budgets[cue.cue_id]
+        if len(cue.text.split()) > budget.max_words:
             raise ValueError(
-                "narration repair changed protected beat or utterance identity"
-            )
-        budget = budgets[item.beat_id]
-        if len(item.narration.split()) > budget.max_words:
-            raise ValueError(
-                f"narration repair for {item.beat_id!r} exceeds its "
+                f"narration repair for {cue.cue_id!r} exceeds its "
                 f"{budget.max_words}-word budget"
             )
-        if item.narration == original.narration:
+        if cue.text == original[cue.cue_id].text:
             continue
-        rewritten_text[item.beat_id] = item.narration
-        replacement_requests.append(
-            NarrationUtterance(
-                beat_id=item.beat_id,
-                utterance_id=item.utterance_id,
-                transcript=item.narration,
-                max_words=budget.max_words,
-            )
+        rewritten[cue.cue_id] = cue.text
+        replacements.append(
+            {
+                "cue_id": cue.cue_id,
+                "transcript": cue.text,
+                "max_words": budget.max_words,
+            }
         )
-    if not replacement_requests:
-        raise ValueError("narration repair did not change any utterance")
-    repaired = plan.model_copy(
-        update={
-            "beats": tuple(
-                beat.model_copy(
-                    update={
-                        "narration": rewritten_text.get(beat.beat_id, beat.narration)
-                    }
+    if not replacements:
+        raise ValueError("narration repair did not change any cue")
+    return (
+        project.model_copy(
+            update={
+                "narration_cues": tuple(
+                    cue.model_copy(
+                        update={"text": rewritten.get(cue.cue_id, cue.text)}
+                    )
+                    for cue in project.narration_cues
                 )
-                for beat in plan.beats
-            )
-        }
+            }
+        ),
+        replacements,
     )
-    return repaired, replacement_requests
 
 
-async def _repair_plan(
+async def _repair_project(
     llm,
     *,
     skill: LoadedVideoSkill,
-    plan: VideoPlan,
+    project: CreativeVideoProject,
     findings: str,
-    index: CapabilityIndex,
-    disclosure: CapabilityDisclosure,
-) -> VideoPlan:
-    authored = await _invoke_structured(
+    visual_only: bool,
+) -> CreativeVideoProject:
+    repaired = await _invoke_structured(
         llm,
         skill=skill,
         payload={
-            "phase": "visual_repair",
-            "findings": findings[:_FINDINGS_CHARS],
-            "preserve": ["beat_ids", "utterance_ids", "narration", "language"],
-            "capability_disclosure": _authored_capability_disclosure(disclosure),
-            "current_internal_video_plan": plan.model_dump(mode="json"),
+            "findings": findings[-_FINDINGS_CHARS:],
+            "current_project": project.model_dump(mode="json"),
+            "protected_fields": (
+                ["narration_cues.cue_id", "narration_cues.text", "language"]
+                if visual_only
+                else []
+            ),
+            "instructions": (
+                "Return a complete corrected CreativeVideoProject. Change source/content "
+                "only as needed. Never return commands or operational phases."
+            ),
         },
-        model=AuthoredVideoPlan,
+        model=CreativeVideoProject,
+        call_kind="source_repair",
     )
-    repaired = compile_video_plan(authored, index=index, disclosure=disclosure)
-    before = [(beat.beat_id, beat.utterance_id, beat.narration) for beat in plan.beats]
-    after = [
-        (beat.beat_id, beat.utterance_id, beat.narration) for beat in repaired.beats
-    ]
-    if repaired.language != plan.language or after != before:
-        raise ValueError(
-            "visual repair changed protected narration identity or language"
-        )
+    if visual_only and (
+        repaired.language != project.language
+        or [(cue.cue_id, cue.text) for cue in repaired.narration_cues]
+        != [(cue.cue_id, cue.text) for cue in project.narration_cues]
+    ):
+        raise ValueError("visual repair changed protected cue identity, text, or language")
     return repaired
+
+
+async def _content_repair(
+    llm,
+    *,
+    sandbox: SandboxSession,
+    skill: LoadedVideoSkill,
+    before: CreativeVideoProject,
+    narration,
+    findings: str,
+    visual_only: bool,
+    workdir: PurePosixPath,
+    index: CapabilityIndex,
+    job_id: int,
+):
+    async with _phase_timing("repair", job_id=job_id):
+        repaired = await _repair_project(
+            llm,
+            skill=skill,
+            project=before,
+            findings=findings,
+            visual_only=visual_only,
+        )
+        source_changed = repaired.source_files != before.source_files
+        assets_changed = repaired.assets != before.assets
+        if source_changed or assets_changed:
+            await _materialize_project(sandbox, workdir, repaired)
+        if source_changed or assets_changed:
+            await _timed_bundle(sandbox, workdir, job_id)
+            manifest = await _finalize_job_assets(sandbox, workdir, job_id)
+        else:
+            manifest = await _read_job_manifest(sandbox, workdir)
+        render_input = _trusted_render_input(
+            repaired, narration, index=index, manifest=manifest
+        )
+        props_path = await _write_render_input(sandbox, workdir, render_input)
+        return repaired, narration, manifest, render_input, props_path
+
+
+async def _read_job_manifest(
+    sandbox: SandboxSession, workdir: PurePosixPath
+) -> dict:
+    try:
+        document = json.loads(
+            (await sandbox.read_file(str(workdir / "job" / "job.json"))).decode()
+        )
+    except (FileNotFoundError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("prepared video job manifest is missing or invalid") from exc
+    return _validated_job_manifest(document).model_dump(mode="json")
 
 
 async def _write_render_input(
@@ -680,41 +898,51 @@ async def _write_render_input(
     path = str(workdir / "props.json")
     await sandbox.write_file(
         path,
-        (
-            render_input.model_dump_json(by_alias=True, exclude_none=True) + "\n"
-        ).encode(),
+        (render_input.model_dump_json(by_alias=True, exclude_none=True) + "\n").encode(),
     )
     return path
 
 
-async def _preflight_and_review(
+async def _timed_preflight(
     sandbox: SandboxSession,
-    *,
-    vision_llm,
     workdir: PurePosixPath,
     props_path: str,
+    *,
+    job_id: int,
 ) -> str | None:
-    result = await _run_bash(
-        sandbox,
-        _render_command(workdir, "--preflight", props_path),
-    )
-    if not result.ok:
-        return result.output[-_FINDINGS_CHARS:]
+    async with _phase_timing("select/preflight", job_id=job_id):
+        result = await _run_bash(
+            sandbox, _render_command(workdir, "--preflight", props_path)
+        )
+    return None if result.ok else result.output[-_FINDINGS_CHARS:]
 
-    stills_dir = workdir / "stills"
-    result = await _run_bash(
-        sandbox,
-        _render_command(workdir, "--stills", props_path, stills_dir),
-    )
-    if not result.ok:
-        return result.output[-_FINDINGS_CHARS:]
-    stills = await _discover_stills(sandbox, workdir, stills_dir)
-    review = await review_video_stills(
-        stills,
-        session=sandbox,
-        vision_llm=vision_llm,
-        workdir=workdir,
-    )
+
+async def _timed_stills_review(
+    sandbox: SandboxSession,
+    *,
+    workdir: PurePosixPath,
+    props_path: str,
+    job_id: int,
+    session: AsyncSession,
+    workspace_id: int,
+) -> str | None:
+    async with _phase_timing("stills", job_id=job_id):
+        stills_dir = workdir / "stills"
+        result = await _run_bash(
+            sandbox, _render_command(workdir, "--stills", props_path, stills_dir)
+        )
+        if not result.ok:
+            return result.output[-_FINDINGS_CHARS:]
+        stills = await _discover_stills(sandbox, workdir, stills_dir)
+        vision_llm = await get_vision_llm(
+            session, workspace_id, usage_type="video_still_review"
+        )
+        review = await review_video_stills(
+            stills,
+            session=sandbox,
+            vision_llm=vision_llm,
+            workdir=workdir,
+        )
     if review["status"] != "reviewed":
         return None
     blocking = [
@@ -779,7 +1007,7 @@ def _render_command(
         f"cd -- {shlex.quote(str(workdir))} && "
         f"VIDEO_SANDBOX_FRAME_CONCURRENCY="
         f"{app_config.VIDEO_SANDBOX_FRAME_CONCURRENCY} node render.mjs "
-        f"--bundle-dir {shlex.quote(str(workdir / 'bundle'))} {quoted_arguments}"
+        f"--job-dir {shlex.quote(str(workdir / 'job'))} {quoted_arguments}"
     )
 
 
@@ -804,8 +1032,6 @@ async def _cleanup_attempt(
     workdir: PurePosixPath,
     output_path: str,
 ) -> None:
-    """Best-effort removal after the verified MP4 is durably persisted."""
-
     paths = (
         str(workdir),
         output_path,
@@ -822,11 +1048,12 @@ async def _cleanup_attempt(
         logger.warning("Could not clean persisted video attempt files", exc_info=True)
 
 
-def _markdown(plan: VideoPlan) -> str:
+def _markdown(project: CreativeVideoProject, title: str) -> str:
     sections = [
-        f"## {beat.beat_id}\n\n**Narration:** {beat.narration}" for beat in plan.beats
+        f"## {cue.cue_id}\n\n**Narration:** {cue.text}"
+        for cue in project.narration_cues
     ]
-    return f"# {plan.title}\n\n" + "\n\n".join(sections)
+    return f"# {title}\n\n" + "\n\n".join(sections)
 
 
 async def _save_verified(
@@ -835,10 +1062,10 @@ async def _save_verified(
     *,
     job: DeliverableJob,
     request: VideoJobRequestV1,
-    plan: VideoPlan,
+    project: CreativeVideoProject,
     render_input: VideoRenderInput,
-    skill: LoadedVideoSkill,
     index: CapabilityIndex,
+    manifest: dict,
     output_path: str,
 ):
     receipt = await read_receipt(
@@ -855,12 +1082,30 @@ async def _save_verified(
         )
     except (FileNotFoundError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError("video render receipt is missing or unreadable") from exc
-    if (
-        render_receipt.get("build_id") != index.build_id
-        or render_receipt.get("skill_version") != skill.sha256
-        or render_receipt.get("expected_frame_count") != render_input.duration_in_frames
-    ):
-        raise ValueError("video render receipt does not match the final render input")
+    prepared = _validated_job_manifest(manifest)
+    serialized_input = (
+        render_input.model_dump_json(by_alias=True, exclude_none=True) + "\n"
+    ).encode()
+    expected_provenance = {
+        "schema_version": render_input.schema_version,
+        "build_id": index.build_id,
+        "capability_build_id": index.build_id,
+        "runtime_build_id": prepared.runtime_build_id,
+        "input_sha256": hashlib.sha256(serialized_input).hexdigest(),
+        "expected_frame_count": render_input.duration_in_frames,
+        "expected_duration_seconds": (
+            render_input.duration_in_frames / render_input.fps
+        ),
+        "source_sha256": prepared.source_sha256,
+        "bundle_sha256": prepared.bundle_sha256,
+        "selected_capability_ids": list(render_input.selected_capability_ids),
+        "imported_capability_ids": list(prepared.imported_capability_ids),
+        "sample_frames": [
+            sample.model_dump(mode="json") for sample in render_input.sample_frames
+        ],
+    }
+    if any(render_receipt.get(key) != value for key, value in expected_provenance.items()):
+        raise ValueError("video render receipt does not match the prepared job")
 
     expected_generation = None
     if request.revision_artifact_id is not None:
@@ -881,7 +1126,7 @@ async def _save_verified(
         thread_id=request.root_thread_id,
         tool_call_id=job.tool_call_id,
         title=job.title,
-        markdown_representation=_markdown(plan),
+        markdown_representation=_markdown(project, job.title),
         files=[
             ArtifactFileStreamInput(
                 chunks=sandbox.read_file_stream(output_path),
@@ -901,8 +1146,13 @@ async def _save_verified(
             "video_runtime": {
                 "schema_version": render_input.schema_version,
                 "build_id": index.build_id,
-                "skill_version": skill.sha256,
-                "skill_files": list(skill.files),
+                "cue_ids": [cue.cue_id for cue in project.narration_cues],
+                "source_files": [source.path for source in project.source_files],
+                "source_sha256": prepared.source_sha256,
+                "bundle_sha256": prepared.bundle_sha256,
+                "runtime_build_id": prepared.runtime_build_id,
+                "capability_build_id": prepared.capability_build_id,
+                "imported_capability_ids": list(prepared.imported_capability_ids),
                 "selected_capability_ids": list(render_input.selected_capability_ids),
                 "render_receipt": render_receipt,
             },

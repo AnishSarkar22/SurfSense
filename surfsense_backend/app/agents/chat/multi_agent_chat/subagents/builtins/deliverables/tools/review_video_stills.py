@@ -18,12 +18,14 @@ _MAX_IMAGE_BYTES = 5 * 1024 * 1024
 _MAX_TOTAL_IMAGE_BYTES = 50 * 1024 * 1024
 _MAX_EVIDENCE = 3
 _VISION_TIMEOUT_SECONDS = 120
-_REVIEW_PROMPT = """Review these video stills as one presentation.
+_REVIEW_PROMPT = """Review these samples as one continuous video.
 Return strict JSON with clipping, overflow, contrast, hierarchy, blank_frames,
 safe_margins, and summary. Each rubric item must contain a verdict of pass,
 warning, or blocking plus an evidence array with at most three short,
 frame-specific strings. Use blocking only when the video is unusable or
-materially incomplete. Do not suggest a fixed layout or template."""
+materially incomplete. Findings are advisory input to one content repair; do
+not approve the artifact, request another cycle, or suggest commands, a fixed
+layout, or a template."""
 
 
 class VideoCriterionReview(BaseModel):
