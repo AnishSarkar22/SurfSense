@@ -187,33 +187,3 @@ class CapabilityIndex(StrictCapabilityModel):
 
     def by_id(self) -> dict[str, CapabilityEnvelope[dict[str, Any]]]:
         return {capability.id: capability for capability in self.capabilities}
-
-
-class CapabilityCandidate(StrictCapabilityModel):
-    id: CapabilityId
-    kind: CapabilityKind
-    category: Annotated[str, Field(min_length=1, max_length=96)]
-    summary: Annotated[str, Field(min_length=1, max_length=500)]
-    tags: Annotated[tuple[str, ...], Field(max_length=32)] = ()
-    vibe: Annotated[tuple[str, ...], Field(max_length=16)] = ()
-    use_for: Annotated[tuple[str, ...], Field(max_length=16)] = ()
-    avoid_for: Annotated[tuple[str, ...], Field(max_length=16)] = ()
-    natural_frame_length: Annotated[int | None, Field(gt=0, le=5400)] = None
-    score: int
-    matched_terms: tuple[str, ...] = ()
-    props_schema: dict[str, JsonValue] | None = None
-
-
-class CapabilityDisclosure(StrictCapabilityModel):
-    build_id: Annotated[str, Field(min_length=1, max_length=128)]
-    candidates: Annotated[tuple[CapabilityCandidate, ...], Field(max_length=48)]
-    disclosed_ids: Annotated[tuple[CapabilityId, ...], Field(max_length=48)]
-
-    @model_validator(mode="after")
-    def ids_match_candidates(self) -> CapabilityDisclosure:
-        candidate_ids = tuple(candidate.id for candidate in self.candidates)
-        if candidate_ids != self.disclosed_ids:
-            raise ValueError("disclosed_ids must match candidate order exactly")
-        if len(self.disclosed_ids) != len(set(self.disclosed_ids)):
-            raise ValueError("disclosed capability IDs must be unique")
-        return self

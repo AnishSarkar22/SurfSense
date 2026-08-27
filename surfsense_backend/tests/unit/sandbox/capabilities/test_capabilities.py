@@ -6,24 +6,16 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from time import perf_counter
 
 import pytest
 from pydantic import ValidationError
 
-from app.sandbox.capabilities.disclosure import build_capability_disclosure
-from app.sandbox.capabilities.filtering import CapabilityFilter
+from app.sandbox.capabilities.disclosure import build_public_capability_catalog
 from app.sandbox.capabilities.loader import (
     CAPABILITY_INDEX_PATH,
     _parse_index,
     clear_capability_index_cache,
     load_capability_index,
-)
-from app.sandbox.capabilities.retrieval import (
-    RetrievalQuery,
-    RetrievedCapability,
-    _tokens,
-    retrieve_capabilities,
 )
 from app.sandbox.capabilities.schema import (
     CapabilityEnvelope,
@@ -31,10 +23,6 @@ from app.sandbox.capabilities.schema import (
     CapabilityKind,
     CapabilityPostings,
     CapabilityTier,
-)
-from app.sandbox.capabilities.validation import (
-    validate_capability_props,
-    validate_selected_capability_ids,
 )
 
 pytestmark = pytest.mark.unit
@@ -77,7 +65,11 @@ def _capability(
         natural_frame_length=30,
         tier=tier,
         props_schema={"type": "object", "additionalProperties": False},
-        declaration={},
+        declaration={
+            "public_export": "".join(
+                part.title() for part in capability_id.rsplit(".", maxsplit=1)[-1].split("-")
+            )
+        },
         search_text=" ".join((summary, *tags, *use_for, *avoid_for)).casefold(),
     )
 
@@ -205,41 +197,14 @@ def test_node_generated_index_satisfies_python_contract(tmp_path: Path) -> None:
     )
     animated_bar_chart = index.by_id()["video.component.animated-bar-chart"]
     assert animated_bar_chart.declaration["public_export"] == "AnimatedBarChart"
-    disclosure = build_capability_disclosure(
-        index.build_id,
-        (
-            RetrievedCapability(
-                capability=animated_bar_chart,
-                score=100,
-                matched_terms=("chart",),
-            ),
-        ),
+    catalog = build_public_capability_catalog(index)
+    disclosed = next(
+        capability
+        for capability in catalog["capabilities"]
+        if capability["id"] == animated_bar_chart.id
     )
-    assert disclosure.candidates[0].props_schema["required"] == ["data"]
-    assert json.loads(disclosure.model_dump_json())["candidates"][0]["props_schema"][
-        "required"
-    ] == ["data"]
-    validate_capability_props(
-        index,
-        (
-            (
-                animated_bar_chart.id,
-                CapabilityKind.COMPONENT,
-                {"data": [10, 20], "labels": ["A", "B"]},
-            ),
-        ),
-    )
-    with pytest.raises(ValueError, match="invalid props"):
-        validate_capability_props(
-            index,
-            (
-                (
-                    animated_bar_chart.id,
-                    CapabilityKind.COMPONENT,
-                    {"data": [10], "arbitrary": True},
-                ),
-            ),
-        )
+    assert disclosed["export_name"] == "AnimatedBarChart"
+    assert disclosed["props_schema"]["required"] == ["data"]
 
 
 async def test_loader_reads_live_and_caches_only_immutable_digest_identity() -> None:
@@ -279,86 +244,19 @@ async def test_loader_rejects_version_or_expected_build_mismatch(change) -> None
         )
 
 
-def test_retrieval_is_deterministic_diverse_and_keeps_core_fallback() -> None:
-    query = RetrievalQuery(
-        text="serious quarterly KPI metric comparison",
-        facets=CapabilityFilter(
-            domains=frozenset({"video"}),
-            kinds=frozenset({CapabilityKind.COMPONENT}),
-        ),
-        avoid=("confetti", "celebration"),
-        top_k=3,
-    )
+def test_public_catalog_is_complete_and_rejects_missing_exports() -> None:
+    index = _index()
+    catalog = build_public_capability_catalog(index)
 
-    first = retrieve_capabilities(_index(), query)
-    second = retrieve_capabilities(_index(), query)
-
-    assert first == second
-    assert first[0].capability.id == "video.component.metric-grid"
-    assert any(item.capability.tier is CapabilityTier.CORE for item in first)
-    assert all(item.capability.id != "video.component.confetti" for item in first)
-
-
-def test_tokenization_preserves_unicode_terms_like_the_build_index() -> None:
-    assert _tokens("Café 数据 Δelta") == frozenset({"cafe", "数据", "δelta"})
-
-
-def test_weighted_postings_keep_a_200_item_catalog_search_fast() -> None:
-    index = _index_for(
-        (
-            *(
-                _capability(
-                    f"video.component.catalog-{position:03d}",
-                    category="catalog",
-                    summary=f"Specialized visual capability number {position}",
-                    tags=(f"intent{position}", "visual"),
-                )
-                for position in range(199)
-            ),
-            _capability(
-                "video.component.core.primitives",
-                category="core",
-                summary="General composition fallback",
-                tags=("fallback",),
-                tier=CapabilityTier.CORE,
-            ),
-        )
-    )
-    query = RetrievalQuery(text="intent137 specialized visual", top_k=3)
-
-    started = perf_counter()
-    for _ in range(500):
-        result = retrieve_capabilities(index, query)
-    elapsed = perf_counter() - started
-
-    assert result[0].capability.id == "video.component.catalog-137"
-    assert elapsed < 0.5
-
-
-def test_disclosure_is_bounded_deduplicated_and_selected_ids_are_closed() -> None:
-    retrieved = retrieve_capabilities(
-        _index(),
-        RetrievalQuery(text="metric comparison", top_k=4),
-    )
-    disclosure = build_capability_disclosure(
-        "build-1",
-        (*retrieved, *retrieved),
-        max_candidates=3,
-    )
-
-    assert len(disclosure.candidates) == 3
-    assert len(set(disclosure.disclosed_ids)) == 3
-    assert disclosure.candidates[0].props_schema == {
-        "type": "object",
-        "additionalProperties": False,
-    }
-    assert validate_selected_capability_ids(
-        [disclosure.disclosed_ids[0], disclosure.disclosed_ids[0]],
-        disclosure,
-        build_id="build-1",
-    ) == (disclosure.disclosed_ids[0],)
-    with pytest.raises(ValueError, match="not disclosed"):
-        validate_selected_capability_ids(
-            ["video.component.untrusted.arbitrary"],
-            disclosure,
-        )
+    assert catalog["build_id"] == index.build_id
+    assert [item["id"] for item in catalog["capabilities"]] == [
+        capability.id for capability in index.capabilities
+    ]
+    broken = _capability(
+        "video.component.broken",
+        category="core",
+        summary="Broken",
+        tags=("broken",),
+    ).model_copy(update={"declaration": {}})
+    with pytest.raises(ValueError, match="lacks a public export"):
+        build_public_capability_catalog(_index_for((broken,)))

@@ -1,102 +1,53 @@
-"""Bounded model-facing disclosure of retrieved capability metadata."""
+"""Current model-facing catalog for source-authored sandbox capabilities."""
 
 from __future__ import annotations
 
-import json
-from collections.abc import Iterable
-from typing import Final
-
-from .retrieval import RetrievedCapability
-from .schema import (
-    CapabilityCandidate,
-    CapabilityDisclosure,
-    CapabilityIndex,
-    materialize_json,
-)
-
-MAX_DISCLOSED_CAPABILITIES: Final = 48
-MAX_DISCLOSURE_BYTES: Final = 128 * 1024
+from .schema import CapabilityIndex, CapabilityKind, materialize_json
 
 
-def _candidate(item: RetrievedCapability) -> CapabilityCandidate:
-    capability = item.capability
-    return CapabilityCandidate(
-        id=capability.id,
-        kind=capability.kind,
-        category=capability.category,
-        summary=capability.summary,
-        tags=capability.tags,
-        vibe=capability.vibe,
-        use_for=capability.use_for,
-        avoid_for=capability.avoid_for,
-        natural_frame_length=capability.natural_frame_length,
-        score=item.score,
-        matched_terms=item.matched_terms,
-        props_schema=materialize_json(capability.props_schema),
-    )
+def build_public_capability_catalog(index: CapabilityIndex) -> dict[str, object]:
+    """Expose the complete generated public catalog without retrieval-era scoring."""
 
-
-def validate_disclosable_capabilities(index: CapabilityIndex) -> None:
-    """Fail before billable planning if any indexed capability cannot be disclosed."""
-
+    capabilities: list[dict[str, object]] = []
     for capability in index.capabilities:
-        candidate = _candidate(
-            RetrievedCapability(
-                capability=capability,
-                score=0,
-                matched_terms=(),
-            )
-        )
-        candidate.model_dump_json()
-
-
-def build_capability_disclosure(
-    build_id: str,
-    retrieved: Iterable[RetrievedCapability],
-    *,
-    max_candidates: int = MAX_DISCLOSED_CAPABILITIES,
-    max_bytes: int = MAX_DISCLOSURE_BYTES,
-) -> CapabilityDisclosure:
-    """Deduplicate candidates and include exact schemas within fixed bounds."""
-
-    if not 1 <= max_candidates <= MAX_DISCLOSED_CAPABILITIES:
-        raise ValueError(
-            f"max_candidates must be between 1 and {MAX_DISCLOSED_CAPABILITIES}"
-        )
-    if not 256 <= max_bytes <= MAX_DISCLOSURE_BYTES:
-        raise ValueError(f"max_bytes must be between 256 and {MAX_DISCLOSURE_BYTES}")
-
-    candidates: list[CapabilityCandidate] = []
-    seen: set[str] = set()
-    used_bytes = 0
-    for item in retrieved:
-        capability = item.capability
-        if capability.id in seen:
+        if capability.kind is CapabilityKind.RENDERER:
             continue
-        candidate = _candidate(item)
-        candidate_bytes = len(
-            json.dumps(
-                candidate.model_dump(mode="json"),
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode()
+        export_name = capability.declaration.get("public_export")
+        if capability.kind in {
+            CapabilityKind.COMPONENT,
+            CapabilityKind.TRANSITION,
+        }:
+            if not isinstance(export_name, str) or not export_name:
+                raise ValueError(
+                    f"public capability {capability.id!r} lacks a public export"
+                )
+        else:
+            export_name = None
+        capabilities.append(
+            {
+                "id": capability.id,
+                "kind": capability.kind.value,
+                "export_name": export_name,
+                "category": capability.category,
+                "summary": capability.summary,
+                "tags": list(capability.tags),
+                "vibe": list(capability.vibe),
+                "use_for": list(capability.use_for),
+                "avoid_for": list(capability.avoid_for),
+                "natural_frame_length": capability.natural_frame_length,
+                "dependencies": list(capability.dependencies),
+                "native_canvas": (
+                    capability.native_canvas.model_dump(mode="json")
+                    if capability.native_canvas is not None
+                    else None
+                ),
+                "props_schema": materialize_json(capability.props_schema),
+            }
         )
-        if used_bytes + candidate_bytes > max_bytes:
-            if not candidates:
-                raise ValueError("first capability exceeds the disclosure byte limit")
-            continue
-        candidates.append(candidate)
-        seen.add(capability.id)
-        used_bytes += candidate_bytes
-        if len(candidates) == max_candidates:
-            break
-
-    if not candidates:
-        raise ValueError("capability disclosure must contain at least one candidate")
-    disclosed_ids = tuple(candidate.id for candidate in candidates)
-    return CapabilityDisclosure(
-        build_id=build_id,
-        candidates=tuple(candidates),
-        disclosed_ids=disclosed_ids,
-    )
+    if not capabilities:
+        raise ValueError("generated public video capability catalog is empty")
+    return {
+        "build_id": index.build_id,
+        "module": "@surfsense/video/capabilities",
+        "capabilities": capabilities,
+    }
