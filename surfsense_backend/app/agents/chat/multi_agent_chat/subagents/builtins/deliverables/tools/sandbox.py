@@ -99,10 +99,6 @@ async def _run_python_script(
     return result
 
 
-def _is_full_video_render(command: str) -> bool:
-    return "render.mjs" in command and "--stills" not in command
-
-
 async def _run_bash(session: SandboxSession, command: str) -> ExecResult:
     if "render.mjs" not in command:
         return await session.run_command(command)
@@ -110,9 +106,6 @@ async def _run_bash(session: SandboxSession, command: str) -> ExecResult:
         "export VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS="
         f"{app_config.VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS}; {command}"
     )
-    if not _is_full_video_render(command):
-        return await session.run_command(command)
-
     global _video_render_waiters
     queued_at = time.monotonic()
     _video_render_waiters += 1
