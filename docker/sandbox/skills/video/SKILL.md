@@ -32,12 +32,13 @@ actions, or artifact operations.
 - Include `JobComposition.tsx` with a named, zero-argument
   `JobComposition` export. Put reusable model-created components in other
   submitted `.ts` or `.tsx` files and import them relatively.
-- Import runtime hooks from `@surfsense/video`: `useVideoRuntime`,
-  `useNarrationCue`, `useNarrationCues`, `useAsset`, and `useSeededRandom`.
+- The supplied `@surfsense/video` TypeScript contract is authoritative. Import
+  only its documented hooks and types, and use its field names exactly.
 - Import baked components and transitions only as documented named exports from
   `@surfsense/video/capabilities`. Their disclosed prop types are authoritative.
-- Use only assets listed in `available_assets`; `useAsset(id)` resolves their
-  job-local URL. Do not register a Remotion composition or author audio tracks.
+- Use only assets listed in `available_assets`; the supplied asset helper
+  resolves their job-local URL. Do not register a Remotion composition or
+  author audio tracks.
 
 ## Workflow
 
