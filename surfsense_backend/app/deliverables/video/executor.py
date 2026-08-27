@@ -17,9 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agents.chat.multi_agent_chat.subagents.builtins.deliverables.tools.review_video_stills import (
-    review_video_stills,
-)
 from app.agents.chat.multi_agent_chat.subagents.builtins.deliverables.tools.sandbox import (
     _run_bash,
 )
@@ -54,7 +51,6 @@ from app.sandbox.capabilities.schema import (
     CapabilityIndex,
     CapabilityKind,
 )
-from app.services.llm_service import get_vision_llm
 
 _MAX_BRIEF_CHARS = 16_000
 _MAX_SOURCE_REFERENCES = 25
@@ -296,7 +292,6 @@ async def execute_video_deliverable(
             skill=skill,
             project=project,
             findings=str(bundle_result),
-            visual_only=True,
         )
         repairs = 1
         await _materialize_project(sandbox, workdir, project)
@@ -343,7 +338,6 @@ async def execute_video_deliverable(
             before=project,
             narration=narration,
             findings=preflight_issue,
-            visual_only=True,
             workdir=workdir,
             index=index,
             job_id=job.id,
@@ -354,35 +348,6 @@ async def execute_video_deliverable(
         )
         if repeated_issue is not None:
             raise RuntimeError(f"video preflight failed: {repeated_issue}")
-
-    await heartbeat("reviewing", 65)
-    visual_issue = await _timed_stills_review(
-        sandbox,
-        workdir=workdir,
-        props_path=props_path,
-        job_id=job.id,
-        session=session,
-        workspace_id=job.workspace_id,
-    )
-    if visual_issue is not None and repairs < VIDEO_SPEC.max_repair_cycles:
-        project, narration, manifest, render_input, props_path = await _content_repair(
-            llm,
-            sandbox=sandbox,
-            skill=skill,
-            before=project,
-            narration=narration,
-            findings=visual_issue,
-            visual_only=True,
-            workdir=workdir,
-            index=index,
-            job_id=job.id,
-        )
-        repairs = 1
-        deterministic_issue = await _timed_preflight(
-            sandbox, workdir, props_path, job_id=job.id
-        )
-        if deterministic_issue is not None:
-            raise RuntimeError(f"video preflight failed: {deterministic_issue}")
 
     await heartbeat("rendering", 80)
     async with _phase_timing("render", job_id=job.id):
@@ -764,7 +729,6 @@ async def _repair_project(
     skill: LoadedVideoSkill,
     project: CreativeVideoProject,
     findings: str,
-    visual_only: bool,
 ) -> CreativeVideoProject:
     repaired = await _invoke_structured(
         llm,
@@ -772,11 +736,11 @@ async def _repair_project(
         payload={
             "findings": findings[-_FINDINGS_CHARS:],
             "current_project": project.model_dump(mode="json"),
-            "protected_fields": (
-                ["narration_cues.cue_id", "narration_cues.text", "language"]
-                if visual_only
-                else []
-            ),
+            "protected_fields": [
+                "narration_cues.cue_id",
+                "narration_cues.text",
+                "language",
+            ],
             "instructions": (
                 "Return a complete corrected CreativeVideoProject. Change source/content "
                 "only as needed. Never return commands or operational phases."
@@ -785,12 +749,12 @@ async def _repair_project(
         model=CreativeVideoProject,
         call_kind="source_repair",
     )
-    if visual_only and (
+    if (
         repaired.language != project.language
         or [(cue.cue_id, cue.text) for cue in repaired.narration_cues]
         != [(cue.cue_id, cue.text) for cue in project.narration_cues]
     ):
-        raise ValueError("visual repair changed protected cue identity, text, or language")
+        raise ValueError("source repair changed protected cue identity, text, or language")
     return repaired
 
 
@@ -802,7 +766,6 @@ async def _content_repair(
     before: CreativeVideoProject,
     narration,
     findings: str,
-    visual_only: bool,
     workdir: PurePosixPath,
     index: CapabilityIndex,
     job_id: int,
@@ -813,7 +776,6 @@ async def _content_repair(
             skill=skill,
             project=before,
             findings=findings,
-            visual_only=visual_only,
         )
         source_changed = repaired.source_files != before.source_files
         assets_changed = repaired.assets != before.assets
@@ -868,73 +830,6 @@ async def _timed_preflight(
             sandbox, _render_command(workdir, "--preflight", props_path)
         )
     return None if result.ok else result.output[-_FINDINGS_CHARS:]
-
-
-async def _timed_stills_review(
-    sandbox: SandboxSession,
-    *,
-    workdir: PurePosixPath,
-    props_path: str,
-    job_id: int,
-    session: AsyncSession,
-    workspace_id: int,
-) -> str | None:
-    async with _phase_timing("stills", job_id=job_id):
-        stills_dir = workdir / "stills"
-        result = await _run_bash(
-            sandbox, _render_command(workdir, "--stills", props_path, stills_dir)
-        )
-        if not result.ok:
-            return result.output[-_FINDINGS_CHARS:]
-        stills = await _discover_stills(sandbox, workdir, stills_dir)
-        vision_llm = await get_vision_llm(
-            session, workspace_id, usage_type="video_still_review"
-        )
-        review = await review_video_stills(
-            stills,
-            session=sandbox,
-            vision_llm=vision_llm,
-            workdir=workdir,
-        )
-    if review["status"] != "reviewed":
-        return None
-    blocking = [
-        f"{criterion}: {'; '.join(value['evidence']) or 'blocking finding'}"
-        for criterion, value in review["review"].items()
-        if isinstance(value, dict) and value.get("verdict") == "blocking"
-    ]
-    return "; ".join(blocking) or None
-
-
-async def _discover_stills(
-    sandbox: SandboxSession,
-    workdir: PurePosixPath,
-    stills_dir: PurePosixPath,
-) -> list[str]:
-    script = (
-        "import glob,json,os,sys;"
-        "root=sys.argv[1];base=sys.argv[2];"
-        "print(json.dumps([os.path.relpath(p,root) for p in "
-        "sorted(glob.glob(os.path.join(base,'*.png')))]))"
-    )
-    result = await sandbox.run_command(
-        f"python3 -c {shlex.quote(script)} "
-        f"{shlex.quote(str(workdir))} {shlex.quote(str(stills_dir))}"
-    )
-    if not result.ok:
-        raise RuntimeError(f"Could not discover risk stills: {result.output[-4000:]}")
-    try:
-        paths = json.loads(result.output)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("Risk still discovery returned invalid JSON") from exc
-    if (
-        not isinstance(paths, list)
-        or not paths
-        or "stills/contact-sheet.png" not in paths
-        or any(not isinstance(path, str) for path in paths)
-    ):
-        raise RuntimeError("Risk still output is incomplete")
-    return paths
 
 
 async def _render(

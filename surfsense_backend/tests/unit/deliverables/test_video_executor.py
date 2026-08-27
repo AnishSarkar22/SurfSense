@@ -329,12 +329,6 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
         commands.append(executor._render_command(workdir, "--preflight", props_path))
         return None
 
-    async def stills(_sandbox, *, workdir, props_path, **_kwargs):
-        commands.append(
-            executor._render_command(workdir, "--stills", props_path, workdir / "stills")
-        )
-        return None
-
     async def render(_sandbox, workdir, props_path, output_path):
         commands.append(executor._render_command(workdir, props_path, output_path))
 
@@ -364,13 +358,7 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
     )
     monkeypatch.setattr(executor, "_trusted_render_input", lambda *_a, **_k: render_input)
     monkeypatch.setattr(executor, "_timed_preflight", preflight)
-    monkeypatch.setattr(executor, "_timed_stills_review", stills)
     monkeypatch.setattr(executor, "_render", render)
-    monkeypatch.setattr(
-        executor,
-        "get_vision_llm",
-        AsyncMock(return_value=None),
-    )
     monkeypatch.setattr(
         executor,
         "verify_artifact",
@@ -384,7 +372,9 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
     assert result.cue_count == 1
     assert result.repair_count == 0
     assert model_calls == [CreativeVideoProject]
-    assert len(commands) == 3
+    assert len(commands) == 2
+    assert not hasattr(executor, "get_vision_llm")
+    assert all("--stills" not in command for command in commands)
     assert all(
         "--job-dir /workspace/deliverable-job-7-attempt-1/job" in command
         for command in commands
@@ -431,7 +421,7 @@ async def test_narration_repair_changes_text_only_and_resynthesizes_changed_cues
     assert invoke.await_args.kwargs["model"] is executor.NarrationRewrite
 
 
-async def test_visual_repair_protects_cue_identity_text_and_language(
+async def test_source_repair_protects_cue_identity_text_and_language(
     monkeypatch,
 ) -> None:
     changed = _project(text="Changed narration.")
@@ -442,8 +432,7 @@ async def test_visual_repair_protects_cue_identity_text_and_language(
             object(),
             skill=_skill(),
             project=_project(),
-            findings="Headline clips",
-            visual_only=True,
+            findings="TypeScript compilation failed",
         )
 
 
@@ -470,7 +459,6 @@ async def test_content_repair_rebundles_changed_source_exactly_once(
         before=before,
         narration=_narration(),
         findings="TypeScript compilation failed",
-        visual_only=False,
         workdir=PurePosixPath("/workspace/deliverable-job-7-attempt-1"),
         index=_index(),
         job_id=7,
