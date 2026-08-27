@@ -46,7 +46,6 @@ const PHASE_LABELS: Record<string, string> = {
 	preparing_content: "Weaving visuals and narration",
 	repairing_narration: "Refining the story",
 	preflight: "Polishing the details",
-	reviewing: "Reviewing your creation",
 	rendering: "Bringing your video to life",
 	verifying: "Adding the final touches",
 	saving: "Preparing your video",
