@@ -2,29 +2,14 @@
   {
     "id": "video.renderer.master",
     "kind": "renderer",
-    "summary": "Static 1920x1080 declarative video renderer.",
+    "summary": "Trusted 1920x1080 host for confined job-local Remotion source.",
     "category": "video",
     "tags": ["rendering", "h264", "aac", "offline"],
-    "use_for": ["Trusted declarative video rendering"],
-    "avoid_for": ["Arbitrary source execution"],
+    "use_for": ["Trusted continuous video rendering"],
+    "avoid_for": ["Unvalidated or networked source execution"],
     "tier": "core",
     "dependencies": ["remotion", "@remotion/renderer"],
     "deterministic": true
-  },
-  {
-    "id": "video.component.core.primitives",
-    "kind": "component",
-    "summary": "Always-available typed layers for text, layout, media, charts, code, connectors, captions, filters, camera moves, overlays, audio visualization, and repeated elements.",
-    "category": "core",
-    "tags": ["fallback", "text", "layout", "shape", "gradient", "image", "video", "svg", "icon", "chart", "code", "connector", "caption", "filter", "camera", "keyframe", "overlay", "audio", "repeat"],
-    "vibe": "clean",
-    "use_for": ["General composition", "Fallback when no specialized capability fits"],
-    "avoid_for": ["Unbounded generated markup"],
-    "tier": "core",
-    "dependencies": ["remotion", "@remotion/media"],
-    "native_canvas": {"width": 1920, "height": 1080, "fps": 30},
-    "deterministic": true,
-    "test_props": {}
   },
   {
     "id": "font.inter",

@@ -188,6 +188,7 @@ def test_node_generated_index_satisfies_python_contract(tmp_path: Path) -> None:
 
     assert index.schema_version == 1
     assert index.build_id
+    assert index.runtime_build_id
     assert tuple(capability.id for capability in index.capabilities) == tuple(
         sorted(capability.id for capability in index.capabilities)
     )
@@ -203,6 +204,7 @@ def test_node_generated_index_satisfies_python_contract(tmp_path: Path) -> None:
         for capability in index.capabilities
     )
     animated_bar_chart = index.by_id()["video.component.animated-bar-chart"]
+    assert animated_bar_chart.declaration["public_export"] == "AnimatedBarChart"
     disclosure = build_capability_disclosure(
         index.build_id,
         (

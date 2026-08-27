@@ -153,6 +153,9 @@ class CapabilityIndex(StrictCapabilityModel):
     build_id: Annotated[
         str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$")
     ]
+    runtime_build_id: Annotated[
+        str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$")
+    ] | None = None
     capabilities: tuple[CapabilityEnvelope[dict[str, Any]], ...]
     postings: CapabilityPostings = Field(default_factory=CapabilityPostings)
 
