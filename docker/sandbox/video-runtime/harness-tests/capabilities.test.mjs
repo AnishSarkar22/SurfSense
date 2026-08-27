@@ -204,5 +204,8 @@ test("render consumes one prepared bundle and emits provenance receipt", () => {
     assert.match(renderSource, new RegExp(`\\b${field}\\b`));
   }
   assert.match(renderSource, /--job-dir/);
-  assert.doesNotMatch(renderSource, /beat_sample_frames|--bundle-dir/);
+  assert.doesNotMatch(
+    renderSource,
+    /beat_sample_frames|--bundle-dir|--stills|renderStill|contact-sheet|phase: "stills"/,
+  );
 });

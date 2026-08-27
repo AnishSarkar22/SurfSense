@@ -1,16 +1,9 @@
-import {execFile} from "node:child_process";
 import {existsSync} from "node:fs";
-import {mkdir, mkdtemp, readFile, rename, rm} from "node:fs/promises";
+import {mkdir, readFile, rename, rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import path from "node:path";
 import {fileURLToPath, pathToFileURL} from "node:url";
-import {promisify} from "node:util";
-import {
-  makeCancelSignal,
-  renderMedia,
-  renderStill,
-  selectComposition,
-} from "@remotion/renderer";
+import {makeCancelSignal, renderMedia, selectComposition} from "@remotion/renderer";
 import {
   assertBundleAssets,
   assertDurationLimit,
@@ -48,7 +41,6 @@ const maxConcurrentRenders = Number(
 const frameConcurrency = Number(
   process.env.VIDEO_SANDBOX_FRAME_CONCURRENCY ?? 2,
 );
-const execFileAsync = promisify(execFile);
 if (!Number.isFinite(timeoutInMilliseconds) || timeoutInMilliseconds < 7000) {
   throw new Error("VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS must be at least 7000");
 }
@@ -230,66 +222,6 @@ async function select(input, serveUrl) {
   return composition;
 }
 
-async function renderStills({
-  cancellation,
-  composition,
-  input,
-  outputPath,
-  progress,
-  samples,
-  serveUrl,
-}) {
-  const parent = path.dirname(outputPath);
-  await mkdir(parent, {recursive: true});
-  const staging = await mkdtemp(path.join(parent, ".risk-stills-"));
-  try {
-    for (const [index, sample] of samples.entries()) {
-      await cancellation.withSignal((cancelSignal) =>
-        renderStill({
-          composition,
-          serveUrl,
-          output: path.join(
-            staging,
-            `${String(index + 1).padStart(2, "0")}-${sample.frame}.png`,
-          ),
-          frame: sample.frame,
-          inputProps: input,
-          timeoutInMilliseconds,
-          browserExecutable,
-          cancelSignal,
-        }),
-      );
-      progress.write({
-        phase: "stills",
-        progress: (index + 1) / (samples.length + 1),
-        frame: sample.frame,
-        reason: sample.reason,
-      });
-    }
-    const columns = Math.min(4, samples.length);
-    const rows = Math.ceil(samples.length / columns);
-    await execFileAsync("ffmpeg", [
-      "-y",
-      "-v",
-      "error",
-      "-pattern_type",
-      "glob",
-      "-i",
-      path.join(staging, "*.png"),
-      "-vf",
-      `scale=480:270,tile=${columns}x${rows}:padding=8:margin=8`,
-      "-frames:v",
-      "1",
-      path.join(staging, "contact-sheet.png"),
-    ]);
-    await rm(outputPath, {recursive: true, force: true});
-    await rename(staging, outputPath);
-  } catch (error) {
-    await rm(staging, {recursive: true, force: true});
-    throw error;
-  }
-}
-
 export async function render(argv = process.argv.slice(2)) {
   const bundleOption = argv.indexOf("--job-dir");
   if (
@@ -299,7 +231,6 @@ export async function render(argv = process.argv.slice(2)) {
   ) {
     throw new Error(
       "Usage: node render.mjs --job-dir job --preflight props.json | " +
-        "--job-dir job --stills props.json outdir | " +
         "--job-dir job props.json out.mp4",
     );
   }
@@ -307,15 +238,10 @@ export async function render(argv = process.argv.slice(2)) {
   const positional = argv.filter(
     (_, index) => index !== bundleOption && index !== bundleOption + 1,
   );
-  const mode =
-    positional[0] === "--preflight"
-      ? "preflight"
-      : positional[0] === "--stills"
-        ? "stills"
-        : "render";
+  const mode = positional[0] === "--preflight" ? "preflight" : "render";
   const propsArg = mode === "render" ? positional[0] : positional[1];
   const outputArg = mode === "render" ? positional[1] : positional[2];
-  const expected = mode === "preflight" ? 2 : mode === "stills" ? 3 : 2;
+  const expected = 2;
   if (
     !propsArg ||
     (mode !== "preflight" && !outputArg) ||
@@ -323,7 +249,6 @@ export async function render(argv = process.argv.slice(2)) {
   ) {
     throw new Error(
       "Usage: node render.mjs --job-dir job --preflight props.json | " +
-        "--job-dir job --stills props.json outdir | " +
         "--job-dir job props.json out.mp4",
     );
   }
@@ -385,23 +310,6 @@ export async function render(argv = process.argv.slice(2)) {
     }
 
     releaseAdmission = await acquireAdmission(cancellation);
-    if (mode === "stills") {
-      phase = "stills";
-      progress.write({phase, progress: 0});
-      await renderStills({
-        cancellation,
-        composition,
-        input,
-        outputPath,
-        progress,
-        samples,
-        serveUrl,
-      });
-      progress.write({phase, progress: 1});
-      await progress.flush();
-      return;
-    }
-
     phase = "render";
     await mkdir(path.dirname(outputPath), {recursive: true});
     const extension = path.extname(outputPath) || ".mp4";

@@ -82,7 +82,6 @@ for (const durationSeconds of durations) {
   const work = await mkdtemp(path.join(tmpdir(), `surfsense-video-${durationSeconds}s-`));
   try {
     const input = path.join(work, "input.json");
-    const stills = path.join(work, "stills");
     const job = path.join(work, "job");
     const publicDir = path.join(work, "public");
     const output = path.join(work, `${durationSeconds}s.mp4`);
@@ -112,7 +111,6 @@ for (const durationSeconds of durations) {
       publicDir,
     ]);
     const preflight = await measure(work, job, "preflight", ["--preflight", input]);
-    const riskStills = await measure(work, job, "stills", ["--stills", input, stills]);
     const render = await measure(work, job, "render", [input, output]);
     const outputBytes = (await stat(output)).size;
     const receipt = JSON.parse(await readFile(`${output}.render.json`, "utf8"));
@@ -123,7 +121,6 @@ for (const durationSeconds of durations) {
         build_id: capabilityIndex.build_id,
         catalog_load_ms: catalogLoadMs,
         preflight,
-        stills: riskStills,
         render,
         output_bytes: outputBytes,
         receipt_render_seconds: receipt.render_seconds,

@@ -25,12 +25,10 @@ node scripts/finalize-job.mjs \
   --job-dir "${WORK}/job" \
   --public-dir "${WORK}/public"
 node render.mjs --job-dir "${WORK}/job" --preflight "${WORK}/input.json"
-node render.mjs --job-dir "${WORK}/job" --stills "${WORK}/input.json" "${WORK}/stills"
 node render.mjs --job-dir "${WORK}/job" "${WORK}/input.json" "${WORK}/smoke.mp4"
 
 test -s "${WORK}/smoke.mp4"
 test -s "${WORK}/smoke.mp4.render.json"
-test -s "${WORK}/stills/contact-sheet.png"
 test -s "${WORK}/job/job.json"
 node -e '
   const fs = require("node:fs");
