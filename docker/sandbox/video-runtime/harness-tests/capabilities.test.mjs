@@ -23,6 +23,19 @@ const publicSource = await readFile(
   path.join(root, "src/generated/public-capabilities.ts"),
   "utf8",
 );
+const authoringSource = await readFile(path.join(root, "src/authoring.tsx"), "utf8");
+const contractSource = await readFile(
+  path.join(root, "src/authoring-contract.ts"),
+  "utf8",
+);
+const contextSource = await readFile(
+  path.join(root, "src/authoring-context.tsx"),
+  "utf8",
+);
+const registrySource = await readFile(
+  path.join(root, "src/generated/capability-registry.ts"),
+  "utf8",
+);
 const renderSource = await readFile(path.join(root, "render.mjs"), "utf8");
 
 const validInput = {
@@ -137,11 +150,37 @@ test("neutral samples and imported capability provenance are deterministic", () 
   );
 });
 
-test("public capability API and trusted host have stable exports", () => {
+test("public authoring and capability APIs expose only the supported surface", () => {
+  for (const exported of [
+    "NarrationCueTiming",
+    "NarrationCueState",
+    "VideoAsset",
+  ]) {
+    assert.match(contractSource, new RegExp(`export type ${exported}\\b`));
+  }
+  for (const hook of [
+    "useNarrationCue",
+    "useNarrationCues",
+    "useAsset",
+    "useSeededRandom",
+  ]) {
+    assert.match(contractSource, new RegExp(`export declare const ${hook}\\b`));
+    assert.match(authoringSource, new RegExp(`export const ${hook}\\b`));
+  }
+  assert.doesNotMatch(contractSource, /\b(?:cue_id|start_frame|duration_in_frames)\b/);
+  assert.doesNotMatch(
+    authoringSource,
+    /export (?:const|type) (?:VideoRuntimeProvider|useVideoRuntime|VideoRenderInput|NarrationCue)\b/,
+  );
+  assert.match(contextSource, /export const VideoRuntimeProvider/);
   assert.match(publicSource, /AnimatedBarChart/);
   assert.match(publicSource, /BlurOutUp/);
   assert.match(publicSource, /whipPan as WhipPan/);
-  assert.match(publicSource, /capabilityBuildId/);
+  assert.doesNotMatch(publicSource, /capabilityBuildId|capabilityIds/);
+  assert.doesNotMatch(
+    registrySource,
+    /componentLoaders|transitionRenderers|fontFamilies|nativeCanvasById/,
+  );
   assert.match(hostSource, /export const TrustedVideoHost/);
   assert.match(hostSource, /<JobComposition \/>/);
   assert.match(hostSource, /<VideoRuntimeProvider value=\{input\}>/);

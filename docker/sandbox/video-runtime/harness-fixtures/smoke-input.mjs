@@ -57,7 +57,10 @@ const input = {
       volume: 1,
     },
   ],
-  assets: [{id: "silence", path: "silence.wav", kind: "audio"}],
+  assets: [
+    {id: "silence", path: "silence.wav", kind: "audio"},
+    {id: "surfsense-icon", path: "icon-128.svg", kind: "svg"},
+  ],
   sample_frames: [
     {frame: 0, reason: "first-content"},
     {frame: Math.floor((durationInFrames - 1) / 2), reason: "even:middle"},

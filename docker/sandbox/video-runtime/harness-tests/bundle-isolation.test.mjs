@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import {mkdir, mkdtemp, readFile, rm, writeFile} from "node:fs/promises";
+import {cp, mkdir, mkdtemp, readFile, rm, writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {assertBundleAssets, directoryHash} from "../render-utils.mjs";
+import {bundleJob} from "../scripts/bundle-job.mjs";
 import {finalizeJob} from "../scripts/finalize-job.mjs";
 
 const inputFor = (src) => ({
@@ -83,6 +84,37 @@ test("finalizing narration updates assets and reseals the prepared bundle", asyn
       await readFile(path.join(bundleDir, "public", "narration.wav"), "utf8"),
       "replacement",
     );
+  } finally {
+    await rm(root, {recursive: true, force: true});
+  }
+});
+
+test("representative authored project typechecks and bundles with sealed hashes", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "surfsense-job-bundle-"));
+  const sourceDir = path.join(root, "source");
+  try {
+    await cp(path.join(import.meta.dirname, "../harness-fixtures/job-source"), sourceDir, {
+      recursive: true,
+    });
+    const first = await bundleJob([
+      "--source-dir",
+      sourceDir,
+      "--out-dir",
+      path.join(root, "first"),
+    ]);
+    const second = await bundleJob([
+      "--source-dir",
+      sourceDir,
+      "--out-dir",
+      path.join(root, "second"),
+    ]);
+
+    assert.deepEqual(first.imported_capability_ids, [
+      "video.component.animated-bar-chart",
+    ]);
+    assert.equal(first.source_sha256, second.source_sha256);
+    assert.equal(first.bundle_sha256, await directoryHash(path.join(root, "first/bundle")));
+    assert.equal(second.bundle_sha256, await directoryHash(path.join(root, "second/bundle")));
   } finally {
     await rm(root, {recursive: true, force: true});
   }

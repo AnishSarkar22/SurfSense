@@ -1,16 +1,23 @@
 import type React from "react";
-import {useCurrentFrame} from "remotion";
+import type {NarrationCueState, VideoAsset} from "@surfsense/video";
 
-export const LocalPulse: React.FC = () => {
-  const frame = useCurrentFrame();
+type LocalPulseProps = {
+  asset: VideoAsset;
+  cue: NarrationCueState;
+};
+
+export const LocalPulse: React.FC<LocalPulseProps> = ({asset, cue}) => {
+  const scale = 1 + cue.progress * 0.2;
   return (
-    <div
+    <img
+      alt=""
+      src={asset.src}
       style={{
         width: 36,
         height: 36,
         borderRadius: "50%",
-        background: "#38bdf8",
-        scale: String(1 + Math.sin(frame / 8) * 0.2),
+        opacity: cue.active ? 1 : 0.45,
+        scale: String(scale),
       }}
     />
   );
