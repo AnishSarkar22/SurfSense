@@ -74,7 +74,7 @@ test("successful nested result renders live card even when tool status is incomp
 test("deliverable cards render queued, running, cancelling, cancelled, and failed states", () => {
 	assert.match(renderJob({ status: "queued" }), /Generating your video/);
 	const running = renderJob({ status: "running", phase: "rendering", progress: 72 });
-	assert.match(running, /Rendering your video/);
+	assert.match(running, /Bringing your video to life/);
 	assert.doesNotMatch(running, /72%|progressbar/);
 	assert.match(running, /w-full/);
 	assert.doesNotMatch(running, /max-w-lg/);
@@ -90,6 +90,35 @@ test("deliverable cards render queued, running, cancelling, cancelled, and faile
 	assert.match(
 		renderJob({ status: "failed", failureCode: "render_failed" }),
 		/could not be rendered/
+	);
+});
+
+test("queued video phases use the current continuous-video language", () => {
+	assert.deepEqual(
+		[
+			"starting",
+			"preparing",
+			"authoring",
+			"preparing_content",
+			"repairing_narration",
+			"preflight",
+			"reviewing",
+			"rendering",
+			"verifying",
+			"saving",
+		].map(deliverablePhaseLabel),
+		[
+			"Setting things in motion",
+			"Gathering the pieces",
+			"Crafting your video",
+			"Weaving visuals and narration",
+			"Refining the story",
+			"Polishing the details",
+			"Reviewing your creation",
+			"Bringing your video to life",
+			"Adding the final touches",
+			"Preparing your video",
+		]
 	);
 });
 

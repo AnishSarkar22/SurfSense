@@ -40,16 +40,16 @@ const FAILURE_MESSAGES: Record<string, string> = {
 };
 
 const PHASE_LABELS: Record<string, string> = {
-	starting: "Generating your video",
-	preparing: "Preparing your video",
-	authoring: "Creating scenes",
-	narrating: "Adding narration",
-	preflighting: "Checking your video",
-	reviewing: "Reviewing your video",
-	repairing: "Improving scenes",
-	rendering: "Rendering your video",
-	verifying: "Finalizing your video",
-	saving: "Saving your video",
+	starting: "Setting things in motion",
+	preparing: "Gathering the pieces",
+	authoring: "Crafting your video",
+	preparing_content: "Weaving visuals and narration",
+	repairing_narration: "Refining the story",
+	preflight: "Polishing the details",
+	reviewing: "Reviewing your creation",
+	rendering: "Bringing your video to life",
+	verifying: "Adding the final touches",
+	saving: "Preparing your video",
 };
 
 export function deliverableFailureMessage(code: string | null): string {
