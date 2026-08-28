@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import { z } from "zod";
 import { artifactPanelAtom, openArtifactPanelAtom } from "@/atoms/chat/artifact-panel.atom";
 import { activeWorkspaceIdAtom } from "@/atoms/workspaces/workspace-query.atoms";
-import { Mp4VideoPlayer } from "@/components/tool-ui/video-presentation/mp4-player";
+import { VideoPlayer } from "@/components/shared/video-player";
 import { Spinner } from "@/components/ui/spinner";
 import { ArtifactDownloadButton } from "@/features/artifacts/artifact-download-button";
 import { ArtifactFormatIcon } from "@/features/artifacts/artifact-format-icon";
@@ -149,7 +149,7 @@ export function Mp4ArtifactCard({
 						<Spinner size="lg" />
 					</div>
 				) : videoSrc ? (
-					<Mp4VideoPlayer src={videoSrc} />
+					<VideoPlayer src={videoSrc} />
 				) : (
 					<div
 						role="alert"
