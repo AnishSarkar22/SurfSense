@@ -20,6 +20,7 @@ class FakeSandboxSession:
         self.writes: dict[str, bytes] = {}
         self.commands: list[str] = []
         self.command_handler = command_handler
+        self.keep_alive_count = 0
         self.terminated = False
 
     async def execute(self, code: str, language: str = "python") -> ExecResult:
@@ -50,6 +51,9 @@ class FakeSandboxSession:
     async def write_file(self, path: str, data: bytes) -> None:
         self.files[path] = data
         self.writes[path] = data
+
+    async def keep_alive(self) -> None:
+        self.keep_alive_count += 1
 
     async def terminate(self) -> None:
         self.terminated = True

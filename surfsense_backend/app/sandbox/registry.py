@@ -146,6 +146,25 @@ class SandboxRegistry:
                 self._entries[key] = _Entry(session=session, workspace_id=workspace_key)
                 return session
 
+    async def keep_alive(
+        self,
+        thread_id: int | str,
+        *,
+        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
+    ) -> None:
+        """Refresh an existing registry entry and its provider-side lifetime."""
+        owner = str(thread_id)
+        key = (owner, profile)
+        lock = await self._lock_for(key)
+        async with lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                raise SandboxUnavailableError(
+                    f"No active {profile.value} sandbox for {owner}"
+                )
+            entry.last_used = time.monotonic()
+            await entry.session.keep_alive()
+
     def get_cached(
         self,
         thread_id: int | str,

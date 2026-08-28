@@ -103,6 +103,11 @@ class DaytonaSession:
     async def write_file(self, path: str, data: bytes) -> None:
         await asyncio.to_thread(self._sandbox.fs.upload_file, data, path)
 
+    async def keep_alive(self) -> None:
+        result = await self.run_command("true")
+        if not result.ok:
+            raise RuntimeError("Daytona sandbox keepalive failed")
+
     async def terminate(self) -> None:
         await asyncio.to_thread(self._client.delete, self._sandbox)
 

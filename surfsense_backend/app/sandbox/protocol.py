@@ -55,6 +55,10 @@ class SandboxSession(Protocol):
 
     async def write_file(self, path: str, data: bytes) -> None: ...
 
+    async def keep_alive(self) -> None:
+        """Prevent provider-side expiry while the caller is working locally."""
+        ...
+
     async def terminate(self) -> None: ...
 
 

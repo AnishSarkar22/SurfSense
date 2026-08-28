@@ -1,3 +1,4 @@
+import time
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -60,6 +61,16 @@ async def test_provider_creates_profile_pinned_sandbox(
         THREAD_METADATA_KEY: "thread-7",
         PROFILE_METADATA_KEY: profile.value,
     }
+
+
+async def test_keep_alive_renews_an_open_sandbox_after_half_its_ttl() -> None:
+    sandbox = SimpleNamespace(id="sandbox-1", renew=AsyncMock())
+    session = OpenSandboxSession(sandbox, ttl_seconds=900)
+    session._last_renewed = time.monotonic() - 451
+
+    await session.keep_alive()
+
+    sandbox.renew.assert_awaited_once_with(timedelta(seconds=900))
 
 
 async def test_read_file_normalizes_provider_404() -> None:

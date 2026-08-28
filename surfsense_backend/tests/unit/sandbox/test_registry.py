@@ -18,6 +18,7 @@ class FakeSession:
     def __init__(self, thread_id: str) -> None:
         self.session_id = thread_id
         self.terminated = False
+        self.keep_alive_count = 0
 
     async def execute(self, code: str, language: str = "python") -> ExecResult:
         return ExecResult(output="", exit_code=0)
@@ -30,6 +31,9 @@ class FakeSession:
 
     async def write_file(self, path: str, data: bytes) -> None:
         return None
+
+    async def keep_alive(self) -> None:
+        self.keep_alive_count += 1
 
     async def terminate(self) -> None:
         self.terminated = True
@@ -163,6 +167,44 @@ async def test_idle_sessions_are_reaped_and_killed():
     assert stale.terminated is True
     fresh = await registry.get_session("t1", "w1")
     assert fresh is not stale
+
+
+async def test_keep_alive_refreshes_registry_activity_without_creating_a_session(
+    monkeypatch,
+):
+    import app.sandbox.registry as registry_module
+
+    now = 0.0
+    monkeypatch.setattr(registry_module.time, "monotonic", lambda: now)
+    provider = FakeProvider()
+    registry = SandboxRegistry(
+        provider,
+        idle_ttl_seconds=10,
+        max_sessions_per_workspace=2,
+    )
+    session = await registry.get_session("t1", "w1")
+
+    now = 9.0
+    await registry.keep_alive("t1")
+    now = 15.0
+    await registry.get_session("t2", "w1")
+
+    assert registry.get_cached("t1") is session
+    assert session.keep_alive_count == 1
+    assert provider.created == [
+        ("t1", SandboxResourceProfile.DEFAULT),
+        ("t2", SandboxResourceProfile.DEFAULT),
+    ]
+
+
+async def test_keep_alive_does_not_create_a_missing_session():
+    provider = FakeProvider()
+    registry = SandboxRegistry(provider)
+
+    with pytest.raises(SandboxUnavailableError, match="No active default sandbox"):
+        await registry.keep_alive("missing")
+
+    assert provider.created == []
 
 
 async def test_evict_forgets_without_killing():

@@ -2,15 +2,16 @@
 
 Kokoro selects its language model by a single-letter ``lang_code``, so this
 adapter maps the brief's BCP-47 tag to that code and caches one pipeline per
-code (pipeline construction loads weights and is expensive). Pipelines run in a
-thread pool because Kokoro is synchronous; the renderer caps how many segments
-synthesise at once.
+code (pipeline construction loads weights and is expensive). Complete
+syntheses run serially on a dedicated thread because Kokoro is synchronous and
+its lazy generator performs the actual inference while it is consumed.
 """
 
 from __future__ import annotations
 
 import asyncio
 import io
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 from ..audio import SynthesizedAudio
@@ -43,6 +44,7 @@ class KokoroTextToSpeech(TextToSpeech):
 
     def __init__(self) -> None:
         self._pipelines: dict[str, KPipeline] = {}
+        self._executor: ThreadPoolExecutor | None = None
 
     @property
     def container(self) -> str:
@@ -52,30 +54,45 @@ class KokoroTextToSpeech(TextToSpeech):
         if not isinstance(request.voice, str):
             raise TextToSpeechError("Kokoro voices are named by string, not a mapping")
 
-        pipeline = self._pipeline_for(request.language)
-        loop = asyncio.get_event_loop()
         try:
-            generator = await loop.run_in_executor(
-                None,
-                lambda: pipeline(
-                    request.text,
-                    voice=request.voice,
-                    speed=request.speed,
-                    split_pattern=r"\n+",
-                ),
+            data = await asyncio.get_running_loop().run_in_executor(
+                self._get_executor(),
+                self._synthesize_sync,
+                request,
             )
-            segments = [audio for _gs, _ps, audio in generator]
+        except TextToSpeechError:
+            raise
         except Exception as exc:
             raise TextToSpeechError(f"Kokoro synthesis failed: {exc}") from exc
 
-        if not segments:
-            raise TextToSpeechError("Kokoro produced no audio for the text")
-
         return SynthesizedAudio(
-            data=_encode_wav(segments, _SAMPLE_RATE),
+            data=data,
             container="wav",
             sample_rate=_SAMPLE_RATE,
         )
+
+    def _get_executor(self) -> ThreadPoolExecutor:
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(
+                max_workers=1,
+                thread_name_prefix="surfsense-kokoro",
+            )
+        return self._executor
+
+    def _synthesize_sync(self, request: SynthesisRequest) -> bytes:
+        pipeline = self._pipeline_for(request.language)
+        segments = [
+            audio
+            for _gs, _ps, audio in pipeline(
+                request.text,
+                voice=request.voice,
+                speed=request.speed,
+                split_pattern=r"\n+",
+            )
+        ]
+        if not segments:
+            raise TextToSpeechError("Kokoro produced no audio for the text")
+        return _encode_wav(segments, _SAMPLE_RATE)
 
     def _pipeline_for(self, language: str) -> KPipeline:
         lang_code = _lang_code(language)

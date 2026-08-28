@@ -8,6 +8,7 @@ import json
 import logging
 import shlex
 import time
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import PurePosixPath
 from typing import Annotated, Literal
@@ -56,6 +57,7 @@ _MAX_BRIEF_CHARS = 16_000
 _MAX_SOURCE_REFERENCES = 25
 _MAX_SOURCE_REFERENCE_CHARS = 1_000
 _MODEL_TIMEOUT_SECONDS = 10 * 60
+_LIVENESS_INTERVAL_SECONDS = min(60, app_config.SANDBOX_IDLE_TTL_SECONDS / 3)
 _FINDINGS_CHARS = 16_000
 _STAGED_ASSETS = (
     {"id": "surfsense-icon", "path": "icon-128.svg", "kind": "svg"},
@@ -65,6 +67,26 @@ logger = logging.getLogger(__name__)
 
 class DeliverableJobCancellationError(Exception):
     """Raised when the persisted lifecycle no longer permits executor work."""
+
+
+async def _await_with_liveness[T](
+    work: Awaitable[T],
+    *,
+    pulse: Callable[[], Awaitable[None]],
+    interval_seconds: float,
+) -> T:
+    task = asyncio.ensure_future(work)
+    try:
+        while not task.done():
+            done, _ = await asyncio.wait({task}, timeout=interval_seconds)
+            if task in done:
+                break
+            await pulse()
+        return await task
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
 
 class VideoJobRequestV1(BaseModel):
@@ -223,7 +245,8 @@ async def execute_video_deliverable(
         f"/workspace/deliverable-job-{job.id}-attempt-{job.attempt_count}"
     )
     output_path = f"{workdir}.mp4"
-    sandbox = await (await get_registry()).get_session(
+    registry = await get_registry()
+    sandbox = await registry.get_session(
         owner,
         job.workspace_id,
         profile=SandboxResourceProfile.VIDEO_RENDER,
@@ -236,6 +259,13 @@ async def execute_video_deliverable(
             phase,
             progress,
             task_id=job.celery_task_id,
+        )
+
+    async def pulse(phase: str, progress: int) -> None:
+        await heartbeat(phase, progress)
+        await registry.keep_alive(
+            owner,
+            profile=SandboxResourceProfile.VIDEO_RENDER,
         )
 
     await heartbeat("preparing", 5)
@@ -277,8 +307,10 @@ async def execute_video_deliverable(
         _timed_tts(sandbox, workdir, project, request, job)
     )
     bundle_task = asyncio.create_task(_timed_bundle(sandbox, workdir, job.id))
-    narration_result, bundle_result = await asyncio.gather(
-        narration_task, bundle_task, return_exceptions=True
+    narration_result, bundle_result = await _await_with_liveness(
+        asyncio.gather(narration_task, bundle_task, return_exceptions=True),
+        pulse=lambda: pulse("preparing_content", 30),
+        interval_seconds=_LIVENESS_INTERVAL_SECONDS,
     )
     if isinstance(narration_result, BaseException):
         raise narration_result
@@ -309,13 +341,17 @@ async def execute_video_deliverable(
             llm, skill=skill, project=project, duration_error=exc
         )
         async with _phase_timing("TTS", job_id=job.id):
-            replacement_audio = await synthesize_narration(
-                replacements,
-                str(workdir),
-                workspace_id=job.workspace_id,
-                thread_id=request.root_thread_id,
-                session=sandbox,
-                language=project.language,
+            replacement_audio = await _await_with_liveness(
+                synthesize_narration(
+                    replacements,
+                    str(workdir),
+                    workspace_id=job.workspace_id,
+                    thread_id=request.root_thread_id,
+                    session=sandbox,
+                    language=project.language,
+                ),
+                pulse=lambda: pulse("repairing_narration", 45),
+                interval_seconds=_LIVENESS_INTERVAL_SECONDS,
             )
         narration = merge_narration_audio(narration, replacement_audio)
         manifest = await _finalize_job_assets(sandbox, workdir, job.id)

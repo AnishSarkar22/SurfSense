@@ -48,6 +48,23 @@ async def test_daytona_session_maps_command_and_binary_file_operations():
     client.delete.assert_called_once_with(sandbox)
 
 
+async def test_keep_alive_resets_daytona_inactivity_timer():
+    sandbox = SimpleNamespace(
+        id="daytona-1",
+        process=SimpleNamespace(
+            exec=Mock(return_value=SimpleNamespace(result="", exit_code=0))
+        ),
+    )
+    session = DaytonaSession(sandbox, SimpleNamespace(delete=Mock()))
+
+    await session.keep_alive()
+
+    sandbox.process.exec.assert_called_once_with(
+        "true",
+        timeout=app_config.SANDBOX_OPERATION_TIMEOUT_SECONDS,
+    )
+
+
 async def test_read_file_maps_missing_file_to_file_not_found():
     """A FILE_NOT_FOUND body must surface as FileNotFoundError, not DaytonaError.
 

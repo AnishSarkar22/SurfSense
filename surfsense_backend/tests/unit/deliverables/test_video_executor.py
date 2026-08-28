@@ -292,6 +292,7 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
     session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
     tts_started = asyncio.Event()
     bundle_started = asyncio.Event()
+    kept_alive = asyncio.Event()
     model_calls: list[type] = []
 
     class Registry:
@@ -299,6 +300,11 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
             assert (owner, workspace_id) == ("deliverable-job-7-attempt-1", 3)
             assert profile is SandboxResourceProfile.VIDEO_RENDER
             return sandbox
+
+        async def keep_alive(self, owner, *, profile):
+            assert owner == "deliverable-job-7-attempt-1"
+            assert profile is SandboxResourceProfile.VIDEO_RENDER
+            kept_alive.set()
 
     async def heartbeat(*_args, **_kwargs):
         return SimpleNamespace(id=7)
@@ -310,6 +316,7 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
     async def tts(*_args, **_kwargs):
         tts_started.set()
         await asyncio.wait_for(bundle_started.wait(), timeout=1)
+        await asyncio.wait_for(kept_alive.wait(), timeout=1)
         return _narration()
 
     async def bundle(*_args, **_kwargs):
@@ -342,6 +349,7 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
         )
 
     monkeypatch.setattr(executor.app_config, "VIDEO_SANDBOX_RENDERING_ENABLED", True)
+    monkeypatch.setattr(executor, "_LIVENESS_INTERVAL_SECONDS", 0.001)
     monkeypatch.setattr(executor, "get_registry", AsyncMock(return_value=Registry()))
     monkeypatch.setattr(executor, "heartbeat_deliverable_job", heartbeat)
     monkeypatch.setattr(executor, "_stage_runtime", AsyncMock())
@@ -371,6 +379,7 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
 
     assert result.cue_count == 1
     assert result.repair_count == 0
+    assert kept_alive.is_set()
     assert model_calls == [CreativeVideoProject]
     assert len(commands) == 2
     assert not hasattr(executor, "get_vision_llm")
@@ -654,3 +663,29 @@ async def test_heartbeat_stops_work_when_cancellation_wins(monkeypatch) -> None:
 
     session.rollback.assert_awaited_once()
     session.commit.assert_not_awaited()
+
+
+async def test_liveness_wait_pulses_and_cleans_up_on_cancellation() -> None:
+    work_cancelled = asyncio.Event()
+    pulses = 0
+
+    async def work():
+        try:
+            await asyncio.Event().wait()
+        finally:
+            work_cancelled.set()
+
+    async def pulse():
+        nonlocal pulses
+        pulses += 1
+        raise executor.DeliverableJobCancellationError
+
+    with pytest.raises(executor.DeliverableJobCancellationError):
+        await executor._await_with_liveness(
+            work(),
+            pulse=pulse,
+            interval_seconds=0.001,
+        )
+
+    assert pulses == 1
+    assert work_cancelled.is_set()

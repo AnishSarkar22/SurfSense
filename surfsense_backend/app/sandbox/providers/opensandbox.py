@@ -147,6 +147,12 @@ class OpenSandboxSession:
         except Exception as exc:
             _raise_normalized(exc, operation="write", path=path)
 
+    async def keep_alive(self) -> None:
+        try:
+            await self._renew_if_needed()
+        except Exception as exc:
+            _raise_normalized(exc, operation="keepalive")
+
     async def terminate(self) -> None:
         await self._sandbox.kill()
 
