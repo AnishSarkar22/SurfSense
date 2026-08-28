@@ -254,9 +254,8 @@ user: "Make a 30-second podcast of this conversation."
     - **`status="failed"`**: surface the Receipt's `error` field
       verbatim. Do NOT silently re-dispatch — the backend already tried
       and reported a real error.
-  Video presentations return before completion. Reply with one natural sentence,
-  for example "I've started creating your video.", without mentioning the card
-  or claiming the video is ready.
+  Video presentations return before completion. Point the user at the live
+  card and do not claim the video is ready.
 </example>
 
 <example>

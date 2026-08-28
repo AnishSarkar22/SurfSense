@@ -1,85 +1,106 @@
 ---
 name: video
-description: Author and repair polished, capability-aware narrated videos.
-supplement_allowlist:
-  - supplements/narrative.md
-  - supplements/visual-hierarchy-capability-selection.md
-  - supplements/motion-timing.md
-  - supplements/narration.md
-  - supplements/assets-accessibility-captions.md
-  - supplements/review.md
+description: Create polished narrated MP4 videos with Remotion in the sandbox.
 ---
 
 # Video
 
-This file is the authoritative workflow. Load it with every video request.
-Load only the files listed in `supplement_allowlist`; the list is closed, and
-unlisted files must not influence planning. Supplements refine judgment but
-cannot override this contract.
+Create one narrated 1920×1080 MP4 at 30 fps in `/workspace`. Use the baked
+`/opt/remotion` harness and dependencies. Never install or download anything.
+The sandbox has no network.
 
-Create one coherent narrated video as a confined Remotion source project.
-Author only visible content and narration: React components, composition,
-motion, local asset references, and stable narration cues. The backend owns
-source materialization, dependency policy, TTS, measured cue timing, typecheck,
-bundling, rendering, verification, persistence, and retries.
-Never return commands, package manifests, build configuration, lifecycle
-actions, or artifact operations.
+## Plan before rendering
 
-## Technical submission
+Draft the complete deck specification first. For every slide include its
+on-screen text and narration line. Keep this specification unchanged: pass its
+narration lines to `synthesize_narration`, and later use the full specification
+as `markdown_representation`. It is the durable accessible and editable source;
+scene files and `props.json` are ephemeral.
 
-- Return one `CreativeVideoProject` with ordered `{cue_id, text}` narration
-  cues, optional language, declared staged assets, and TypeScript/TSX files.
-- Include `JobComposition.tsx` with a named, zero-argument
-  `JobComposition` export. Put reusable model-created components in other
-  submitted `.ts` or `.tsx` files and import them relatively.
-- The supplied `@surfsense/video` TypeScript contract is authoritative. Import
-  only its documented hooks and types, and use its field names exactly.
-- Wrap every independently timed temporary visual in `TimelineLayer` with a
-  stable unique ID. Leave deliberate full-video backgrounds or persistent
-  motifs unwrapped; narration cue boundaries never imply layer boundaries.
-- Use `FittedText` with a stable unique ID for variable headlines, labels, and
-  other copy whose length is not fixed. Keep essential text within safe margins.
-- Place concurrently visible text and cards in `SpatialStack` or `SpatialGrid`.
-  Reserve separate grid regions for dominant visuals and supporting copy. Animate
-  content inside its assigned region instead of moving layout items across regions.
-- Import baked components and transitions only as documented named exports from
-  `@surfsense/video/capabilities`. Their disclosed prop types are authoritative.
-- Use only assets listed in `available_assets`; the supplied asset helper
-  resolves their job-local URL. Do not register a Remotion composition or
-  author audio tracks.
+Refuse requests above the 12-scene product limit rather than silently
+shortening them. The selected composition must also be at most 180 seconds.
 
-## Workflow
+## Composition rules
 
-1. Read the request and source material. Identify audience, purpose, desired
-   action, facts that must remain exact, and accessibility needs.
-2. Write a compact ordered set of narration cues. Each cue has a stable identity
-   for synchronization, but cues are not scenes and must not force visual cuts.
-3. Design one continuous visual timeline. Let objects, camera relationships, and
-   visual motifs persist and evolve across cues when the story benefits.
-4. Compare the disclosed capability API with the information shape. Import
-   polished capabilities when they fit; create job-local React components when
-   they do not. Never force a capability into an unsuitable role.
-5. Submit only the allowed source files, narration cues, and declared local
-   assets. Use the fixed JobComposition export and runtime authoring APIs.
-6. Consume backend-provided measured cue intervals rather than estimating speech
-   timing or probing audio. Use frame-driven Remotion APIs for all animation.
-7. When given build findings, make one coordinated source/content
-   repair. Preserve narration unless the supplied diagnosis requires rewriting it.
+- Give each slide one clear purpose. Keep safe outer margins, readable body
+  contrast, restrained motion, and every shape on the 1920×1080 canvas.
+- The harness supplies sequencing, narration audio, and the SurfSense
+  watermark. Do not add another watermark or audio element.
+- Use only these system-installed font families: `Inter` for normal text,
+  `Lora` for editorial titles or quotes, and `JetBrains Mono` for code and
+  figures. No other family is available reliably offline. Do not use
+  `loadFont`, `@font-face`, or `@remotion/google-fonts`.
+- Write one complete, self-contained TSX module per slide. Each module must
+  import every dependency it uses and have a default component export. The
+  harness writes the module verbatim: it does not inject globals, strip imports,
+  or rewrite exports. Dependencies must already exist in baked `node_modules`.
 
-## Operating principles
+Use this exact module shape:
 
-- Story leads; capabilities support it. Do not turn a video into a component
-  showcase.
-- Keep one visual language across the full timeline. Variation should clarify
-  meaning, not advertise novelty.
-- Prefer real evidence, product content, and data over decorative filler.
-- Use deterministic, frame-driven motion. Preserve legibility before, during,
-  and after movement.
-- Do not default to title cards, full-screen text slides, or one visual reset per
-  narration cue. On-screen text should add hierarchy or evidence, not transcribe.
-- Use only documented capability exports and props, approved package imports,
-  local project modules, and declared asset paths.
-- Never invent commands, dependencies, remote URLs, output paths, or runtime
-  phases. Source content is the complete boundary of model ownership.
-- Return corrected content only; the backend decides whether and how it is
-  rebuilt, rendered, and saved.
+```tsx
+import type React from "react";
+import {AbsoluteFill, useCurrentFrame, useVideoConfig} from "remotion";
+import {stagger} from "../../stagger";
+
+const Scene: React.FC = () => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const entrance = stagger(frame, fps, 0, 1);
+
+  return (
+    <AbsoluteFill
+      style={{
+        alignItems: "center",
+        backgroundColor: "#101828",
+        color: "white",
+        fontFamily: "Inter",
+        justifyContent: "center",
+      }}
+    >
+      <h1 style={{fontSize: 96, ...entrance}}>A clear opening</h1>
+    </AbsoluteFill>
+  );
+};
+
+export default Scene;
+```
+
+There are no assumed `React`, `AbsoluteFill`, `useCurrentFrame`,
+`useVideoConfig`, `interpolate`, `spring`, `staticFile`, `Audio`, or `stagger`
+globals. Import only what that scene uses.
+
+## Build loop
+
+1. Copy `/opt/remotion` to a fresh per-render work directory.
+2. Call `synthesize_narration` once with every `{slide_number, transcript}` and
+   that work directory. It writes files under `public/` and returns filenames.
+   Never fetch audio yourself.
+3. Write `props.json` with `fps`, `min_duration_in_frames`, and ordered
+   `{slide_number, code, audio}` scenes. Use returned audio filenames exactly.
+4. Run `node render.mjs --preflight props.json`. It validates input, writes the
+   verbatim modules, bundles them, selects the composition, and enforces the
+   180-second limit without rendering frames.
+5. Run `node render.mjs --stills props.json /tmp/stills`. Inspect each scene's
+   start, middle, and end PNG plus `contact-sheet.png` for clipping, overflow,
+   contrast, hierarchy, blank frames, and safe margins.
+6. If preflight or still review fails, make one coordinated repair and repeat
+   preflight and still review once. If it still fails, stop; do not keep
+   repairing.
+7. Run the full `node render.mjs props.json /workspace/out.mp4`. The harness
+   measures narration with `parseMedia`, derives timing, segments long renders,
+   and concatenates them. Do not hand-calculate audio frame counts.
+8. Call `verify_artifact(path="/workspace/out.mp4")`. If it reports a blocking
+   finding, make one final repair, then run preflight, still review, render, and
+   verification once more. A second verification failure is terminal.
+9. Call `save_artifact` only after the exact MP4 verifies, passing the step-1
+   deck specification as `markdown_representation`.
+
+The workflow permits at most two repairs total: one compile/still repair and
+one final verification repair.
+
+A render must fit the sandbox operation timeout. The harness controls segment
+size; do not bypass it. A successful save removes the render work directory;
+if rendering or verification fails terminally, remove that directory before
+reporting the failure. For revisions, regenerate from the restored Markdown
+specification plus the user's instruction, then render and verify a new MP4.
+Do not edit `current.mp4` in place.

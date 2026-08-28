@@ -6,11 +6,7 @@ import asyncio
 
 import pytest
 
-from app.sandbox.protocol import (
-    ExecResult,
-    SandboxResourceProfile,
-    SandboxUnavailableError,
-)
+from app.sandbox.protocol import ExecResult, SandboxUnavailableError
 from app.sandbox.registry import SandboxRegistry
 
 
@@ -18,7 +14,6 @@ class FakeSession:
     def __init__(self, thread_id: str) -> None:
         self.session_id = thread_id
         self.terminated = False
-        self.keep_alive_count = 0
 
     async def execute(self, code: str, language: str = "python") -> ExecResult:
         return ExecResult(output="", exit_code=0)
@@ -32,34 +27,21 @@ class FakeSession:
     async def write_file(self, path: str, data: bytes) -> None:
         return None
 
-    async def keep_alive(self) -> None:
-        self.keep_alive_count += 1
-
     async def terminate(self) -> None:
         self.terminated = True
 
 
 class FakeProvider:
     def __init__(self) -> None:
-        self.created: list[tuple[str, SandboxResourceProfile]] = []
-        self.terminated: list[tuple[str, SandboxResourceProfile]] = []
+        self.created: list[str] = []
+        self.terminated: list[str] = []
 
-    async def get_or_create_session(
-        self,
-        thread_id: str,
-        *,
-        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
-    ) -> FakeSession:
-        self.created.append((thread_id, profile))
-        return FakeSession(f"{thread_id}:{profile.value}")
+    async def get_or_create_session(self, thread_id: str) -> FakeSession:
+        self.created.append(thread_id)
+        return FakeSession(thread_id)
 
-    async def terminate_session(
-        self,
-        thread_id: str,
-        *,
-        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
-    ) -> None:
-        self.terminated.append((thread_id, profile))
+    async def terminate_session(self, thread_id: str) -> None:
+        self.terminated.append(thread_id)
 
 
 async def test_disabled_deployment_refuses_before_building_a_provider(monkeypatch):
@@ -83,32 +65,7 @@ async def test_session_is_reused_within_a_thread():
     second = await registry.get_session("t1", "w1")
 
     assert first is second
-    assert provider.created == [("t1", SandboxResourceProfile.DEFAULT)]
-
-
-async def test_same_owner_profiles_are_separate_and_share_workspace_capacity():
-    provider = FakeProvider()
-    registry = SandboxRegistry(provider, max_sessions_per_workspace=2)
-
-    default = await registry.get_session("t1", "w1")
-    video = await registry.get_session(
-        "t1", "w1", profile=SandboxResourceProfile.VIDEO_RENDER
-    )
-
-    assert default is not video
-    assert registry.get_cached("t1") is default
-    assert (
-        registry.get_cached("t1", profile=SandboxResourceProfile.VIDEO_RENDER)
-        is video
-    )
-    with pytest.raises(SandboxUnavailableError):
-        await registry.get_session("t2", "w1")
-
-    await registry.terminate("t1", profile=SandboxResourceProfile.VIDEO_RENDER)
-    assert registry.get_cached("t1") is default
-    assert provider.terminated == [
-        ("t1", SandboxResourceProfile.VIDEO_RENDER)
-    ]
+    assert provider.created == ["t1"]
 
 
 async def test_workspace_cap_rejects_rather_than_queues():
@@ -131,15 +88,10 @@ async def test_workspace_cap_is_atomic_across_concurrent_threads():
             self.started = asyncio.Event()
             self.release = asyncio.Event()
 
-        async def get_or_create_session(
-            self,
-            thread_id: str,
-            *,
-            profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
-        ) -> FakeSession:
+        async def get_or_create_session(self, thread_id: str) -> FakeSession:
             self.started.set()
             await self.release.wait()
-            return await super().get_or_create_session(thread_id, profile=profile)
+            return await super().get_or_create_session(thread_id)
 
     provider = BlockingProvider()
     registry = SandboxRegistry(provider, max_sessions_per_workspace=1)
@@ -169,44 +121,6 @@ async def test_idle_sessions_are_reaped_and_killed():
     assert fresh is not stale
 
 
-async def test_keep_alive_refreshes_registry_activity_without_creating_a_session(
-    monkeypatch,
-):
-    import app.sandbox.registry as registry_module
-
-    now = 0.0
-    monkeypatch.setattr(registry_module.time, "monotonic", lambda: now)
-    provider = FakeProvider()
-    registry = SandboxRegistry(
-        provider,
-        idle_ttl_seconds=10,
-        max_sessions_per_workspace=2,
-    )
-    session = await registry.get_session("t1", "w1")
-
-    now = 9.0
-    await registry.keep_alive("t1")
-    now = 15.0
-    await registry.get_session("t2", "w1")
-
-    assert registry.get_cached("t1") is session
-    assert session.keep_alive_count == 1
-    assert provider.created == [
-        ("t1", SandboxResourceProfile.DEFAULT),
-        ("t2", SandboxResourceProfile.DEFAULT),
-    ]
-
-
-async def test_keep_alive_does_not_create_a_missing_session():
-    provider = FakeProvider()
-    registry = SandboxRegistry(provider)
-
-    with pytest.raises(SandboxUnavailableError, match="No active default sandbox"):
-        await registry.keep_alive("missing")
-
-    assert provider.created == []
-
-
 async def test_evict_forgets_without_killing():
     provider = FakeProvider()
     registry = SandboxRegistry(provider)
@@ -224,4 +138,4 @@ async def test_terminate_is_safe_when_no_session_exists():
 
     await registry.terminate("never-used")
 
-    assert provider.terminated == [("never-used", SandboxResourceProfile.DEFAULT)]
+    assert provider.terminated == ["never-used"]

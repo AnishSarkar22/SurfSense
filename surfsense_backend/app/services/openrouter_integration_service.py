@@ -238,7 +238,6 @@ def _generate_configs(
             # OpenRouter request would otherwise 404 with
             # ``"No endpoints found that support image input"``.
             "supports_image_input": bool(normalized.get("supports_image_input")),
-            "supported_parameters": list(model.get("supported_parameters") or []),
             _OPENROUTER_DYNAMIC_MARKER: True,
             # Auto ranking metadata. ``quality_score`` is initialised
             # to the static score and gets re-blended with health on the next

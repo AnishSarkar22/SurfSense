@@ -8,11 +8,7 @@ import pytest
 from sqlalchemy.dialects import postgresql
 
 from app.db import DeliverableFailureCode, DeliverableJobStatus
-from app.deliverables.jobs.policy import (
-    VIDEO_SPEC,
-    DeliverableKindSpec,
-    get_deliverable_kind_spec,
-)
+from app.deliverables.jobs.policy import VIDEO_SPEC, get_deliverable_kind_spec
 from app.deliverables.jobs.service import (
     cancel_deliverable_job,
     claim_deliverable_job,
@@ -66,24 +62,9 @@ def test_video_policy_is_bounded() -> None:
 
     assert spec is VIDEO_SPEC
     assert spec.max_duration_seconds == 180
-    assert spec.duration_headroom_seconds == 30
-    assert spec.hard_max_duration_seconds == 210
-    assert spec.max_narration_cues == 12
-    assert spec.repair_cycles == 1
+    assert spec.max_scenes == 12
+    assert spec.repair_cycles == 2
     assert 0 < spec.soft_time_limit_seconds < spec.hard_time_limit_seconds
-
-
-def test_duration_headroom_scales_with_the_configured_target() -> None:
-    spec = DeliverableKindSpec(
-        max_duration_seconds=300,
-        duration_headroom_seconds=30,
-        max_narration_cues=12,
-        repair_cycles=2,
-        soft_time_limit_seconds=3600,
-        hard_time_limit_seconds=3900,
-    )
-
-    assert spec.hard_max_duration_seconds == 330
 
 
 async def test_create_is_idempotent_on_workspace_kind_and_tool_call() -> None:

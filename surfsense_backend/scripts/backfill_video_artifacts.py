@@ -4,7 +4,7 @@ Run with --yes after deploying the artifact-aware video code and before the
 migration that drops ``slides`` / ``scene_codes``. Safe to re-run: rows that
 already produced an Artifact are skipped.
 
-Copies legacy ``slides`` and ``scene_codes`` into ``artifact_metadata``,
+Copies the Remotion ``slides`` and ``scene_codes`` into ``artifact_metadata``,
 carries the first offloaded slide audio as the primary file (rows whose audio
 predates the object-store offload get an artifact with no audio, which still
 renders), stamps ``video_presentations.artifact_id``, and repoints the
@@ -187,7 +187,7 @@ async def backfill(*, apply: bool) -> None:
                     )
                 ]
 
-        video_slides = [
+        remotion_slides = [
             {k: v for k, v in s.items() if k not in {"audio_file", "storage_backend"}}
             for s in slides
         ]
@@ -208,7 +208,7 @@ async def backfill(*, apply: bool) -> None:
                 "legacy": {"kind": "video", "id": row.id},
                 "slide_count": len(slides),
                 "scene_code_count": len(scene_codes),
-                "slides": video_slides,
+                "slides": remotion_slides,
                 "scene_codes": scene_codes,
             },
             format=ArtifactFormat.VIDEO,

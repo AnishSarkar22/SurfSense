@@ -1,8 +1,5 @@
-video-runtime/node_modules
-video-runtime/progress.json
-video-runtime/cancel
-video-runtime/bundle
-video-runtime/public/fonts
-video-runtime/src/generated
-video-runtime/generated
-**/*.tmp
+remotion/node_modules
+remotion/progress.json
+remotion/src/scenes/scene-*.tsx
+remotion/fixtures
+remotion/tests

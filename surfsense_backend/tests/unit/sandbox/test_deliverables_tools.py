@@ -111,11 +111,15 @@ async def test_verify_tool_keeps_receipt_preview_path_backend_owned(monkeypatch)
     assert "preview_path" not in result
 
 
-async def test_full_video_render_uses_gate_config(monkeypatch):
+async def test_full_video_render_uses_gate_config_and_records_segments(monkeypatch):
     session = FakeSandboxSession(
-        command_handler=lambda _command: ExecResult("rendered", 0)
+        command_handler=lambda _command: ExecResult(
+            "SURFSENSE_SEGMENT_SECONDS=1.25\nSURFSENSE_SEGMENT_COUNT=2",
+            0,
+        )
     )
     render_duration = []
+    segment_counts = []
     monkeypatch.setattr(
         sandbox_tools.ot_metrics,
         "record_video_admission_wait",
@@ -126,15 +130,21 @@ async def test_full_video_render_uses_gate_config(monkeypatch):
         "record_video_render_duration",
         lambda seconds, **kwargs: render_duration.append((seconds, kwargs)),
     )
+    monkeypatch.setattr(
+        sandbox_tools.ot_metrics,
+        "record_video_segment_count",
+        segment_counts.append,
+    )
 
     result = await sandbox_tools._run_bash(
         session, "node render.mjs props.json /workspace/out.mp4"
     )
 
     assert result.ok
+    assert "VIDEO_SANDBOX_MAX_FRAMES_PER_SEGMENT=" in session.commands[0]
     assert "VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS=" in session.commands[0]
-    assert len(render_duration) == 1
-    assert render_duration[0][1] == {}
+    assert (1.25, {"scope": "segment"}) in render_duration
+    assert segment_counts == [2]
 
 
 def _patch_save_tool(monkeypatch, session: FakeSandboxSession) -> dict:
@@ -239,7 +249,7 @@ async def test_video_save_passes_a_stream_bound_to_receipt(monkeypatch):
     session = _sandbox(
         {
             path: b"large-video-bytes",
-            f"{path}.render.json": (
+            f"{path}.segments.json": (
                 b'{"render_workdir":"/workspace/video-render-1"}'
             ),
         }

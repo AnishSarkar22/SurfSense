@@ -22,12 +22,11 @@ from opensandbox.models import NetworkPolicy, SandboxFilter
 from app.config import config as app_config
 
 from ..file_stream import read_file_stream_via_commands
-from ..protocol import ExecResult, SandboxResourceProfile
+from ..protocol import ExecResult
 
 logger = logging.getLogger(__name__)
 
 THREAD_METADATA_KEY = "surfsense_thread"
-PROFILE_METADATA_KEY = "surfsense_profile"
 
 # OpenSandbox requires the image service entrypoint explicitly; PYTHON_VERSION
 # selects the image's Python runtime (see docker/sandbox/Dockerfile).
@@ -147,12 +146,6 @@ class OpenSandboxSession:
         except Exception as exc:
             _raise_normalized(exc, operation="write", path=path)
 
-    async def keep_alive(self) -> None:
-        try:
-            await self._renew_if_needed()
-        except Exception as exc:
-            _raise_normalized(exc, operation="keepalive")
-
     async def terminate(self) -> None:
         await self._sandbox.kill()
 
@@ -185,44 +178,18 @@ class OpenSandboxProvider:
                 )
             return self._manager
 
-    @staticmethod
-    def _metadata(
-        thread_id: str, profile: SandboxResourceProfile
-    ) -> dict[str, str]:
-        return {
-            THREAD_METADATA_KEY: thread_id,
-            PROFILE_METADATA_KEY: profile.value,
-        }
-
-    @staticmethod
-    def _resources(profile: SandboxResourceProfile) -> dict[str, str]:
-        if profile is SandboxResourceProfile.VIDEO_RENDER:
-            cpu = app_config.VIDEO_SANDBOX_CPU
-            memory_gib = app_config.VIDEO_SANDBOX_MEMORY_GIB
-        else:
-            cpu = app_config.SANDBOX_DEFAULT_CPU
-            memory_gib = app_config.SANDBOX_DEFAULT_MEMORY_GIB
-        return {"cpu": str(cpu), "memory": f"{memory_gib}Gi"}
-
-    async def _find_live(
-        self, thread_id: str, profile: SandboxResourceProfile
-    ) -> str | None:
+    async def _find_live(self, thread_id: str) -> str | None:
         manager = await self._get_manager()
         page = await manager.list_sandbox_infos(
-            SandboxFilter(metadata=self._metadata(thread_id, profile))
+            SandboxFilter(metadata={THREAD_METADATA_KEY: thread_id})
         )
         for info in page.sandbox_infos:
             if info.status.state.upper() in _RUNNING_STATES:
                 return info.id
         return None
 
-    async def get_or_create_session(
-        self,
-        thread_id: str,
-        *,
-        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
-    ) -> OpenSandboxSession:
-        existing = await self._find_live(thread_id, profile)
+    async def get_or_create_session(self, thread_id: str) -> OpenSandboxSession:
+        existing = await self._find_live(thread_id)
         if existing is not None:
             try:
                 sandbox = await Sandbox.connect(
@@ -245,21 +212,16 @@ class OpenSandboxProvider:
             connection_config=self._config,
             entrypoint=_ENTRYPOINT,
             env=_ENV,
-            metadata=self._metadata(thread_id, profile),
+            metadata={THREAD_METADATA_KEY: thread_id},
             network_policy=NetworkPolicy(default_action="deny"),
-            resource=self._resources(profile),
+            resource={"cpu": "1", "memory": "2Gi"},
             timeout=timedelta(seconds=self._ttl),
         )
         logger.info("Created sandbox %s for thread %s", sandbox.id, thread_id)
         return OpenSandboxSession(sandbox, self._ttl)
 
-    async def terminate_session(
-        self,
-        thread_id: str,
-        *,
-        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
-    ) -> None:
-        sandbox_id = await self._find_live(thread_id, profile)
+    async def terminate_session(self, thread_id: str) -> None:
+        sandbox_id = await self._find_live(thread_id)
         if sandbox_id is None:
             return
         manager = await self._get_manager()

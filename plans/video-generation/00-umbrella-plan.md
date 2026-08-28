@@ -1,100 +1,138 @@
-# Capability-aware video artifacts — as built
+# Sandbox-Native Queued Video Generation — As-Built Specification
 
-**Status:** Implemented. This directory documents the running architecture, not a roadmap.
+**Status:** IMPLEMENTED through Phase 6. Phases 7 and 8 remain future work.
+**Scope:** Interactive video requests create durable background jobs. A backend-owned Celery executor authors, narrates, validates, renders, verifies, and stores one MP4 in an isolated sandbox.
 
-## System shape
+This document is the authoritative architecture. Phase documents describe the implemented details and explicitly identify deferred work.
 
-```text
-video request
-  → feature-gated interactive routing
-  → idempotent DeliverableJob
-  → deliverables.execute_queued on the shared Celery worker
-  → attempt-owned network-disabled sandbox
-  → load baked skill + baked capability index
-  → outline → retrieve/disclose → declarative VideoPlan
-  → trusted TTS → measured timeline → VideoRenderInput
-  → preflight → risk stills/contact sheet → optional visual repair
-  → one renderMedia() call → structural/visual verification
-  → receipt-bound streaming Artifact save → DeliverableJob.ready
-  → existing MP4 manifest, Range, player, and download path
-```
-
-The database is lifecycle authority; Celery transports and executes work. Each retry has a distinct task identity, sandbox owner, work directory, and output path. The renderer executes only the static, image-baked `MasterComposition` against strict declarative data.
-
-## Runtime capability set
-
-The generated index currently contains exactly eight stable IDs:
-
-1. `font.inter`
-2. `font.jetbrains-mono`
-3. `font.lora`
-4. `video.component.core.primitives`
-5. `video.renderer.master`
-6. `video.component.animated-bar-chart`
-7. `video.component.blur-out-up`
-8. `video.transition.whip-pan`
-
-This is a curated runtime, not a copy of any live upstream catalog. Only vetted, offline, deterministic, composable atoms with explicit adapters, bounded props, and deterministic fixtures enter the image. Two vendored components and one vendored transition are installed today.
-
-Capability IDs are semantic and stable. `build_id` is the first 20 hex characters of a SHA-256 over the sorted indexed declarations; any indexed contract change produces a new build. Plans, render inputs, renderer registry, render metadata, verifier, and saved artifact metadata carry that build ID and fail closed on mismatch.
-
-## Trust boundaries and invariants
-
-- The sandbox image supplies the skill, supplements, capability metadata, adapters, fonts, bundle, browser, and ffmpeg.
-- The model first authors a compact outline from aggregate kinds, categories, and vibes; the outline prompt does not grow with the catalog. Backend retrieval uses build-generated weighted postings and discloses up to three matches per visual intent plus required core facilities, within a 48-candidate/128 KiB global bound. A second model call may select only disclosed IDs and admitted props.
-- The backend assigns the capability build, validates exact selected-versus-used capability equality, and compiles timing from measured narration.
-- The runtime is fixed at 1920×1080, 30 fps, at most 12 beats, and at most 5,400 frames/180 seconds.
-- Visual repairs are declarative and may not change beat IDs, utterance IDs, narration, or language. At most two pre-render repairs are allowed.
-- Preflight and still review finish before the sole full render. A failed final render or verification fails the attempt; it does not start another full render.
-- Only bytes covered by the signed verification receipt can be persisted.
-- Public state exposes stable lifecycle/failure fields, not provider, sandbox, browser, ffmpeg, path, credential, or stack details.
-
-## Supply chain
-
-`docker/sandbox/video-runtime/scripts/build-capabilities.mjs` validates source declarations and JSON Schemas, resolves co-located component/transition adapters by convention, rejects excluded timeline-owning entries, sorts IDs, generates the searchable index and static TypeScript registries, transpiles the render-input schema, and copies the declared fonts. Loader names and module paths are build-only and are removed from the runtime index. Local output stays under the ignored `video-runtime/generated` directory; image builds write the authoritative index directly to `/opt/surfsense/capabilities/index.json`. `npm run build` then creates the static bundle. The Docker build runs type checks and capability tests before pruning development dependencies.
-
-Capability implementations, declarations, provenance, policy, and attribution live together under `docker/sandbox/video-runtime/src/capabilities`. Refreshing the catalog is an explicit review operation:
-
-1. inspect upstream catalog/docs and license;
-2. choose an atom that satisfies the offline/deterministic/composable policy;
-3. vendor and review its implementation rather than importing a live registry at runtime;
-4. add a bounded declaration beside its convention-named adapter, deterministic fixture, provenance revision, and attribution;
-5. run `npm run generate`, `npm run check`, `npm test`, and `npm run build`;
-6. review the changed index/build ID and run the render smoke/benchmark in the built sandbox.
-
-No refresh step bulk-vendors the upstream catalog.
-
-## Operations
-
-The video-specific operator environment is exactly:
+## 1. As-built architecture
 
 ```text
-VIDEO_SANDBOX_RENDERING_ENABLED=FALSE
-VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS=1
-VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS=7000
+user → main agent → deliverables subagent → enqueue_deliverable_job
+     → DeliverableJob + pending chat card
+     → deliverables.execute_queued on the shared surfsense Celery worker
+     → deterministic backend video executor
+     → attempt-scoped sandbox → author → narrate → preflight/stills
+     → render → verify exact MP4 → stream to Artifact storage
+     → DeliverableJob.ready + artifact_id
+     → existing MP4 card/player/download path
 ```
 
-The feature also requires the existing sandbox configuration and TTS/provider configuration. The frame timeout must be at least 7000 ms; concurrency must be a positive integer. There is no additional video frame-chunk setting.
+| Boundary | Responsibility |
+|---|---|
+| Interactive deliverables subagent | Validate the request, enqueue one idempotent job, and return immediately |
+| Celery task | Claim the current attempt, supervise cancellation, map failures, and own cleanup |
+| Backend video executor | Run the bounded, ordered video pipeline and assign structural fields deterministically |
+| Attempt-owned sandbox | Execute generated TSX, render stills and MP4, and run media checks with network disabled |
+| Browser | Subscribe to safe lifecycle state, issue job-specific Cancel/Retry, and play only the saved MP4 |
 
-The benchmark interface is:
+The queued worker does **not** invoke `run_deliverable_subagent()` in a special mode. It directly invokes `execute_video_deliverable()` from `app/deliverables/video/executor.py`. The shared `celery_worker` handles the task on the default `surfsense` queue; there is no `video_render` queue, service, or image.
 
-```bash
-cd docker/sandbox/video-runtime
-npm run benchmark -- 30 60 180
+## 2. Implemented decisions
+
+- Every request has an independent `DeliverableJob`; kinds share infrastructure, not job instances.
+- Interactive video handling is enqueue-only and never waits for TTS, sandbox work, rendering, or persistence.
+- The database is the lifecycle source of truth. Celery is asynchronous transport and execution.
+- Enqueue commits before broker publication. A periodic reconciler republishes stale queued rows.
+- Task IDs, claims, state changes, sandboxes, workdirs, and output paths are attempt-scoped.
+- Video policy is code-defined: at most 12 scenes, 180 seconds, two repair cycles, and bounded Celery soft/hard limits.
+- Creative content comes from the LLM, while the backend deterministically assigns scene numbers, filenames, ordering, and repair merge rules.
+- Generated scenes are complete TSX modules with explicit imports and default exports. The harness does not rewrite source with regexes.
+- Narration and model calls remain trusted backend operations; the sandbox has no provider credentials or network access.
+- Native Remotion bundling and `selectComposition()` are the compile and metadata preflight.
+- Start/middle/end stills per scene and a contact sheet are reviewed before the final render when a vision model is available.
+- Structural video verification and a SHA-256-bound receipt gate streaming persistence.
+- The existing artifact manifest, HTTP Range, player, viewer, and download paths serve the finished MP4.
+- The rollout flag still selects queued video or the legacy generation path. Legacy removal is deferred to Phase 8.
+
+## 3. Durable lifecycle
+
+```text
+queued → running → ready
+                 ↘ failed
+
+queued → cancelled
+running → cancelling → cancelled
+failed|cancelled → queued  (explicit Retry)
 ```
 
-Arguments are any subset of `30`, `60`, and `180`; omission runs all three. Each fixture emits one JSON record containing fixture/frame count, build ID, catalog-load time, preflight/stills/render wall time and maximum RSS, output bytes, and renderer-receipt render time. No measured timing is asserted in this documentation.
+Important invariants:
 
-The host completed a one-second preflight and single-pass render after installing the rendering browser. Full still/contact-sheet smoke and 30/60/180 benchmarks remain blocked locally by the unavailable Docker daemon and missing host ffmpeg. The production Dockerfile installs both Chrome Headless Shell and ffmpeg, so image-based smoke and benchmark runs remain the authoritative release gate.
+- unique `(workspace_id, kind, tool_call_id)` prevents duplicate jobs from repeated tool execution;
+- a claim is an atomic conditional update bound to the current task attempt;
+- worker heartbeats and terminal transitions can be restricted to the current `celery_task_id`;
+- Retry preserves the job/card ID, increments `attempt_count`, and assigns a new deterministic task ID;
+- public state contains stable failure codes, never provider, Celery, sandbox, Remotion, ffmpeg, path, or stack-trace details;
+- sandbox ownership is `deliverable-job-{job_id}-attempt-{attempt_count}`;
+- queued cancellation completes immediately; running cancellation is observed by a database watcher that cancels work and terminates the attempt sandbox;
+- stale cancelling rows are reconciled; stale running-job reconciliation is not implemented.
 
-## Phase map
+## 4. Pipeline
 
-- [Phase 1](phase-1-sandbox-harness.md): capability build supply chain and static renderer.
-- [Phase 2](phase-2-video-skill.md): skill separation, retrieval, authoring, jobs, and routing.
-- [Phase 3](phase-3-narration-bridge.md): narration, contracts, and deterministic timeline compilation.
-- [Phase 4](phase-4-verification.md): preflight, still review, render metadata, and verification.
-- [Phase 5](phase-5-persistence-and-serving.md): persistence, storage, and Range playback.
-- [Phase 6](phase-6-frontend.md): unchanged frontend delivery contract.
-- [Legacy boundary](legacy-boundary.md): the two separate systems during rollout.
-- [Phase 7](phase-7-migration-backfill.md): production rollout and server-side backfill of stored scene videos into verified MP4 Artifacts.
-- [Phase 8](phase-8-retire-legacy.md): direct removal of the flag-off system after production acceptance.
+The executor advances trusted phases directly:
+
+```text
+preparing → authoring → narrating → preparing
+          → reviewing ↔ repairing
+          → rendering → verifying ↔ repairing
+          → saving → ready
+```
+
+The LLM returns a creative draft. Backend normalization produces the strict authored schema, assigns stable scene numbers and filenames, and preserves scene count and narration during repairs. The executor calls narration, project preparation, still review, verification, and artifact services as Python functions rather than exposing a queued tool allowlist.
+
+The Remotion harness supports:
+
+- `node render.mjs --preflight props.json`;
+- `node render.mjs --stills props.json outdir`;
+- `node render.mjs props.json out.mp4`;
+- exact-input bundle caching;
+- segmented rendering;
+- atomic `progress.json`;
+- a cancel marker and signal handling;
+- partial-output cleanup.
+
+The current worker reports stage-level progress and cancels by terminating the sandbox. It does not consume frame-level `progress.json` or drive the harness cancel marker.
+
+## 5. Persistence and delivery
+
+The verified MP4 is streamed from the sandbox through `ArtifactFileStreamInput`. Storage calculates byte count and SHA-256 while writing and rejects bytes that do not match the verification receipt.
+
+`save_artifact()` currently commits the Artifact before the worker separately marks the job `ready`. Therefore the intended one-transaction Artifact-link/ready transition is **not** implemented; this is a documented hardening gap.
+
+Zero publishes a safe subset of `deliverable_jobs`. The live card shows user-facing queued/running/cancelling/cancelled/failed/ready states without infrastructure terminology or a progress bar. Cancel and Retry use workspace-scoped REST routes and reconcile from Zero. Web requests use the same-origin proxy; desktop requests use the configured backend and bearer token.
+
+## 6. Phase status
+
+| Phase | Status | Outcome |
+|---|---|---|
+| 1 — Sandbox harness | IMPLEMENTED | Remotion image, preflight, stills, rendering, segmentation, progress/cancel primitives |
+| 2 — Video authoring and routing | IMPLEMENTED | Enqueue-only interactive path and deterministic backend executor |
+| 2b — Queued jobs | IMPLEMENTED | Generic lifecycle, shared-worker dispatch, cancellation/retry, APIs, Zero |
+| 3 — Narration | IMPLEMENTED | Worker-owned TTS, measured audio, duration policy |
+| 4 — Verification | IMPLEMENTED | Still review, structural MP4 verification, byte-bound receipt |
+| 5 — Persistence and serving | IMPLEMENTED WITH GAP | Streaming save and HTTP Range; save/ready is not one transaction |
+| 6 — Frontend | IMPLEMENTED | Live job card, actions, library in-flight merge, MP4 handoff |
+| 7 — Migration/backfill | DESIGN | Re-render every legacy video in the server sandbox and replace client-executed scene code with verified MP4 |
+| 8 — Legacy retirement | DESIGN | Remove the old generator, run lifecycle, browser renderer, and stored scene-code execution after Phase 7 |
+
+## 7. Remaining hardening and future work
+
+- Make Artifact creation, job linkage, and `ready` publication atomic or add explicit compensation/reconciliation.
+- Decide whether frame-level render progress should be consumed; the current UI intentionally omits percentages.
+- Add stale-running reconciliation if production evidence requires it.
+- Expand final MP4 visual sampling beyond the current midpoint structural frame check if needed.
+- Evaluate a dedicated resource queue only from measured contention; it is not part of the current architecture.
+- Complete Phase 7 for every legacy video before removing migration inputs or beginning Phase 8.
+- Remove all browser execution of stored video scene code once verified MP4 replacements are complete.
+
+## 8. Acceptance
+
+The implemented path is accepted when:
+
+1. one interactive tool call returns an idempotent pending receipt without waiting;
+2. the shared Celery worker claims the correct attempt and executes the complete backend pipeline;
+3. concurrent and retried jobs use isolated task IDs, sandboxes, workdirs, and output paths;
+4. cancellation stops the current attempt and prevents verify/save;
+5. only receipt-matching MP4 bytes are saved through the generic artifact path;
+6. Zero advances the same card to ready and the existing MP4 player can seek and download;
+7. public lifecycle data remains sanitized and duplicate publication cannot duplicate execution or billing.

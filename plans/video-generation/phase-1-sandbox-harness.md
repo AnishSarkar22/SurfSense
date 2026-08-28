@@ -1,81 +1,107 @@
-# Phase 1 — Capability supply chain and static renderer
+# Phase 1 — Sandbox Remotion harness + Chrome
 
-**Status:** Implemented.
+**Status:** IMPLEMENTED.
+**Parent spec:** [`00-umbrella-plan.md`](00-umbrella-plan.md).
 
-## Image-owned runtime
+## 1. Outcome
 
-`docker/sandbox/Dockerfile` extends the existing code-interpreter image with pinned video-engine and React packages, Chrome Headless Shell, ffmpeg/ffprobe, `/opt/surfsense/video-runtime`, `/opt/surfsense/capabilities/index.json`, the video skill, and three local fonts. The renderer needs no network access and accepts no executable author output.
+The existing `opensandbox/code-interpreter` image now includes an offline Remotion project that converts trusted typed inputs and complete generated TSX scene modules into preflight diagnostics, review stills, and one narrated 1920×1080 MP4.
 
-The Docker build runs:
+The harness is invoked by the backend video executor inside an attempt-owned sandbox. It is not an inline browser renderer and is not driven by a queued subagent.
 
-```text
-npm ci
-npx remotion browser ensure
-npm run check
-npm test
-npm run build
-npm prune --omit=dev
-```
+## 2. Image and project contract
 
-The resulting bundle is static at `/opt/surfsense/video-runtime/bundle`. An attempt copies the baked runtime to its own work directory and stages only job-local public assets and `props.json`.
+`docker/sandbox/Dockerfile` bakes:
 
-## Capability build
+- Node/React/Remotion dependencies from `docker/sandbox/remotion/package.json`;
+- Chrome Headless Shell through Remotion's browser setup;
+- system ffmpeg/ffprobe;
+- the Remotion harness and installed `node_modules`;
+- Inter, Lora, and JetBrains Mono for offline use.
 
-Implementations, source declarations, provenance policy, and attribution live together under `video-runtime/src/capabilities`. `scripts/build-capabilities.mjs`:
+The code-interpreter entrypoint remains unchanged and generated code executes with sandbox networking disabled.
 
-- accepts only `font`, `component`, `transition`, and `renderer`;
-- requires deterministic declarations and unique stable IDs;
-- resolves only convention-named, co-located component and transition adapters;
-- validates every declared props schema and deterministic fixture at image build time;
-- rejects the explicitly excluded timeline-owning entries;
-- produces a sorted index and field-weighted inverted postings;
-- derives a content-addressed 20-character `build_id`;
-- generates lazy loader maps and the trusted-ID registry;
-- generates the JavaScript render-input validator;
-- copies Inter, Lora, and JetBrains Mono into the served assets.
+`docker/sandbox/remotion/src/Root.tsx` registers composition `Main` at 1920×1080 and 30 fps. `calculateMetadata()` probes narration audio, resolves scene durations, and computes the total frame count. `Deck.tsx` sequences each scene with its audio and adds the shared SurfSense icon watermark from `public/icon-128.svg`.
 
-Today the index has eight entries: three fonts, core primitives, the master renderer, two vendored components, and one vendored transition. It is intentionally smaller than the upstream catalog.
+## 3. Scene input and deterministic preparation
 
-## Vetting and refresh
+Every generated scene is a complete module with explicit imports and a default export. The system does not strip imports, promote exports, inject globals, parse source with regexes, or force a fixed slide template.
 
-A catalog refresh is manual and curated. Review upstream behavior and licensing, reject timeline owners/network dependencies/non-deterministic or incompatible atoms, then vendor the chosen source with a convention-named adapter, JSON Schema, deterministic test props, and provenance. Registry wiring, font loading, native-canvas scaling, and agent-hidden module resolution are generated. Run:
+The backend assigns:
 
-```bash
-cd docker/sandbox/video-runtime
-npm run generate
-npm run check
-npm test
-npm run build
-```
+- sequential scene numbers;
+- `scene-NN.tsx` module filenames;
+- corresponding narration filenames;
+- scene order and stable metadata.
 
-Review the generated index and changed build ID. A stable ID must retain its meaning; an incompatible API should receive a new ID. `vendored_revision` records upstream provenance but is not the runtime compatibility key.
+`prepare_video_project()` validates the authored schema and writes `props.json` with `SandboxSession.write_file()`. The current props include each scene's complete source code; `render.mjs` validates the payload and writes those modules into `src/scenes/` before bundling. Generated code is never interpolated through shell commands.
 
-## Render interface
-
-`render.mjs` exposes:
+## 4. Harness commands
 
 ```text
 node render.mjs --preflight props.json
-node render.mjs --stills props.json outdir
+node render.mjs --stills props.json outdir/
 node render.mjs props.json out.mp4
 ```
 
-All modes validate `VideoRenderInput`, index schema/build identity, selected capability membership, composition metadata, 1920×1080 dimensions, 30 fps, and the 180-second ceiling.
+All modes share validation, scene writing, bundling, composition selection, Chrome settings, and exact-input bundle reuse.
 
-`MasterComposition` loads all three fonts, lazily loads selected vetted components, rejects unknown IDs, renders typed core layers and adapted atoms, sequences narration/captions, applies the vetted transition, and adds the watermark. A render-input build mismatch is fatal.
+### Preflight
 
-Stills cover timeline boundaries, beat midpoints, and authored keyframes, then ffmpeg creates a contact sheet. Final rendering uses one `renderMedia()` call with H.264, AAC, `yuv420p`, enforced audio, cancellation support, atomic final rename, and a complete `.render.json` sidecar.
+Preflight:
 
-## Runtime controls and failures
+1. validates props, scene count, and referenced audio;
+2. writes the generated scene modules;
+3. validates modules with esbuild;
+4. bundles the real Remotion project;
+5. runs `selectComposition()` and `calculateMetadata()`;
+6. enforces dimensions, fps, and the selected duration limit;
+7. returns bounded diagnostics.
 
-- `VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS` provides process-host admission slots.
-- `VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS` is passed to still and media rendering and must be at least 7000.
-- `progress.json` is atomically updated; a cancel marker and SIGINT/SIGTERM trigger renderer cancellation.
-- Invalid props, unknown IDs, schema/build drift, missing bundle/browser, metadata mismatch, timeout, cancellation, or render failure stop the attempt.
-- Partial media is removed and never promoted to the final output path.
+### Still review assets
 
-## Evidence
+Stills mode renders start, middle, and end frames for every scene and creates one ffmpeg contact sheet. The backend sends these files to `review_video_stills()` when a vision model is available.
 
-`harness-tests/capabilities.test.mjs` checks index/registry lockstep, excluded entries, trusted declarative input, capability closure, risk-frame selection, font/lazy-loader readiness, deterministic 720p staging, single-pass rendering, and receipt fields. Python capability tests independently parse the generated index with the backend contract.
+### Final rendering
 
-A host-side one-second preflight and single-pass render passed after installing the rendering browser. Full still/contact-sheet smoke and duration benchmarks require the built image here because the host has no ffmpeg and its Docker daemon is unavailable. The Dockerfile installs the browser, ffmpeg, and `time` expected by those checks.
+Full mode renders bounded frame segments and concatenates them into the requested MP4. Temporary output retains an `.mp4` suffix so ffmpeg can select the output format. A `.segments.json` sidecar records expected segment timing for final verification.
+
+## 5. Product and runtime bounds
+
+- maximum 12 scenes;
+- maximum selected duration 180 seconds;
+- exact 180 seconds is valid;
+- `VIDEO_SANDBOX_MAX_FRAMES_PER_SEGMENT` controls segment size;
+- `VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS` controls bounded frame timeout;
+- `VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS` gates concurrent full renders per worker process.
+
+These render settings are existing configuration, while scene count, duration, repair count, and Celery task limits are defined by `DeliverableKindSpec`.
+
+## 6. Ownership, progress, and cancellation
+
+Each attempt uses:
+
+```text
+owner:   deliverable-job-{job_id}-attempt-{attempt_count}
+workdir: /workspace/deliverable-job-{job_id}-attempt-{attempt_count}
+output:  /workspace/deliverable-job-{job_id}-attempt-{attempt_count}.mp4
+```
+
+`render.mjs` atomically writes `progress.json`, supports a cancel marker, reacts to SIGTERM/SIGINT through Remotion cancellation, and removes partial output in cleanup.
+
+The current Celery implementation uses stage-level database heartbeats. Its cancellation watcher cancels the executor task and terminates the attempt sandbox; it does not currently poll `progress.json` or write the harness cancel marker.
+
+The task always attempts sandbox termination in `finally`. Cleanup failures are logged and do not replace the job's lifecycle result.
+
+## 7. Implemented checks
+
+- native bundle and composition preflight;
+- typed scene/project validation;
+- exact-input bundle invalidation;
+- 12-scene and 180-second gates;
+- start/middle/end still generation and contact sheet;
+- segmented MP4 rendering with audio-derived timing;
+- atomic progress snapshots and cancellation primitives;
+- structural verification exercised by the backend pipeline.
+
+Frame-level progress integration and a real-browser cancellation integration test remain optional hardening work; they are not part of the current worker behavior.

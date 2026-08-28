@@ -136,7 +136,6 @@ class DeliverableJobStatus(StrEnum):
 
 class DeliverableFailureCode(StrEnum):
     DURATION_LIMIT = "duration_limit"
-    MODEL_UNSUPPORTED = "model_unsupported"
     QUOTA_EXCEEDED = "quota_exceeded"
     GENERATION_FAILED = "generation_failed"
     RENDER_FAILED = "render_failed"
@@ -1535,7 +1534,7 @@ class Chunk(BaseModel, TimestampMixin):
 class VideoPresentationRun(BaseModel, TimestampMixin):
     """Lifecycle record for one video-presentation generation.
 
-    The delivered result — slides, scene code, and narration — lives in
+    The delivered result — Remotion slides, scene codes, narration — lives in
     the Artifact pointed to by ``artifact_id``. This row tracks only the run:
     its status, and the reason a failed one failed.
     """
@@ -2944,6 +2943,9 @@ from app.etl_pipeline.cache.persistence.models import CachedParse  # noqa: E402,
 from app.file_storage.persistence import DocumentFile  # noqa: E402, F401
 from app.indexing_pipeline.cache.persistence.models import (  # noqa: E402, F401
     CachedEmbeddingSet,
+)
+from app.knowledge_store.remote.persistence.models import (  # noqa: E402, F401
+    WorkspaceGitRemotes,
 )
 from app.notifications.persistence import Notification  # noqa: E402, F401
 from app.podcasts.persistence import (  # noqa: E402, F401

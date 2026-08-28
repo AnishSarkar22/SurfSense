@@ -12,5 +12,3 @@ allowBuilds:
   unrs-resolver: true
 
 minimumReleaseAge: 10080
-minimumReleaseAgeExclude:
-  - "@videojs/*"

@@ -15,15 +15,9 @@ from dataclasses import dataclass, field
 
 from app.config import config as app_config
 
-from .protocol import (
-    SandboxProvider,
-    SandboxResourceProfile,
-    SandboxSession,
-    SandboxUnavailableError,
-)
+from .protocol import SandboxProvider, SandboxSession, SandboxUnavailableError
 
 logger = logging.getLogger(__name__)
-_RegistryKey = tuple[str, SandboxResourceProfile]
 
 
 @dataclass(slots=True)
@@ -54,8 +48,8 @@ class SandboxRegistry:
             if max_sessions_per_workspace is not None
             else app_config.SANDBOX_MAX_SESSIONS_PER_WORKSPACE
         )
-        self._entries: dict[_RegistryKey, _Entry] = {}
-        self._locks: dict[_RegistryKey, asyncio.Lock] = {}
+        self._entries: dict[str, _Entry] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
         self._locks_mu = asyncio.Lock()
         # Capacity is shared across thread locks. Without this lock, two new
         # threads can both observe one free slot and exceed the workspace cap.
@@ -63,12 +57,12 @@ class SandboxRegistry:
         # Fire-and-forget terminations would otherwise be collected mid-flight.
         self._pending: set[asyncio.Task] = set()
 
-    async def _lock_for(self, key: _RegistryKey) -> asyncio.Lock:
+    async def _lock_for(self, thread_id: str) -> asyncio.Lock:
         async with self._locks_mu:
-            lock = self._locks.get(key)
+            lock = self._locks.get(thread_id)
             if lock is None:
                 lock = asyncio.Lock()
-                self._locks[key] = lock
+                self._locks[thread_id] = lock
             return lock
 
     def _detach(self, thread_id: str, session: SandboxSession) -> None:
@@ -95,20 +89,18 @@ class SandboxRegistry:
         is a periodic task started at app startup.
         """
         cutoff = time.monotonic() - self._idle_ttl
-        for key in [
-            identity for identity, entry in self._entries.items() if entry.last_used < cutoff
+        for thread_id in [
+            tid for tid, e in self._entries.items() if e.last_used < cutoff
         ]:
-            entry = self._entries.pop(key)
-            logger.info(
-                "Reaping idle %s sandbox for thread %s", key[1].value, key[0]
-            )
-            self._detach(key[0], entry.session)
+            entry = self._entries.pop(thread_id)
+            logger.info("Reaping idle sandbox for thread %s", thread_id)
+            self._detach(thread_id, entry.session)
 
-    def _check_capacity(self, key: _RegistryKey, workspace_id: str) -> None:
+    def _check_capacity(self, thread_id: str, workspace_id: str) -> None:
         live = sum(
             1
-            for identity, entry in self._entries.items()
-            if entry.workspace_id == workspace_id and identity != key
+            for tid, e in self._entries.items()
+            if e.workspace_id == workspace_id and tid != thread_id
         )
         if live >= self._max_per_workspace:
             raise SandboxUnavailableError(
@@ -117,15 +109,10 @@ class SandboxRegistry:
             )
 
     async def get_session(
-        self,
-        thread_id: int | str,
-        workspace_id: int | str,
-        *,
-        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
+        self, thread_id: int | str, workspace_id: int | str
     ) -> SandboxSession:
         """Return this thread's session, creating one on first use."""
-        owner = str(thread_id)
-        key = (owner, profile)
+        key = str(thread_id)
         workspace_key = str(workspace_id)
         lock = await self._lock_for(key)
 
@@ -140,75 +127,38 @@ class SandboxRegistry:
                 # one waited. Reap and count atomically with session creation.
                 self._reap_idle()
                 self._check_capacity(key, workspace_key)
-                session = await self._provider.get_or_create_session(
-                    owner, profile=profile
-                )
+                session = await self._provider.get_or_create_session(key)
                 self._entries[key] = _Entry(session=session, workspace_id=workspace_key)
                 return session
 
-    async def keep_alive(
-        self,
-        thread_id: int | str,
-        *,
-        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
-    ) -> None:
-        """Refresh an existing registry entry and its provider-side lifetime."""
-        owner = str(thread_id)
-        key = (owner, profile)
-        lock = await self._lock_for(key)
-        async with lock:
-            entry = self._entries.get(key)
-            if entry is None:
-                raise SandboxUnavailableError(
-                    f"No active {profile.value} sandbox for {owner}"
-                )
-            entry.last_used = time.monotonic()
-            await entry.session.keep_alive()
-
-    def get_cached(
-        self,
-        thread_id: int | str,
-        *,
-        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
-    ) -> SandboxSession | None:
+    def get_cached(self, thread_id: int | str) -> SandboxSession | None:
         """Return the thread's live session, or None. Never creates one.
 
         Cleanup paths use this: creating a sandbox to salvage files from a
         sandbox that no longer exists would hand back an empty one.
         """
-        entry = self._entries.get((str(thread_id), profile))
+        entry = self._entries.get(str(thread_id))
         return entry.session if entry is not None else None
 
-    async def evict(
-        self,
-        thread_id: int | str,
-        *,
-        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
-    ) -> None:
+    async def evict(self, thread_id: int | str) -> None:
         """Forget the thread's session without killing the sandbox.
 
         Used by the retry path: the next call re-adopts the live sandbox by
         metadata, or creates a fresh one if it is genuinely gone.
         """
-        key = (str(thread_id), profile)
+        key = str(thread_id)
         lock = await self._lock_for(key)
         async with lock:
             self._entries.pop(key, None)
 
-    async def terminate(
-        self,
-        thread_id: int | str,
-        *,
-        profile: SandboxResourceProfile = SandboxResourceProfile.DEFAULT,
-    ) -> None:
+    async def terminate(self, thread_id: int | str) -> None:
         """Kill the thread's sandbox and forget it. Safe when none exists."""
-        owner = str(thread_id)
-        key = (owner, profile)
+        key = str(thread_id)
         lock = await self._lock_for(key)
         async with lock:
             self._entries.pop(key, None)
             with contextlib.suppress(Exception):
-                await self._provider.terminate_session(owner, profile=profile)
+                await self._provider.terminate_session(key)
 
     async def aclose(self) -> None:
         """Drain background terminations. For tests and shutdown."""

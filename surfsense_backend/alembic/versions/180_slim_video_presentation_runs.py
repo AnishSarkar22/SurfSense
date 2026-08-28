@@ -1,6 +1,6 @@
 """Slim video_presentations into video_presentation_runs and publish to Zero.
 
-The legacy ``slides`` and ``scene_codes`` now live in the delivered
+The Remotion ``slides`` and ``scene_codes`` now live in the delivered
 Artifact's ``artifact_metadata``; the row keeps only the run lifecycle. Run
 ``backfill_video_artifacts.py --yes`` before this so no slides are lost.
 

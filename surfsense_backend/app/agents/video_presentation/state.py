@@ -66,11 +66,11 @@ class SlideAudioResult(BaseModel):
 
 
 class SlideSceneCode(BaseModel):
-    """Generated video component code for a single slide."""
+    """Generated Remotion component code for a single slide."""
 
     slide_number: int
     code: str = Field(
-        ..., description="Raw React video component source code for this slide"
+        ..., description="Raw Remotion React component source code for this slide"
     )
     title: str = Field(..., description="Short title for the composition")
 
@@ -79,7 +79,7 @@ class SlideSceneCode(BaseModel):
 class State:
     """State for the video presentation agent graph.
 
-    Pipeline: parse slides → (TTS audio ∥ theme assignment) → generate video code
+    Pipeline: parse slides → (TTS audio ∥ theme assignment) → generate Remotion code
     The frontend receives the slides + code + audio and handles compilation/rendering.
     """
 

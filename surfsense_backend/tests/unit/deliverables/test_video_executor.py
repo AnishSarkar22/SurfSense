@@ -1,10 +1,3 @@
-from __future__ import annotations
-
-import asyncio
-import hashlib
-import json
-import logging
-from pathlib import PurePosixPath
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -13,17 +6,25 @@ from pydantic import ValidationError
 
 from app.artifacts.service import ArtifactSaved
 from app.deliverables.video import executor
-from app.deliverables.video.contracts import CreativeVideoProject
-from app.deliverables.video.skill import LoadedVideoSkill
-from app.deliverables.video.timeline import NarrationTarget, VideoTimelineDurationError
-from app.sandbox import SandboxResourceProfile
-from app.sandbox.capabilities.schema import (
-    CapabilityEnvelope,
-    CapabilityIndex,
-    CapabilityKind,
-    CapabilityTier,
-)
 from tests.utils.fake_sandbox import FakeSandboxSession
+
+
+def _scene(number: int = 1) -> executor.AuthoredVideoScene:
+    return executor.AuthoredVideoScene(
+        slide_number=number,
+        filename=f"scene-{number}.tsx",
+        on_screen_markdown=f"Scene {number}",
+        transcript=f"Narration {number}",
+        code=(
+            'import React from "react";\n'
+            f"const Scene{number}=()=> <div>{number}</div>;\n"
+            f"export default Scene{number};"
+        ),
+    )
+
+
+def _authored(count: int = 1) -> executor.AuthoredVideo:
+    return executor.AuthoredVideo(scenes=[_scene(i) for i in range(1, count + 1)])
 
 
 def _job(**overrides):
@@ -48,300 +49,160 @@ def _job(**overrides):
     return SimpleNamespace(**values)
 
 
-def _project(
-    *,
-    text: str = "Revenue grew in every region.",
-    source: str | None = None,
-) -> CreativeVideoProject:
-    return CreativeVideoProject.model_validate(
-        {
-            "narration_cues": ({"cue_id": "opening", "text": text},),
-            "language": "en",
-            "source_files": (
-                {
-                    "path": "JobComposition.tsx",
-                    "source": source
-                    or (
-                        'import React from "react";\n'
-                        "export const JobComposition = () => <div>Growth</div>;\n"
-                    ),
-                },
-            ),
-            "assets": (),
-        }
-    )
-
-
-def _skill() -> LoadedVideoSkill:
-    return LoadedVideoSkill(
-        content="Author a complete CreativeVideoProject.",
-        authoring_contract="export type NarrationCueState = { cueId: string };",
-    )
-
-
-def _capability(capability_id: str, kind: CapabilityKind) -> CapabilityEnvelope:
-    return CapabilityEnvelope(
-        id=capability_id,
-        kind=kind,
-        domain="video",
-        category="core",
-        summary=capability_id,
-        tags=("core",),
-        tier=CapabilityTier.CORE,
-        declaration=(
-            {"public_export": "AnimatedBarChart"}
-            if kind is CapabilityKind.COMPONENT
-            else {}
-        ),
-        search_text=f"{capability_id} core",
-    )
-
-
-def _index() -> CapabilityIndex:
-    return CapabilityIndex(
-        schema_version=1,
-        build_id="build-12345678",
-        runtime_build_id="runtime-123",
-        capabilities=(
-            _capability("video.renderer.master", CapabilityKind.RENDERER),
-            _capability(
-                "video.component.animated-bar-chart", CapabilityKind.COMPONENT
-            ),
-            _capability("font.inter", CapabilityKind.FONT),
-        ),
-    )
-
-
-def _manifest() -> dict:
-    return {
-        "schema_version": 1,
-        "source_sha256": "1" * 64,
-        "bundle_sha256": "2" * 64,
-        "runtime_build_id": "runtime-123",
-        "capability_build_id": _index().build_id,
-        "imported_capability_ids": ["video.component.animated-bar-chart"],
-    }
-
-
-def _narration(duration: float = 1.0):
-    return [
-        {
-            "cue_id": "opening",
-            "audio": "narration-opening.wav",
-            "duration_seconds": duration,
-        }
-    ]
-
-
-def test_request_and_model_contract_exclude_operational_fields() -> None:
+def test_video_request_is_strict_and_bound_to_a_root_thread() -> None:
     request = executor.VideoJobRequestV1.model_validate(_job().request)
     assert request.root_thread_id == 11
+
     with pytest.raises(ValidationError):
         executor.VideoJobRequestV1.model_validate({**_job().request, "version": 2})
     with pytest.raises(ValidationError):
         executor.VideoJobRequestV1.model_validate(
             {**_job().request, "revision_artifact_id": True}
         )
-
-    fields = set(CreativeVideoProject.model_fields)
-    assert fields == {"narration_cues", "language", "source_files", "assets"}
-    forbidden = {
-        "outline",
-        "beats",
-        "commands",
-        "phases",
-        "capability_slots",
-        "compiler",
-        "render",
-    }
-    assert forbidden.isdisjoint(fields)
-    assert not hasattr(executor, "compile_video_plan")
     with pytest.raises(ValidationError):
-        CreativeVideoProject.model_validate(
-            {**_project().model_dump(), "commands": ["npm install"]}
-        )
-    with pytest.raises(ValidationError, match="TypeScript or TSX"):
-        CreativeVideoProject.model_validate(
+        executor.VideoJobRequestV1.model_validate(
             {
-                **_project().model_dump(),
-                "source_files": (
-                    {"path": "JobComposition.tsx", "source": "export const x = 1;"},
-                    {"path": "package.json", "source": "{}"},
-                ),
+                **_job().request,
+                "source_references": ["source"] * 26,
             }
         )
 
 
-def test_disclosure_exposes_selected_public_catalog_with_import_names() -> None:
-    disclosure = executor.build_public_capability_catalog(
-        _index(),
-        selected_ids=(
-            "video.component.animated-bar-chart",
-            "font.inter",
-        ),
-    )
-
-    assert disclosure["build_id"] == _index().build_id
-    assert disclosure["module"] == "@surfsense/video/capabilities"
-    assert [item["id"] for item in disclosure["capabilities"]] == [
-        "video.component.animated-bar-chart",
-        "font.inter",
-    ]
-    assert disclosure["capabilities"][0]["export_name"] == "AnimatedBarChart"
-    assert disclosure["capabilities"][1]["export_name"] is None
+def test_authored_video_enforces_twelve_scene_limit() -> None:
+    assert len(_authored(12).scenes) == 12
+    with pytest.raises(ValidationError, match="at most 12"):
+        _authored(13)
 
 
-async def test_structured_invocation_uses_billing_compatible_native_schema() -> None:
-    captured = {}
-
-    class StructuredLLM:
-        async def ainvoke(self, messages):
-            captured["messages"] = messages
-            return _project().model_dump(mode="json")
-
-    class LLM:
-        def with_structured_output(self, schema, **kwargs):
-            captured["schema"] = schema
-            captured["kwargs"] = kwargs
-            return StructuredLLM()
-
-    project = await executor._invoke_structured(
-        LLM(),
-        skill=_skill(),
-        payload={"brief": "Explain growth"},
-        model=CreativeVideoProject,
-        call_kind="initial_content",
-    )
-
-    prompt = json.loads(captured["messages"][-1].content)
-    assert project == _project()
-    assert captured["schema"]["type"] == "object"
-    assert captured["kwargs"] == {"method": "json_schema", "strict": True}
-    assert _skill().authoring_contract in captured["messages"][1].content
-    assert "output_schema" not in prompt
-    assert "response_instruction" not in prompt
-
-
-async def test_authoring_contract_is_sent_only_to_source_generating_calls() -> None:
-    captured: list[list] = []
-
-    class StructuredLLM:
-        async def ainvoke(self, messages):
-            captured.append(messages)
-            return _project().model_dump(mode="json")
-
-    class LLM:
-        def with_structured_output(self, _schema, **_kwargs):
-            return StructuredLLM()
-
-    for call_kind in ("source_repair", "narration_repair"):
-        await executor._invoke_structured(
-            LLM(),
-            skill=_skill(),
-            payload={"diagnostics": []},
-            model=CreativeVideoProject,
-            call_kind=call_kind,
-        )
-
-    assert _skill().authoring_contract in captured[0][1].content
-    assert len(captured[0]) == 3
-    assert len(captured[1]) == 2
-    assert all(
-        _skill().authoring_contract not in message.content for message in captured[1]
-    )
-
-
-async def test_materialization_confines_model_source_and_commands() -> None:
-    sandbox = FakeSandboxSession()
-    workdir = PurePosixPath("/workspace/deliverable-job-7-attempt-1")
-    source = '"; touch /tmp/model-command; echo "'
-
-    await executor._materialize_project(
-        sandbox, workdir, _project(source=source)
-    )
-
-    assert sandbox.writes == {
-        f"{workdir}/source/JobComposition.tsx": source.encode()
-    }
-    assert len(sandbox.commands) == 1
-    assert source not in sandbox.commands[0]
-    assert "/tmp/model-command" not in sandbox.commands[0]
-    assert all(path.startswith(f"{workdir}/source/") for path in sandbox.writes)
-
-
-async def test_materialization_rejects_unstaged_assets_before_writing() -> None:
-    sandbox = FakeSandboxSession()
-    project = CreativeVideoProject.model_validate(
+def test_creative_draft_is_normalized_to_backend_owned_scene_identity() -> None:
+    draft = executor._CreativeVideoDraft.model_validate(
         {
-            **_project().model_dump(),
-            "assets": (
-                {"id": "remote", "path": "assets/remote.png", "kind": "image"},
-            ),
+            "title": "Ignored model title",
+            "durationSec": 30,
+            "language": "en",
+            "scenes": [
+                {
+                    "id": "opening",
+                    "durationSec": 10,
+                    "narration": "Opening narration",
+                    "onScreenMarkdown": "# Opening",
+                    "tsx": "export default () => <div>Opening</div>;",
+                },
+                {
+                    "id": "ending",
+                    "narration": "Ending narration",
+                    "onScreenMarkdown": "# Ending",
+                    "tsx_module": "export default () => <div>Ending</div>;",
+                },
+            ],
         }
     )
 
-    with pytest.raises(ValueError, match="was not staged"):
-        await executor._materialize_project(
-            sandbox,
-            PurePosixPath("/workspace/deliverable-job-7-attempt-1"),
-            project,
-        )
+    authored = executor._normalize_creative_video(draft)
 
-    assert sandbox.commands == []
-    assert sandbox.writes == {}
+    assert authored.language == "en"
+    assert [(scene.slide_number, scene.filename) for scene in authored.scenes] == [
+        (1, "scene-01.tsx"),
+        (2, "scene-02.tsx"),
+    ]
+    assert authored.scenes[0].transcript == "Opening narration"
+    assert authored.scenes[0].on_screen_markdown == "# Opening"
+    assert authored.scenes[0].code == "export default () => <div>Opening</div>;"
 
 
-async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
-    monkeypatch,
-) -> None:
+def test_video_repair_preserves_identity_narration_and_language() -> None:
+    authored = executor.AuthoredVideo(language="en", scenes=[_scene(1), _scene(2)])
+    repair = executor._VideoRepairDraft.model_validate(
+        {
+            "language": "fr",
+            "scenes": [
+                {
+                    "slide_number": 9,
+                    "filename": "changed.tsx",
+                    "narration": "Changed narration",
+                    "onScreenMarkdown": "Repaired one",
+                    "tsx": "export default () => <div>Repaired one</div>;",
+                },
+                {
+                    "on_screen_markdown": "Repaired two",
+                    "code": "export default () => <div>Repaired two</div>;",
+                },
+            ],
+        }
+    )
+
+    repaired = executor._merge_video_repair(authored, repair)
+
+    assert repaired.language == "en"
+    assert [
+        (scene.slide_number, scene.filename, scene.transcript)
+        for scene in repaired.scenes
+    ] == [
+        (scene.slide_number, scene.filename, scene.transcript)
+        for scene in authored.scenes
+    ]
+    assert [scene.on_screen_markdown for scene in repaired.scenes] == [
+        "Repaired one",
+        "Repaired two",
+    ]
+    assert repaired.scenes[0].code == ("export default () => <div>Repaired one</div>;")
+
+
+def test_video_repair_rejects_changed_scene_count() -> None:
+    repair = executor._VideoRepairDraft.model_validate(
+        {
+            "scenes": [
+                {
+                    "on_screen_markdown": "Only one",
+                    "code": "export default () => <div>Only one</div>;",
+                }
+            ]
+        }
+    )
+
+    with pytest.raises(ValueError, match="changed scene count"):
+        executor._merge_video_repair(_authored(2), repair)
+
+
+async def test_executor_runs_explicit_stages_and_owns_sandbox(monkeypatch) -> None:
+    stages: list[str] = []
+    heartbeats: list[tuple[str, int]] = []
     sandbox = FakeSandboxSession()
     session = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
-    tts_started = asyncio.Event()
-    bundle_started = asyncio.Event()
-    kept_alive = asyncio.Event()
-    model_calls: list[type] = []
 
     class Registry:
-        async def get_session(self, owner, workspace_id, *, profile):
-            assert (owner, workspace_id) == ("deliverable-job-7-attempt-1", 3)
-            assert profile is SandboxResourceProfile.VIDEO_RENDER
+        async def get_session(self, owner_id, workspace_id):
+            assert (owner_id, workspace_id) == ("deliverable-job-7-attempt-1", 3)
             return sandbox
 
-        async def keep_alive(self, owner, *, profile):
-            assert owner == "deliverable-job-7-attempt-1"
-            assert profile is SandboxResourceProfile.VIDEO_RENDER
-            kept_alive.set()
+    async def get_registry():
+        return Registry()
 
-    async def heartbeat(*_args, **_kwargs):
-        return SimpleNamespace(id=7)
+    async def author(*_args):
+        stages.append("author")
+        return _authored()
 
-    async def model_call(*_args, **kwargs):
-        model_calls.append(kwargs["model"])
-        return _project()
+    async def narration(*_args, **_kwargs):
+        stages.append("narration")
+        return [{"slide_number": 1, "audio": "slide-1.wav", "duration_seconds": 5}]
 
-    async def tts(*_args, **_kwargs):
-        tts_started.set()
-        await asyncio.wait_for(bundle_started.wait(), timeout=1)
-        await asyncio.wait_for(kept_alive.wait(), timeout=1)
-        return _narration()
+    async def prepare(*_args, **_kwargs):
+        stages.append("prepare")
+        return {"props_path": "/workspace/deliverable-job-7/props.json"}
 
-    async def bundle(*_args, **_kwargs):
-        bundle_started.set()
-        await asyncio.wait_for(tts_started.wait(), timeout=1)
-        return _manifest()
+    async def preflight(*_args, **_kwargs):
+        stages.extend(("preflight", "stills", "review"))
+        return None
 
-    render_input = executor._trusted_render_input(
-        _project(),
-        _narration(),
-        index=_index(),
-        manifest=_manifest(),
-    )
-    commands: list[str] = []
+    async def render(*_args, **_kwargs):
+        stages.append("render")
 
-    async def render(_sandbox, workdir, props_path, output_path):
-        commands.append(executor._render_command(workdir, props_path, output_path))
+    async def verify(*_args, **_kwargs):
+        stages.append("verify")
+        return SimpleNamespace(verified=True, findings=())
 
     async def save(*_args, **_kwargs):
+        stages.append("save")
         return ArtifactSaved(
             status="saved",
             artifact_id=19,
@@ -350,271 +211,137 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
             files=[],
         )
 
-    monkeypatch.setattr(executor.app_config, "VIDEO_SANDBOX_RENDERING_ENABLED", True)
-    monkeypatch.setattr(executor, "_LIVENESS_INTERVAL_SECONDS", 0.001)
-    monkeypatch.setattr(executor, "get_registry", AsyncMock(return_value=Registry()))
+    async def vision(*_args, **_kwargs):
+        return None
+
+    async def heartbeat(_session, job_id, *, phase, progress, task_id):
+        assert job_id == 7
+        assert task_id == "deliverable-job:7:attempt:1"
+        heartbeats.append((phase, progress))
+        return SimpleNamespace(id=job_id)
+
+    monkeypatch.setattr(executor, "get_registry", get_registry)
     monkeypatch.setattr(executor, "heartbeat_deliverable_job", heartbeat)
-    monkeypatch.setattr(executor, "_stage_runtime", AsyncMock())
-    monkeypatch.setattr(executor, "load_video_skill", AsyncMock(return_value=_skill()))
-    monkeypatch.setattr(
-        executor, "load_capability_index", AsyncMock(return_value=_index())
-    )
-    monkeypatch.setattr(executor, "_invoke_structured", model_call)
-    monkeypatch.setattr(executor, "_materialize_project", AsyncMock())
-    monkeypatch.setattr(executor, "_timed_tts", tts)
-    monkeypatch.setattr(executor, "_timed_bundle", bundle)
-    monkeypatch.setattr(
-        executor, "_finalize_job_assets", AsyncMock(return_value=_manifest())
-    )
-    monkeypatch.setattr(executor, "_trusted_render_input", lambda *_a, **_k: render_input)
+    monkeypatch.setattr(executor, "_author_video", author)
+    monkeypatch.setattr(executor, "synthesize_narration", narration)
+    monkeypatch.setattr(executor, "prepare_video_project", prepare)
+    monkeypatch.setattr(executor, "_preflight_and_review", preflight)
     monkeypatch.setattr(executor, "_render", render)
-    monkeypatch.setattr(
-        executor,
-        "verify_artifact",
-        AsyncMock(return_value=SimpleNamespace(verified=True, findings=())),
-    )
+    monkeypatch.setattr(executor, "verify_artifact", verify)
     monkeypatch.setattr(executor, "_save_verified", save)
-    monkeypatch.setattr(executor, "_cleanup_attempt", AsyncMock())
+    monkeypatch.setattr(executor, "get_vision_llm", vision)
 
     result = await executor.execute_video_deliverable(session, _job(), object())
 
-    assert result.cue_count == 1
-    assert result.repair_count == 0
-    assert kept_alive.is_set()
-    assert model_calls == [CreativeVideoProject]
-    assert len(commands) == 1
-    assert not hasattr(executor, "get_vision_llm")
-    assert all("--stills" not in command for command in commands)
-    assert all(
-        "--job-dir /workspace/deliverable-job-7-attempt-1/job" in command
-        for command in commands
-    )
-    assert not any("bundle-job" in command for command in commands)
-
-
-async def test_narration_repair_changes_text_only_and_resynthesizes_changed_cues(
-    monkeypatch,
-) -> None:
-    rewrite = executor.NarrationRewrite.model_validate(
-        {"cues": ({"cue_id": "opening", "text": "Growth continued very strongly."},)}
-    )
-    invoke = AsyncMock(return_value=rewrite)
-    monkeypatch.setattr(executor, "_invoke_structured", invoke)
-
-    repaired, requests = await executor._request_narration_repair(
-        object(),
-        skill=_skill(),
-        project=_project(),
-        duration_error=VideoTimelineDurationError(
-            compiled_frames=6000,
-            suggested_narration_targets=(
-                NarrationTarget(
-                    cue_id="opening",
-                    target_seconds=2,
-                    target_words=3,
-                ),
-            ),
-        ),
-    )
-
-    assert repaired.narration_cues[0].cue_id == "opening"
-    assert repaired.narration_cues[0].text == "Growth continued very strongly."
-    assert repaired.source_files == _project().source_files
-    assert repaired.language == _project().language
-    assert requests == [
-        {
-            "cue_id": "opening",
-            "transcript": "Growth continued very strongly.",
-        }
+    assert stages == [
+        "author",
+        "narration",
+        "prepare",
+        "preflight",
+        "stills",
+        "review",
+        "render",
+        "verify",
+        "save",
     ]
-    assert invoke.await_args.kwargs["model"] is executor.NarrationRewrite
-    assert invoke.await_args.kwargs["payload"]["targets"] == [
-        {
-            "cue_id": "opening",
-            "target_seconds": 2,
-            "target_words": 3,
-        }
+    assert heartbeats == [
+        ("preparing", 5),
+        ("authoring", 10),
+        ("narrating", 25),
+        ("preparing", 40),
+        ("reviewing", 50),
+        ("rendering", 65),
+        ("verifying", 85),
+        ("saving", 95),
     ]
-    assert (
-        "measured audio duration determines acceptance"
-        in invoke.await_args.kwargs["payload"]["instructions"]
-    )
+    assert all(0 <= progress < 100 for _, progress in heartbeats)
+    assert session.commit.await_count == len(heartbeats)
+    assert result.artifact_id == 19
+    assert result.duration_seconds == 5
 
 
-async def test_source_repair_protects_cue_identity_text_and_language(
-    monkeypatch,
-) -> None:
-    changed = _project(text="Changed narration.")
-    monkeypatch.setattr(executor, "_invoke_structured", AsyncMock(return_value=changed))
+async def test_executor_rejects_duration_above_180_seconds(monkeypatch) -> None:
+    sandbox = FakeSandboxSession()
 
-    with pytest.raises(ValueError, match="protected cue"):
-        await executor._repair_project(
-            object(),
-            skill=_skill(),
-            project=_project(),
-            findings="TypeScript compilation failed",
-        )
+    class Registry:
+        async def get_session(self, *_args):
+            return sandbox
 
+    async def get_registry():
+        return Registry()
 
-def test_backend_commands_are_fixed_and_render_uses_prepared_job(monkeypatch) -> None:
-    workdir = PurePosixPath("/workspace/deliverable-job-7-attempt-1")
-    monkeypatch.setattr(executor.app_config, "VIDEO_SANDBOX_FRAME_CONCURRENCY", 2)
+    async def author(*_args):
+        return _authored()
 
-    assert executor._bundle_command(workdir) == (
-        "cd -- /workspace/deliverable-job-7-attempt-1 && "
-        "node scripts/bundle-job.mjs "
-        "--source-dir /workspace/deliverable-job-7-attempt-1/source "
-        "--out-dir /workspace/deliverable-job-7-attempt-1/job"
-    )
-    assert executor._finalize_command(workdir) == (
-        "cd -- /workspace/deliverable-job-7-attempt-1 && "
-        "node scripts/finalize-job.mjs "
-        "--job-dir /workspace/deliverable-job-7-attempt-1/job "
-        "--public-dir /workspace/deliverable-job-7-attempt-1/public"
-    )
-    assert executor._render_command(
-        workdir, workdir / "props.json", "/workspace/video.mp4"
-    ) == (
-        "cd -- /workspace/deliverable-job-7-attempt-1 && "
-        "VIDEO_SANDBOX_FRAME_CONCURRENCY=2 node render.mjs "
-        "--job-dir /workspace/deliverable-job-7-attempt-1/job "
-        "/workspace/deliverable-job-7-attempt-1/props.json /workspace/video.mp4"
-    )
+    async def narration(*_args, **_kwargs):
+        return [{"slide_number": 1, "audio": "slide-1.wav", "duration_seconds": 180.1}]
+
+    async def heartbeat(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(executor, "get_registry", get_registry)
+    monkeypatch.setattr(executor, "_heartbeat", heartbeat)
+    monkeypatch.setattr(executor, "_author_video", author)
+    monkeypatch.setattr(executor, "synthesize_narration", narration)
+
+    with pytest.raises(ValueError, match="180-second"):
+        await executor.execute_video_deliverable(object(), _job(), object())
 
 
-async def test_phase_timings_are_structured(caplog, monkeypatch) -> None:
-    recorded = []
-    monkeypatch.setattr(
-        executor.ot_metrics,
-        "record_perf_elapsed",
-        lambda duration_ms, *, label: recorded.append((duration_ms, label)),
-    )
-    caplog.set_level(logging.INFO, logger=executor.__name__)
-    async with executor._phase_timing("authoring", job_id=7):
-        await asyncio.sleep(0)
+async def test_executor_stops_after_two_repairs(monkeypatch) -> None:
+    sandbox = FakeSandboxSession()
+    repairs = 0
+    progress_updates = []
+    preflights = iter(("compile failed", None, None))
 
-    record = next(
-        record for record in caplog.records if record.msg == "video_executor_phase"
-    )
-    assert record.video_phase == "authoring"
-    assert record.video_job_id == 7
-    assert record.video_phase_status == "ok"
-    assert record.elapsed_seconds >= 0
-    assert recorded[0][0] >= 0
-    assert recorded[0][1] == "video_executor.authoring"
+    class Registry:
+        async def get_session(self, *_args):
+            return sandbox
 
+    async def get_registry():
+        return Registry()
 
-async def test_revision_save_checks_receipt_hashes_and_persists_provenance(
-    monkeypatch,
-) -> None:
-    project = _project()
-    manifest = _manifest()
-    render_input = executor._trusted_render_input(
-        project,
-        _narration(),
-        index=_index(),
-        manifest=manifest,
-    )
-    output_path = "/workspace/deliverable-job-7-attempt-1.mp4"
-    render_receipt = {
-        "schema_version": 1,
-        "build_id": _index().build_id,
-        "capability_build_id": _index().build_id,
-        "runtime_build_id": _index().runtime_build_id,
-        "input_sha256": hashlib.sha256(
-            (
-                render_input.model_dump_json(by_alias=True, exclude_none=True) + "\n"
-            ).encode()
-        ).hexdigest(),
-        "expected_frame_count": render_input.duration_in_frames,
-        "expected_duration_seconds": (
-            render_input.duration_in_frames / render_input.fps
-        ),
-        "source_sha256": manifest["source_sha256"],
-        "bundle_sha256": manifest["bundle_sha256"],
-        "selected_capability_ids": list(render_input.selected_capability_ids),
-        "imported_capability_ids": manifest["imported_capability_ids"],
-        "sample_frames": [
-            sample.model_dump(mode="json") for sample in render_input.sample_frames
-        ],
-    }
-    sandbox = FakeSandboxSession(
-        {
-            output_path: b"mp4",
-            f"{output_path}.render.json": json.dumps(render_receipt).encode(),
-        }
-    )
-    session = SimpleNamespace(
-        scalar=AsyncMock(return_value=SimpleNamespace(generation=4))
-    )
-    saved_kwargs = {}
+    async def author(*_args):
+        return _authored()
 
-    async def save(_session, **kwargs):
-        saved_kwargs.update(kwargs)
-        return ArtifactSaved(
-            status="saved",
-            artifact_id=22,
-            generation=5,
-            title="Quarterly update",
-            files=[],
-        )
+    async def narration(*_args, **_kwargs):
+        return [{"slide_number": 1, "audio": "slide-1.wav", "duration_seconds": 5}]
 
-    monkeypatch.setattr(
-        executor,
-        "read_receipt",
-        AsyncMock(
-            return_value=SimpleNamespace(
-                format="video",
-                primary_path=output_path,
-                primary_sha256="b" * 64,
-                visual="clean",
-                unavailable_reason=None,
-            )
-        ),
-    )
-    monkeypatch.setattr(executor, "save_artifact", save)
-    request = executor.VideoJobRequestV1.model_validate(
-        {**_job().request, "revision_artifact_id": 22}
-    )
+    async def prepare(*_args, **_kwargs):
+        return {"props_path": "/workspace/deliverable-job-7/props.json"}
 
-    await executor._save_verified(
-        session,
-        sandbox,
-        job=_job(),
-        request=request,
-        project=project,
-        render_input=render_input,
-        index=_index(),
-        manifest=manifest,
-        output_path=output_path,
-    )
+    async def preflight(*_args, **_kwargs):
+        return next(preflights)
 
-    assert saved_kwargs["artifact_id"] == 22
-    assert saved_kwargs["expected_generation"] == 4
-    assert saved_kwargs["files"][0].expected_sha256 == "b" * 64
-    runtime = saved_kwargs["extra_metadata"]["video_runtime"]
-    assert runtime["cue_ids"] == ["opening"]
-    assert runtime["source_files"] == ["JobComposition.tsx"]
-    assert runtime["source_sha256"] == "1" * 64
-    assert runtime["bundle_sha256"] == "2" * 64
-    assert runtime["imported_capability_ids"] == [
-        "video.component.animated-bar-chart"
-    ]
+    async def repair(_llm, authored, _finding):
+        nonlocal repairs
+        repairs += 1
+        return authored
 
+    async def noop(*_args, **_kwargs):
+        return None
 
-async def test_disabled_executor_stops_before_sandbox_or_model_work(
-    monkeypatch,
-) -> None:
-    registry = AsyncMock()
-    model = AsyncMock()
-    monkeypatch.setattr(executor.app_config, "VIDEO_SANDBOX_RENDERING_ENABLED", False)
-    monkeypatch.setattr(executor, "get_registry", registry)
+    async def failed_verify(*_args, **_kwargs):
+        return SimpleNamespace(verified=False, findings=("bad frame",))
 
-    with pytest.raises(RuntimeError, match="disabled"):
-        await executor.execute_video_deliverable(SimpleNamespace(), _job(), model)
+    async def heartbeat(_session, _job_id, _phase, progress, **_kwargs):
+        progress_updates.append(progress)
 
-    registry.assert_not_awaited()
-    model.assert_not_awaited()
+    monkeypatch.setattr(executor, "get_registry", get_registry)
+    monkeypatch.setattr(executor, "_heartbeat", heartbeat)
+    monkeypatch.setattr(executor, "_author_video", author)
+    monkeypatch.setattr(executor, "synthesize_narration", narration)
+    monkeypatch.setattr(executor, "prepare_video_project", prepare)
+    monkeypatch.setattr(executor, "_preflight_and_review", preflight)
+    monkeypatch.setattr(executor, "_repair_video", repair)
+    monkeypatch.setattr(executor, "_render", noop)
+    monkeypatch.setattr(executor, "verify_artifact", failed_verify)
+    monkeypatch.setattr(executor, "get_vision_llm", noop)
+
+    with pytest.raises(RuntimeError, match="verification failed"):
+        await executor.execute_video_deliverable(object(), _job(), object())
+    assert repairs == 2
+    assert progress_updates == sorted(progress_updates)
 
 
 async def test_heartbeat_stops_work_when_cancellation_wins(monkeypatch) -> None:
@@ -626,33 +353,32 @@ async def test_heartbeat_stops_work_when_cancellation_wins(monkeypatch) -> None:
     )
 
     with pytest.raises(executor.DeliverableJobCancellationError):
-        await executor._heartbeat(session, 7, "rendering", 80)
+        await executor._heartbeat(session, 7, "rendering", 65)
 
     session.rollback.assert_awaited_once()
     session.commit.assert_not_awaited()
 
 
-async def test_liveness_wait_pulses_and_cleans_up_on_cancellation() -> None:
-    work_cancelled = asyncio.Event()
-    pulses = 0
+async def test_save_requires_current_verification_receipt(monkeypatch) -> None:
+    saved = False
 
-    async def work():
-        try:
-            await asyncio.Event().wait()
-        finally:
-            work_cancelled.set()
+    async def missing_receipt(*_args, **_kwargs):
+        raise ValueError("Verify this file again before presenting it")
 
-    async def pulse():
-        nonlocal pulses
-        pulses += 1
-        raise executor.DeliverableJobCancellationError
+    async def save(*_args, **_kwargs):
+        nonlocal saved
+        saved = True
 
-    with pytest.raises(executor.DeliverableJobCancellationError):
-        await executor._await_with_liveness(
-            work(),
-            pulse=pulse,
-            interval_seconds=0.001,
+    monkeypatch.setattr(executor, "read_receipt", missing_receipt)
+    monkeypatch.setattr(executor, "save_artifact", save)
+
+    with pytest.raises(ValueError, match="Verify this file"):
+        await executor._save_verified(
+            object(),
+            FakeSandboxSession(),
+            job=_job(),
+            request=executor.VideoJobRequestV1.model_validate(_job().request),
+            authored=_authored(),
+            output_path="/workspace/deliverable-job-7.mp4",
         )
-
-    assert pulses == 1
-    assert work_cancelled.is_set()
+    assert saved is False

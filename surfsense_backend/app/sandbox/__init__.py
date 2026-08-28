@@ -4,7 +4,6 @@ from .factory import is_sandbox_enabled
 from .protocol import (
     ExecResult,
     SandboxProvider,
-    SandboxResourceProfile,
     SandboxSession,
     SandboxUnavailableError,
 )
@@ -14,7 +13,6 @@ __all__ = [
     "ExecResult",
     "SandboxProvider",
     "SandboxRegistry",
-    "SandboxResourceProfile",
     "SandboxSession",
     "SandboxUnavailableError",
     "get_registry",

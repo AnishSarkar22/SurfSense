@@ -1,76 +1,117 @@
-# Phase 2 — Skill, retrieval, authoring, and job routing
+# Phase 2 — Video authoring and agent wiring
 
-**Status:** Implemented.
+**Status:** IMPLEMENTED.
+**Parent spec:** [`00-umbrella-plan.md`](00-umbrella-plan.md).
+**Depends on:** Phase 1 and Phase 2b.
 
-## Separation of concerns
+## 1. Outcome
 
-The sandbox-baked video skill defines creative and review judgment. Backend code defines identity, trust, lifecycle, retrieval bounds, timing, rendering, verification, and persistence. The model authors declarative beats and layers only; it cannot choose commands, files, runtime modules, or lifecycle state.
+Video generation has two separate execution boundaries:
 
-`load_video_skill()` reads `/opt/skills/video/SKILL.md` from the same live sandbox as the renderer. Frontmatter contains a closed six-file supplement allowlist. Paths are confined below the skill root, the set is bounded, aggregate content is capped at 96 KiB, and the combined content SHA-256 becomes `skill_version` in render and artifact metadata.
+- **interactive deliverables subagent:** validates the request, calls `enqueue_deliverable_job` once, and returns a pending receipt;
+- **backend video executor:** performs authoring, narration, preparation, review, rendering, verification, and save inside the Celery task.
 
-## Two-stage authoring
+There is no trusted `queued_job` mode in `run_deliverable_subagent()`, no queued tool allowlist, and no agent checkpoint used by the worker. The explicit executor is the canonical architecture.
 
-The worker makes two structured model calls before narration:
+## 2. Interactive routing
 
-1. **Creative outline.** Given the request, references, skill, and compact live taxonomy, produce objective, audience, language, and up to 12 visual intents.
-2. **Video plan.** Backend lexical retrieval evaluates each intent, creates one bounded disclosure, and supplies exact candidate metadata/props schemas. The model then produces a strict `VideoPlan` using only those candidates.
+When `VIDEO_SANDBOX_RENDERING_ENABLED` and sandboxing are enabled:
 
-The disclosure always starts with:
+1. the existing main-agent routing sends video work to the deliverables subagent;
+2. its prompt tells it to enqueue once and return;
+3. only `enqueue_deliverable_job` is exposed for video creation;
+4. the server supplies kind, workspace, root-thread attribution, creator, tool-call identity, and request version;
+5. the tool commits the idempotent job, attempts dispatch, and returns `status="pending"` with `job_id`.
 
-```text
-video.renderer.master
-video.component.core.primitives
-font.inter
-font.lora
-font.jetbrains-mono
-```
+Interactive execution never authors scenes, synthesizes narration, opens a sandbox, waits for completion, verifies output, or saves an Artifact. Broker failures after commit remain recoverable through queued-row reconciliation and are not exposed in chat.
 
-Intent retrieval adds ranked fonts/components/transitions. The image build emits separate postings for tags, `use_for`, summary, vibe, category, `avoid_for`, and the combined searchable text, so the worker scores matching postings rather than scanning and tokenizing every capability. Ranking remains deterministic and diversity-aware. Each intent contributes at most three candidates; the combined disclosure is capped at 48 unique candidates and 128 KiB. The final validator rejects non-disclosed IDs, build mismatch, duplicate selection, missing renderer, selected-but-unused IDs, and used-but-unselected IDs.
+When the flag is off or sandboxing is unavailable, the existing `generate_video_presentation` path remains the rollback behavior until Phase 8.
 
-The model never sees implementation paths or an unbounded catalog. Core primitives remain the fallback when no specialist is a strong semantic fit.
+## 3. Backend-owned authoring
 
-Capability layers and transitions remain generic in both the Python and TypeScript render contracts. Their props are validated against the exact sandbox-provided JSON Schema before narration and again at renderer preflight. Adding a vetted capability therefore does not require another Pydantic/Zod union branch or composition dispatch branch.
-
-## Retrieval fixtures
-
-Backend unit tests use a deliberately synthetic four-entry index:
-
-- `video.component.metric-grid`
-- `video.component.metric-cards`
-- `video.component.confetti`
-- `video.component.core.text`
-
-For “serious quarterly KPI metric comparison,” the fixture asserts deterministic `metric-grid` ranking, exclusion of confetti through avoid terms, diversity, and retention of a core fallback. These names are retrieval-test fixtures only and are not installed runtime capabilities.
-
-A separate 200-entry fixture executes 500 repeated intent searches under a 500 ms test budget. It guards the indexed lookup path and leaves enough margin for shared CI hosts.
-
-## Plan contract and repair
-
-`VideoPlan` fixes schema/build identity, title/language, selected IDs, style, confined assets, and 1–12 uniquely identified beats. Every beat has one stable utterance ID, complete-sentence narration, bounded declarative layers, optional vetted transition, minimum duration, and deterministic seed.
-
-Capability props pass strict per-atom Pydantic models. Text/media/capability references are closed over selected capabilities and declared assets. Bounds, safe margins, generated-element count, paths, durations, and transition placement are validated before rendering.
-
-Preflight or blocking still findings may request a declarative visual repair. A repair receives the same disclosure and must preserve language plus every beat ID, utterance ID, and narration string. `VIDEO_SPEC.max_repair_cycles` is two across the pre-render review loop. Once review passes, the worker performs one full render.
-
-## Durable routing
-
-With both sandboxing and `VIDEO_SANDBOX_RENDERING_ENABLED=true`, the interactive deliverables agent exposes `enqueue_deliverable_job` for video creation, commits an idempotent `DeliverableJob`, dispatches `deliverables.execute_queued`, and returns the pending receipt immediately.
-
-Unique `(workspace_id, kind, tool_call_id)` prevents duplicate jobs. The shared `surfsense` Celery worker claims an attempt atomically and runs `execute_video_deliverable()`. There is no video-specific queue or worker. Policy is 180 seconds, 12 beats, two visual repairs, a 3,600-second soft task limit, and a 3,900-second hard limit.
-
-Attempt identity is:
+`execute_video_deliverable()` in `app/deliverables/video/executor.py` owns the ordered pipeline. It directly calls trusted Python functions instead of asking an agent to select tools.
 
 ```text
-task:    deliverable-job:{job_id}:attempt:{attempt_count}
-owner:   deliverable-job-{job_id}-attempt-{attempt_count}
-workdir: /workspace/deliverable-job-{job_id}-attempt-{attempt_count}
-output:  /workspace/deliverable-job-{job_id}-attempt-{attempt_count}.mp4
+creative authoring
+  → backend normalization
+  → narration
+  → deterministic project preparation
+  → native preflight
+  → still review
+  → bounded repair when required
+  → final render
+  → structural verification
+  → bounded repair when required
+  → receipt-bound streaming save
 ```
 
-Cancellation is database-driven and terminates the exact attempt sandbox. Explicit Retry increments the attempt. Stable public failures are `duration_limit`, `quota_exceeded`, `generation_failed`, `render_failed`, `verification_failed`, and `cancelled`; only classified transient provider errors receive bounded Celery retry.
+The worker obtains the billable LLM from the configured provider and wraps generation calls with queued-deliverable accounting. Vision review obtains the configured vision model separately. TTS retains its existing narration billing path.
 
-Flag-off routing is a separate legacy system, documented in [legacy-boundary.md](legacy-boundary.md).
+## 4. Deterministic authoring contract
 
-## Evidence
+The LLM controls creative fields:
 
-Coverage verifies strict source-free model contracts, exact disclosure closure, narration-preserving repair, ordered outline/retrieval/plan/TTS/review/render/verify/save phases, one TTS pass, two initial model calls, attempt ownership, cancellation heartbeats, revision generation checks, idempotent enqueue, task claims, retry, reconciliation, and sanitized failure mapping.
+- title and visual direction;
+- scene copy and narration transcript;
+- complete TSX body for each scene;
+- markdown representation.
+
+The backend controls structural fields:
+
+- scene count validation;
+- sequential scene numbers;
+- stable scene and audio filenames;
+- scene ordering;
+- normalization of accepted field-name aliases;
+- repair merge behavior;
+- preservation of narration and scene count during repair.
+
+This separation prevents probabilistic model output from choosing filesystem identity or producing inconsistent scene numbering. The strict normalized result is `AuthoredVideo`, regardless of harmless naming variations in the creative draft.
+
+## 5. Prompt and skill roles
+
+`executor.py` contains the authoritative author and repair prompts for queued work. They require complete self-contained TSX modules, explicit imports, default exports, safe margins, readable contrast, restrained motion, supported offline fonts, and no duplicate watermark.
+
+`docker/sandbox/skills/video/SKILL.md` remains baked into the sandbox for video guidance and future interactive sandbox use. The queued worker does not load that skill through a subagent and does not expose narration, preparation, review, verification, or save as model-selected tools.
+
+Prompts never explain Celery, queue topology, sandbox ownership, or other infrastructure to the user.
+
+## 6. Repair policy
+
+The executor uses one shared repair counter:
+
+- preflight or blocking still-review findings can trigger one repair before that stage becomes terminal;
+- post-render structural verification can trigger repair while the total remains below `VIDEO_SPEC.max_repair_cycles` (currently two);
+- repaired output is prepared/rendered and verified again;
+- repairs may update scene code and markdown but cannot change narration transcripts or scene count.
+
+The loop is bounded and cannot continue until a worker deadline.
+
+## 7. Lifecycle and failure mapping
+
+The executor writes trusted phase/progress heartbeats directly. Model prose never controls lifecycle state.
+
+Failures map to stable public codes:
+
+- `duration_limit`
+- `quota_exceeded`
+- `generation_failed`
+- `render_failed`
+- `verification_failed`
+- `cancelled`
+
+Bounded diagnostics may be stored in `internal_error`, but that field and all provider, Celery, OpenSandbox, Remotion, ffmpeg, path, and stack-trace detail remain private.
+
+## 8. Revision behavior
+
+An optional `revision_artifact_id` is stored in the private request. The executor loads the current Artifact and expected generation, authors the requested revision, and saves a new verified generation through optimistic concurrency. It does not edit MP4 bytes in place.
+
+## 9. Acceptance
+
+- the interactive path performs enqueue only;
+- repeated tool execution returns the same job;
+- the Celery worker has no dependency on `run_deliverable_subagent` or a LangGraph checkpointer;
+- backend normalization always assigns deterministic scene identity;
+- one worker attempt executes the complete author-to-save pipeline;
+- repair, duration, scene count, task time, billing, and cancellation are bounded;
+- flag-off continues to select the legacy rollback path.

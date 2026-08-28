@@ -1,19 +1,11 @@
-import time
 from datetime import timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import pytest
 from opensandbox.exceptions import SandboxApiException
 
 from app.config import config as app_config
-from app.sandbox.protocol import SandboxResourceProfile
-from app.sandbox.providers.opensandbox import (
-    PROFILE_METADATA_KEY,
-    THREAD_METADATA_KEY,
-    OpenSandboxProvider,
-    OpenSandboxSession,
-)
+from app.sandbox.providers.opensandbox import OpenSandboxProvider, OpenSandboxSession
 
 
 class _Files:
@@ -35,42 +27,6 @@ def test_provider_uses_the_shared_sandbox_operation_budget(monkeypatch) -> None:
     provider = OpenSandboxProvider()
 
     assert provider._config.request_timeout == timedelta(seconds=37)
-
-
-@pytest.mark.parametrize(
-    ("profile", "resource"),
-    [
-        (SandboxResourceProfile.DEFAULT, {"cpu": "1", "memory": "2Gi"}),
-        (SandboxResourceProfile.VIDEO_RENDER, {"cpu": "4", "memory": "8Gi"}),
-    ],
-)
-async def test_provider_creates_profile_pinned_sandbox(
-    monkeypatch, profile, resource
-) -> None:
-    create = AsyncMock(return_value=SimpleNamespace(id="sandbox-1"))
-    provider = OpenSandboxProvider()
-    monkeypatch.setattr(provider, "_find_live", AsyncMock(return_value=None))
-    monkeypatch.setattr(
-        "app.sandbox.providers.opensandbox.Sandbox.create", create
-    )
-
-    await provider.get_or_create_session("thread-7", profile=profile)
-
-    assert create.call_args.kwargs["resource"] == resource
-    assert create.call_args.kwargs["metadata"] == {
-        THREAD_METADATA_KEY: "thread-7",
-        PROFILE_METADATA_KEY: profile.value,
-    }
-
-
-async def test_keep_alive_renews_an_open_sandbox_after_half_its_ttl() -> None:
-    sandbox = SimpleNamespace(id="sandbox-1", renew=AsyncMock())
-    session = OpenSandboxSession(sandbox, ttl_seconds=900)
-    session._last_renewed = time.monotonic() - 451
-
-    await session.keep_alive()
-
-    sandbox.renew.assert_awaited_once_with(timedelta(seconds=900))
 
 
 async def test_read_file_normalizes_provider_404() -> None:

@@ -63,8 +63,10 @@
     error in its `error` field. Surface that text verbatim to the user;
     re-routing or retrying is only appropriate when the user explicitly
     asks for it.
-  - `status="pending"`: tell the user the work has started, then return.
-    When a live chat card tracks the work, use one brief acknowledgment
-    without exposing Receipt fields. Do not crawl or re-dispatch the same
+  - `status="pending"`: rare today — current mutating tools wait for
+    their backend before returning. If you ever do see a pending
+    Receipt, tell the user the work has been **kicked off** (quote the
+    `external_id` / `preview` so they can find it later), do not
+    crawl it, and do not re-dispatch the same
     `task(...)` call hoping it will be done "this time".
   </verification>

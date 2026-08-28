@@ -16,17 +16,16 @@ Prerequisites:
     - DAYTONA_TARGET=us  (or eu)
     - the image is public, or its registry is registered in the Daytona dashboard
 
-The script creates immutable default and video snapshots and prints the two
-environment pointers to deploy.
+After this script succeeds, add to surfsense_backend/.env:
+    DAYTONA_SNAPSHOT_ID=surfsense-sandbox
 """
 
 import os
-import re
 import sys
+import time
 from pathlib import Path
 
 from daytona import CreateSnapshotParams, Daytona, Resources
-from daytona.common.errors import DaytonaNotFoundError
 from dotenv import load_dotenv
 
 _here = Path(__file__).parent
@@ -38,6 +37,8 @@ for candidate in [
     if candidate.exists():
         load_dotenv(candidate)
         break
+
+SNAPSHOT_NAME = "surfsense-sandbox"
 
 # The image unpacks well past the 3 GiB Daytona's smallest default allows.
 DISK_GIB = 10
@@ -72,75 +73,6 @@ def resolve_image(argv: list[str], environ: dict[str, str]) -> str:
     return image
 
 
-def snapshot_names(image: str) -> tuple[str, str]:
-    """Return immutable profile snapshot names derived from the image version."""
-    image_name = image.rpartition("/")[2]
-    if "@" in image_name:
-        version = image_name.partition("@")[2].removeprefix("sha256:")[:12]
-    else:
-        version = image_name.partition(":")[2]
-    version = re.sub(r"[^a-zA-Z0-9-]+", "-", version).strip("-").lower()
-    if not version:
-        raise ValueError("Could not derive a snapshot version from the image")
-    return (
-        f"surfsense-sandbox-{version}",
-        f"surfsense-sandbox-video-{version}",
-    )
-
-
-def _positive_int(environ: dict[str, str], name: str, default: int) -> int:
-    value = int(environ.get(name, str(default)))
-    if value < 1:
-        raise ValueError(f"{name} must be positive")
-    return value
-
-
-def snapshot_params(
-    image: str, environ: dict[str, str]
-) -> tuple[CreateSnapshotParams, CreateSnapshotParams]:
-    """Build resource-pinned default and video snapshot declarations."""
-    default_name, video_name = snapshot_names(image)
-    common = {
-        "image": image,
-        # Daytona injects its own daemon and needs only a live container.
-        "entrypoint": ["sleep", "infinity"],
-    }
-    return (
-        CreateSnapshotParams(
-            name=default_name,
-            resources=Resources(
-                cpu=_positive_int(environ, "SANDBOX_DEFAULT_CPU", 1),
-                memory=_positive_int(environ, "SANDBOX_DEFAULT_MEMORY_GIB", 2),
-                disk=DISK_GIB,
-            ),
-            **common,
-        ),
-        CreateSnapshotParams(
-            name=video_name,
-            resources=Resources(
-                cpu=_positive_int(environ, "VIDEO_SANDBOX_CPU", 4),
-                memory=_positive_int(environ, "VIDEO_SANDBOX_MEMORY_GIB", 8),
-                disk=DISK_GIB,
-            ),
-            **common,
-        ),
-    )
-
-
-def _create_if_absent(daytona: Daytona, params: CreateSnapshotParams) -> None:
-    try:
-        daytona.snapshot.get(params.name)
-    except DaytonaNotFoundError:
-        print(f"Building snapshot '{params.name}' from {params.image} …\n")
-        daytona.snapshot.create(
-            params,
-            on_logs=lambda chunk: print(chunk, end="", flush=True),
-        )
-        print(f"\nSnapshot '{params.name}' is ready.")
-    else:
-        print(f"Snapshot '{params.name}' already exists; leaving it unchanged.")
-
-
 def main() -> None:
     image = resolve_image(sys.argv, os.environ)
 
@@ -154,12 +86,45 @@ def main() -> None:
         sys.exit(1)
 
     daytona = Daytona()
-    default_params, video_params = snapshot_params(image, os.environ)
-    _create_if_absent(daytona, default_params)
-    _create_if_absent(daytona, video_params)
+
+    try:
+        existing = daytona.snapshot.get(SNAPSHOT_NAME)
+        print(f"Deleting existing snapshot '{SNAPSHOT_NAME}' …")
+        daytona.snapshot.delete(existing)
+        print(f"Deleted '{SNAPSHOT_NAME}'. Waiting for removal to propagate …")
+        for _attempt in range(30):
+            time.sleep(2)
+            try:
+                daytona.snapshot.get(SNAPSHOT_NAME)
+            except Exception:
+                print(f"Confirmed '{SNAPSHOT_NAME}' is gone.\n")
+                break
+        else:
+            print(
+                f"WARNING: '{SNAPSHOT_NAME}' may still exist after 60s. Proceeding anyway.\n"
+            )
+    except Exception:
+        pass
+
+    print(f"Building snapshot '{SNAPSHOT_NAME}' from {image} …\n")
+
+    daytona.snapshot.create(
+        CreateSnapshotParams(
+            name=SNAPSHOT_NAME,
+            image=image,
+            # The image boots the OpenSandbox Jupyter stack, which Daytona has
+            # no use for: it injects its own daemon and needs only a live
+            # container. Set explicitly because Daytona's dropping of inherited
+            # entrypoints is a bug they intend to fix (daytonaio/daytona#3853).
+            entrypoint=["sleep", "infinity"],
+            resources=Resources(disk=DISK_GIB),
+        ),
+        on_logs=lambda chunk: print(chunk, end="", flush=True),
+    )
+
+    print(f"\n\nSnapshot '{SNAPSHOT_NAME}' is ready.")
     print("\nAdd this to surfsense_backend/.env:")
-    print(f"    DAYTONA_SNAPSHOT_ID={default_params.name}")
-    print(f"    DAYTONA_VIDEO_SNAPSHOT_ID={video_params.name}")
+    print(f"    DAYTONA_SNAPSHOT_ID={SNAPSHOT_NAME}")
 
 
 if __name__ == "__main__":

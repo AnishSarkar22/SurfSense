@@ -132,7 +132,7 @@ def _legacy_ref(artifact: Artifact) -> dict[str, object] | None:
     return {"kind": kind, "id": legacy_id}
 
 
-def _slides_for_video_runtime(
+def _slides_for_remotion(
     workspace_id: int, artifact_id: int, slides: list[object]
 ) -> list[dict[str, object]]:
     """Public slide payload: artifact-scoped audio URLs, no storage keys."""
@@ -365,7 +365,7 @@ async def get_artifact_video(
     session: AsyncSession = Depends(get_async_session),
     auth: AuthContext = Depends(get_auth_context),
 ):
-    """Legacy scene payload for a video Artifact."""
+    """Remotion payload for a video Artifact (slides + scene_codes)."""
     await _authorize_artifact(
         session, auth, workspace_id, Permission.ARTIFACTS_READ, "read"
     )
@@ -379,13 +379,13 @@ async def get_artifact_video(
     scene_codes = meta.get("scene_codes")
     if not isinstance(slides, list) or not isinstance(scene_codes, list):
         raise HTTPException(
-            status_code=404, detail="Legacy video scene payload not available"
+            status_code=404, detail="Video Remotion payload not available"
         )
     return {
         "artifact_id": artifact.id,
         "title": document.title,
         "status": "ready",
-        "slides": _slides_for_video_runtime(workspace_id, artifact.id, slides),
+        "slides": _slides_for_remotion(workspace_id, artifact.id, slides),
         "scene_codes": scene_codes,
         "slide_count": len(slides),
         "workspace_id": workspace_id,

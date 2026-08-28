@@ -31,7 +31,6 @@ type EnqueueDeliverableJobResult = z.infer<typeof EnqueueDeliverableJobResultSch
 
 const FAILURE_MESSAGES: Record<string, string> = {
 	duration_limit: "The requested video is too long to render. Shorten it and try again.",
-	model_unsupported: "The selected model does not support video generation.",
 	quota_exceeded: "Video generation capacity is unavailable for this request. Try again later.",
 	generation_failed: "The video could not be generated. Please try again.",
 	render_failed: "The video could not be rendered. Please try again.",
@@ -40,14 +39,16 @@ const FAILURE_MESSAGES: Record<string, string> = {
 };
 
 const PHASE_LABELS: Record<string, string> = {
-	starting: "Setting things in motion",
-	preparing: "Gathering the pieces",
-	authoring: "Crafting your video",
-	preparing_content: "Weaving visuals and narration",
-	repairing_narration: "Refining the story",
-	rendering: "Bringing your video to life",
-	verifying: "Adding the final touches",
-	saving: "Preparing your video",
+	starting: "Generating your video",
+	preparing: "Preparing your video",
+	authoring: "Creating scenes",
+	narrating: "Adding narration",
+	preflighting: "Checking your video",
+	reviewing: "Reviewing your video",
+	repairing: "Improving scenes",
+	rendering: "Rendering your video",
+	verifying: "Finalizing your video",
+	saving: "Saving your video",
 };
 
 export function deliverableFailureMessage(code: string | null): string {
@@ -193,7 +194,7 @@ function LiveDeliverableJobCard({
 				<TextShimmerLoader text="Loading your video" size="sm" />
 			) : (
 				<p className="text-xs text-muted-foreground">
-					This video is no longer available or you do not have access to it
+					This video is no longer available or you do not have access to it.
 				</p>
 			)}
 		</CardShell>

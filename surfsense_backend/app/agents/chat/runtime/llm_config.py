@@ -263,8 +263,6 @@ class AgentConfig:
     # actually blocks on False, so defaulting False would silently hide
     # vision-capable models. Resolved via derive_supports_image_input.
     supports_image_input: bool = True
-    # Strict default-deny: queued video requires provider-enforced JSON Schema.
-    supports_structured_output: bool = False
 
     @classmethod
     def from_auto_mode(cls) -> "AgentConfig":

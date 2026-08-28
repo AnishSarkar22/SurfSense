@@ -22,17 +22,12 @@ surfsense_web/playwright-report/
 surfsense_web/test-results/
 surfsense_web/blob-report/
 
-# Local video-runtime generated output
-docker/sandbox/video-runtime/progress.json
-docker/sandbox/video-runtime/bundle/
-docker/sandbox/video-runtime/generated/
-docker/sandbox/video-runtime/public/fonts/
-docker/sandbox/video-runtime/src/generated/
+# Local Remotion harness fixtures and tests
+docker/sandbox/remotion/fixtures/
+docker/sandbox/remotion/tests/
+docker/sandbox/remotion/progress.json
 
 content_research/
 automation-design-plan.md
 automation-frontend-builder-plan.md
 surfsense_desktop/.env
-
-
-.agents/

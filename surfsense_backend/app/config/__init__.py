@@ -547,13 +547,16 @@ class Config:
         "KNOWLEDGE_STORE_ROOT",
         os.path.join(FILE_STORAGE_LOCAL_PATH, "knowledge_store"),
     )
+    # GitHub App used to push a git-native workspace to the user's GitHub repo.
+    GITHUB_APP_ID = os.getenv("GITHUB_APP_ID", "")
+    GITHUB_APP_PRIVATE_KEY = os.getenv("GITHUB_APP_PRIVATE_KEY", "")
+    GITHUB_APP_SLUG = os.getenv("GITHUB_APP_SLUG", "")
 
     # Daytona sandbox (code execution / filesystem sandbox)
     DAYTONA_API_KEY = os.getenv("DAYTONA_API_KEY", "")
     DAYTONA_API_URL = os.getenv("DAYTONA_API_URL", "https://app.daytona.io/api")
     DAYTONA_TARGET = os.getenv("DAYTONA_TARGET", "us")
     DAYTONA_SNAPSHOT_ID = os.getenv("DAYTONA_SNAPSHOT_ID") or None
-    DAYTONA_VIDEO_SNAPSHOT_ID = os.getenv("DAYTONA_VIDEO_SNAPSHOT_ID") or None
     SANDBOX_FILES_DIR = os.getenv("SANDBOX_FILES_DIR", "sandbox_files")
 
     # Sandbox provider selection. A deployment choice, not a fallback chain:
@@ -579,13 +582,6 @@ class Config:
     SANDBOX_MAX_SESSIONS_PER_WORKSPACE = int(
         os.getenv("SANDBOX_MAX_SESSIONS_PER_WORKSPACE", "5")
     )
-    SANDBOX_DEFAULT_CPU = int(os.getenv("SANDBOX_DEFAULT_CPU", "1"))
-    SANDBOX_DEFAULT_MEMORY_GIB = int(os.getenv("SANDBOX_DEFAULT_MEMORY_GIB", "2"))
-    VIDEO_SANDBOX_CPU = int(os.getenv("VIDEO_SANDBOX_CPU", "4"))
-    VIDEO_SANDBOX_MEMORY_GIB = int(os.getenv("VIDEO_SANDBOX_MEMORY_GIB", "8"))
-    VIDEO_SANDBOX_TARGET_DURATION_SECONDS = int(
-        os.getenv("VIDEO_SANDBOX_TARGET_DURATION_SECONDS", "180")
-    )
     VIDEO_SANDBOX_RENDERING_ENABLED = (
         os.getenv("VIDEO_SANDBOX_RENDERING_ENABLED", "FALSE").strip().upper() == "TRUE"
     )
@@ -593,28 +589,12 @@ class Config:
     VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS = int(
         os.getenv("VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS", "1")
     )
+    VIDEO_SANDBOX_MAX_FRAMES_PER_SEGMENT = int(
+        os.getenv("VIDEO_SANDBOX_MAX_FRAMES_PER_SEGMENT", "1800")
+    )
     VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS = int(
         os.getenv("VIDEO_SANDBOX_RENDER_FRAME_TIMEOUT_MS", "7000")
     )
-    VIDEO_SANDBOX_FRAME_CONCURRENCY = int(
-        os.getenv("VIDEO_SANDBOX_FRAME_CONCURRENCY", "2")
-    )
-    if min(
-        SANDBOX_DEFAULT_CPU,
-        SANDBOX_DEFAULT_MEMORY_GIB,
-        VIDEO_SANDBOX_CPU,
-        VIDEO_SANDBOX_MEMORY_GIB,
-        VIDEO_SANDBOX_TARGET_DURATION_SECONDS,
-        VIDEO_SANDBOX_MAX_CONCURRENT_RENDERS,
-        VIDEO_SANDBOX_FRAME_CONCURRENCY,
-    ) < 1:
-        raise ValueError(
-            "Sandbox resource, duration, and concurrency values must be positive"
-        )
-    if VIDEO_SANDBOX_FRAME_CONCURRENCY > VIDEO_SANDBOX_CPU:
-        raise ValueError(
-            "VIDEO_SANDBOX_FRAME_CONCURRENCY cannot exceed VIDEO_SANDBOX_CPU"
-        )
     ARTIFACT_MAX_FILE_BYTES = int(os.getenv("ARTIFACT_MAX_FILE_BYTES", "31457280"))
 
     # Agent cache (in-process LRU+TTL cache for built agents)

@@ -134,7 +134,7 @@ async def get_public_artifact_video(
     artifact_id: int,
     session: AsyncSession = Depends(get_async_session),
 ):
-    """Legacy scene payload for a video Artifact in a public snapshot.
+    """Remotion payload for a video Artifact in a public snapshot.
 
     No authentication required — the share token grants access, and only to
     video artifacts the shared thread produced.
@@ -148,7 +148,7 @@ async def get_public_artifact_video(
     scene_codes = meta.get("scene_codes")
     if not isinstance(slides, list) or not isinstance(scene_codes, list):
         raise HTTPException(
-            status_code=404, detail="Legacy video scene payload not available"
+            status_code=404, detail="Video Remotion payload not available"
         )
 
     return {

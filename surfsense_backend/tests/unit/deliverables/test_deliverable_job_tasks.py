@@ -14,7 +14,6 @@ from app.celery_app import celery_app
 from app.db import DeliverableFailureCode
 from app.deliverables.jobs.dispatch import DELIVERABLE_JOB_TASK
 from app.deliverables.jobs.policy import VIDEO_SPEC
-from app.sandbox import SandboxResourceProfile
 from app.tasks.celery_tasks import deliverable_job_tasks as tasks
 
 pytestmark = pytest.mark.unit
@@ -97,14 +96,6 @@ def test_failure_classification_is_terminal_or_transient_and_sanitized() -> None
     assert tasks.classify_deliverable_failure(
         RuntimeError("duration limit exceeded")
     ) == (DeliverableFailureCode.DURATION_LIMIT, False)
-    assert tasks.classify_deliverable_failure(
-        RuntimeError(
-            "Composition duration 210.033s exceeds duration limit of 210s"
-        )
-    ) == (DeliverableFailureCode.DURATION_LIMIT, False)
-    assert tasks.classify_deliverable_failure(
-        tasks.UnsupportedVideoModelError("strict structured output is unavailable")
-    ) == (DeliverableFailureCode.MODEL_UNSUPPORTED, False)
 
     diagnostic = tasks.sanitize_internal_error(
         RuntimeError("api_key=super-secret https://user:pass@broker.example/internal")
@@ -112,39 +103,6 @@ def test_failure_classification_is_terminal_or_transient_and_sanitized() -> None
     assert "super-secret" not in diagnostic
     assert "user:pass" not in diagnostic
     assert "[redacted]" in diagnostic
-
-
-async def test_worker_rejects_unsupported_model_before_billing_or_executor(
-    monkeypatch,
-) -> None:
-    billed = False
-    executed = False
-
-    async def resolve_model(*_args, **_kwargs):
-        return object(), SimpleNamespace(supports_structured_output=False)
-
-    async def resolve_billing(*_args, **_kwargs):
-        nonlocal billed
-        billed = True
-
-    async def execute(*_args, **_kwargs):
-        nonlocal executed
-        executed = True
-
-    monkeypatch.setattr(tasks, "_resolve_worker_model", resolve_model)
-    monkeypatch.setattr(tasks, "_resolve_agent_billing_for_workspace", resolve_billing)
-    monkeypatch.setattr(tasks, "execute_video_deliverable", execute)
-
-    with pytest.raises(tasks.UnsupportedVideoModelError):
-        await tasks._execute_claimed_deliverable(
-            _Session(),
-            _job(),
-            job_id=17,
-            task_id="deliverable-job:17:attempt:1",
-        )
-
-    assert billed is False
-    assert executed is False
 
 
 async def test_duplicate_delivery_is_ignored_before_executor_run(monkeypatch) -> None:
@@ -180,7 +138,7 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
 ) -> None:
     session = _Session()
     job = _job()
-    billable_kwargs = []
+    billable_kwargs = {}
     executor_args = ()
     terminated = []
 
@@ -188,54 +146,32 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
         return job
 
     async def resolve_model(*_args, **_kwargs):
-        class StructuredLLM:
-            async def ainvoke(self, messages):
-                return ("structured-response", messages)
-
         class LLM:
-            def with_structured_output(self, schema, **kwargs):
-                assert schema == {"type": "object"}
-                assert kwargs == {"method": "json_schema", "strict": True}
-                return StructuredLLM()
+            async def ainvoke(self, messages):
+                return ("response", messages)
 
-        return LLM(), SimpleNamespace(
-            quota_reserve_tokens=2048,
-            supports_structured_output=True,
-        )
+        return LLM(), SimpleNamespace(quota_reserve_tokens=2048)
 
     async def resolve_billing(*_args, **_kwargs):
         return SimpleNamespace(), "free", "model"
 
     @asynccontextmanager
     async def billable(**kwargs):
-        billable_kwargs.append(kwargs)
+        billable_kwargs.update(kwargs)
         yield object()
 
     async def execute(session_arg, job_arg, llm):
         nonlocal executor_args
         executor_args = (session_arg, job_arg)
-        for call_kind in (
-            "initial_content",
-            "source_repair",
-            "narration_repair",
-        ):
-            structured = llm.for_queued_video_call(call_kind).with_structured_output(
-                {"type": "object"},
-                method="json_schema",
-                strict=True,
-            )
-            assert await structured.ainvoke(["author"]) == (
-                "structured-response",
-                ["author"],
-            )
+        assert await llm.ainvoke(["author"]) == ("response", ["author"])
         return SimpleNamespace(artifact_id=91)
 
     async def complete(*_args, **_kwargs):
         return SimpleNamespace(id=17)
 
     class Registry:
-        async def terminate(self, owner, *, profile):
-            terminated.append((owner, profile))
+        async def terminate(self, owner):
+            terminated.append(owner)
 
     async def registry():
         return Registry()
@@ -259,24 +195,14 @@ async def test_worker_calls_executor_bills_llm_only_and_terminates_sandbox(
 
     assert result == {"status": "ready", "job_id": 17, "artifact_id": 91}
     assert executor_args == (session, job)
-    assert terminated == [
-        ("deliverable-job-17-attempt-1", SandboxResourceProfile.VIDEO_RENDER)
-    ]
-    assert len(billable_kwargs) == 3
-    assert all(call["quota_reserve_tokens"] == 2048 for call in billable_kwargs)
-    assert [
-        call["call_details"]["video_call_kind"] for call in billable_kwargs
-    ] == ["initial_content", "source_repair", "narration_repair"]
-    assert all("quota_reserve_micros_override" not in call for call in billable_kwargs)
-    assert all(
-        call["usage_type"] == "queued_deliverable_generation"
-        for call in billable_kwargs
-    )
-    assert all(
-        call["call_details"]["deliverable_job_id"] == 17
-        and call["call_details"]["kind"] == "video"
-        for call in billable_kwargs
-    )
+    assert terminated == ["deliverable-job-17-attempt-1"]
+    assert billable_kwargs["quota_reserve_tokens"] == 2048
+    assert "quota_reserve_micros_override" not in billable_kwargs
+    assert billable_kwargs["usage_type"] == "queued_deliverable_generation"
+    assert billable_kwargs["call_details"] == {
+        "deliverable_job_id": 17,
+        "kind": "video",
+    }
 
 
 async def test_cooperative_cancellation_finishes_state_and_cleans_sandbox(
@@ -291,10 +217,7 @@ async def test_cooperative_cancellation_finishes_state_and_cleans_sandbox(
         return job
 
     async def resolve_model(*_args, **_kwargs):
-        return object(), SimpleNamespace(
-            quota_reserve_tokens=None,
-            supports_structured_output=True,
-        )
+        return object(), SimpleNamespace(quota_reserve_tokens=None)
 
     async def resolve_billing(*_args, **_kwargs):
         return SimpleNamespace(), "free", "model"
@@ -307,8 +230,8 @@ async def test_cooperative_cancellation_finishes_state_and_cleans_sandbox(
         return SimpleNamespace(id=job_id)
 
     class Registry:
-        async def terminate(self, owner, *, profile):
-            terminated.append((owner, profile))
+        async def terminate(self, owner):
+            terminated.append(owner)
 
     async def registry():
         return Registry()
@@ -331,9 +254,7 @@ async def test_cooperative_cancellation_finishes_state_and_cleans_sandbox(
 
     assert result == {"status": "cancelled", "job_id": 17}
     assert cancelled == [17]
-    assert terminated == [
-        ("deliverable-job-17-attempt-1", SandboxResourceProfile.VIDEO_RENDER)
-    ]
+    assert terminated == ["deliverable-job-17-attempt-1"]
     assert session.rollbacks == 1
     assert session.commits == 2
 
@@ -353,8 +274,8 @@ async def test_cancellation_watcher_stops_work_and_attempt_sandbox(monkeypatch) 
         return "cancelled"
 
     class Registry:
-        async def terminate(self, owner, *, profile):
-            terminated.append((owner, profile))
+        async def terminate(self, owner):
+            terminated.append(owner)
 
     async def registry():
         return Registry()
@@ -371,9 +292,7 @@ async def test_cancellation_watcher_stops_work_and_attempt_sandbox(monkeypatch) 
         )
 
     assert work_cancelled.is_set()
-    assert terminated == [
-        ("deliverable-job-17-attempt-2", SandboxResourceProfile.VIDEO_RENDER)
-    ]
+    assert terminated == ["deliverable-job-17-attempt-2"]
 
 
 async def test_reconciliation_republishes_each_job_to_default_queue(
@@ -429,8 +348,8 @@ async def test_reconciliation_finishes_stale_cancellation_and_attempt_sandbox(
         return job
 
     class Registry:
-        async def terminate(self, owner, *, profile):
-            terminated.append((owner, profile))
+        async def terminate(self, owner):
+            terminated.append(owner)
 
     async def registry():
         return Registry()
@@ -445,9 +364,7 @@ async def test_reconciliation_finishes_stale_cancellation_and_attempt_sandbox(
 
     assert await tasks._reconcile_stale_queued() == 0
     assert cancelled == [(17, "deliverable-job:17:attempt:2")]
-    assert terminated == [
-        ("deliverable-job-17-attempt-2", SandboxResourceProfile.VIDEO_RENDER)
-    ]
+    assert terminated == ["deliverable-job-17-attempt-2"]
 
 
 async def test_terminal_failure_is_persisted_without_raw_public_error(

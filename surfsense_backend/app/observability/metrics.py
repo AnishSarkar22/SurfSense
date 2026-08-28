@@ -169,6 +169,15 @@ def _video_admission_wait():
 
 
 @lru_cache(maxsize=1)
+def _video_segment_count():
+    return _get_meter().create_histogram(
+        "surfsense.video.segment.count",
+        unit="{segment}",
+        description="Rendered segment count per video.",
+    )
+
+
+@lru_cache(maxsize=1)
 def _video_verify_failures():
     return _get_meter().create_counter(
         "surfsense.video.verify.failures",
@@ -529,6 +538,22 @@ def _knowledge_store_drift_checks():
     return _get_meter().create_counter(
         "surfsense.knowledge_store.drift.check",
         description="Count of scheduled knowledge-store parity checks per outcome.",
+    )
+
+
+@lru_cache(maxsize=1)
+def _knowledge_store_remote_connect():
+    return _get_meter().create_counter(
+        "surfsense.knowledge_store.remote.connect",
+        description="Count of workspace git-remote attach attempts per outcome.",
+    )
+
+
+@lru_cache(maxsize=1)
+def _knowledge_store_remote_push():
+    return _get_meter().create_counter(
+        "surfsense.knowledge_store.remote.push",
+        description="Count of workspace git-remote push attempts per outcome.",
     )
 
 
@@ -942,6 +967,26 @@ def record_knowledge_store_drift_check(*, workspace_id: int, status: str) -> Non
     )
 
 
+def record_knowledge_store_remote_connect(*, provider: str, status: str) -> None:
+    """Record one attach. ``status`` is ``connected`` or ``rejected``."""
+    _add(
+        _knowledge_store_remote_connect(),
+        1,
+        {"remote.provider": provider, "status": status},
+    )
+
+
+def record_knowledge_store_remote_push(
+    *, status: str, provider: str | None = None
+) -> None:
+    """Record one push attempt. ``status`` is ``pushed``, ``noop``, or ``failed``."""
+    _add(
+        _knowledge_store_remote_push(),
+        1,
+        {"remote.provider": provider or "none", "status": status},
+    )
+
+
 def record_video_render_duration(seconds: float, *, scope: str = "render") -> None:
     _record(_video_render_duration(), seconds, {"scope": scope})
 
@@ -952,6 +997,10 @@ def record_video_admission_wait(seconds: float, *, queue_depth: int) -> None:
         seconds,
         {"queue.depth": max(0, queue_depth)},
     )
+
+
+def record_video_segment_count(count: int) -> None:
+    _record(_video_segment_count(), count, {})
 
 
 def record_video_verify_failure(reason: str) -> None:
@@ -1067,6 +1116,8 @@ __all__ = [
     "record_kb_search_duration",
     "record_knowledge_store_drift_check",
     "record_knowledge_store_record_outcome",
+    "record_knowledge_store_remote_connect",
+    "record_knowledge_store_remote_push",
     "record_model_call_duration",
     "record_model_token_usage",
     "record_perf_elapsed",
@@ -1078,6 +1129,7 @@ __all__ = [
     "record_tool_call_error",
     "record_video_admission_wait",
     "record_video_render_duration",
+    "record_video_segment_count",
     "record_video_verify_failure",
     "register_runtime_observables",
 ]

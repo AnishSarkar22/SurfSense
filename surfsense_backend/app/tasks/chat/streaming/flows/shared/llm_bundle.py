@@ -26,7 +26,6 @@ from app.config import config
 from app.db import Model, Workspace
 from app.services.model_capabilities import has_capability
 from app.services.model_resolver import to_litellm
-from app.services.provider_capabilities import derive_supports_structured_output
 from app.services.token_tracking_service import register_model_usage_metadata
 
 
@@ -40,7 +39,6 @@ def _agent_config_from_resolved(
     api_base: str | None,
     litellm_params: dict | None,
     supports_image_input: bool,
-    supports_structured_output: bool,
     billing_tier: str = "free",
 ) -> AgentConfig:
     return AgentConfig(
@@ -56,27 +54,6 @@ def _agent_config_from_resolved(
         billing_tier=billing_tier,
         is_premium=billing_tier == "premium",
         supports_image_input=supports_image_input,
-        supports_structured_output=supports_structured_output,
-    )
-
-
-def _supports_structured_output(
-    *,
-    provider: str,
-    model_name: str,
-    litellm_params: dict | None,
-    catalog: dict | None,
-) -> bool:
-    parameters = None
-    if provider.lower() == "openrouter" and isinstance(catalog, dict):
-        published = catalog.get("supported_parameters")
-        if isinstance(published, list):
-            parameters = published
-    return derive_supports_structured_output(
-        provider=provider,
-        model_name=model_name,
-        base_model=(litellm_params or {}).get("base_model"),
-        openrouter_supported_parameters=parameters,
     )
 
 
@@ -186,12 +163,6 @@ async def load_llm_bundle(
             api_base=model.connection.base_url,
             litellm_params=(model.connection.extra or {}).get("litellm_params"),
             supports_image_input=has_capability(model, "vision"),
-            supports_structured_output=_supports_structured_output(
-                provider=provider,
-                model_name=model.model_id,
-                litellm_params=(model.connection.extra or {}).get("litellm_params"),
-                catalog=model.catalog,
-            ),
             billing_tier="free",
         )
         return (
@@ -242,14 +213,6 @@ async def load_llm_bundle(
         api_base=global_connection.get("base_url"),
         litellm_params=(global_connection.get("extra") or {}).get("litellm_params"),
         supports_image_input=has_capability(global_model, "vision"),
-        supports_structured_output=_supports_structured_output(
-            provider=provider,
-            model_name=global_model["model_id"],
-            litellm_params=(global_connection.get("extra") or {}).get(
-                "litellm_params"
-            ),
-            catalog=global_model.get("catalog"),
-        ),
         billing_tier=str(global_model.get("billing_tier", "free")).lower(),
     )
     return (

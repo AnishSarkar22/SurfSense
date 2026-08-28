@@ -1,59 +1,70 @@
-# Phase 3 — Narration, contracts, and timeline
+# Phase 3 — Queued narration bridge and duration policy
 
-**Status:** Implemented.
+**Status:** IMPLEMENTED.
+**Parent spec:** [`00-umbrella-plan.md`](00-umbrella-plan.md).
+**Depends on:** Phases 1, 2, and 2b.
 
-## Trusted narration
+## 1. Outcome
 
-After `VideoPlan` validation, the backend resolves the configured TTS provider, language, and voice using existing podcast/video policy. Provider credentials and network access remain in the backend. All utterances are synthesized concurrently inside one existing `video_presentation_generation` billing boundary.
+Narration runs inside the backend-owned queued video executor. The interactive request path only enqueues a job and never performs TTS or waits for audio.
 
-Each result is written through `SandboxSession.write_file()` as:
+The executor directly calls `synthesize_narration()` as a trusted Python function. It does not expose narration as an interactive model tool or invoke it through a queued subagent mode.
+
+## 2. Trusted narration flow
+
+For each normalized scene:
+
+1. resolve voice/language and the configured TTS provider using existing video narration policy;
+2. call the provider from the trusted backend with existing quota and billing;
+3. write returned audio bytes into the attempt workdir's `public/` directory through `SandboxSession.write_file()`;
+4. probe each file with ffprobe;
+5. return the filename and measured duration used by Remotion.
+
+Scene audio synthesis runs concurrently with `asyncio.gather`. Credentials and provider network access never enter the sandbox.
+
+Attempt ownership is:
 
 ```text
-<attempt-workdir>/public/utterance-{utterance_id}.{container}
+owner:   deliverable-job-{job_id}-attempt-{attempt_count}
+workdir: /workspace/deliverable-job-{job_id}-attempt-{attempt_count}
+audio:   <workdir>/public/slide-{scene_number}.{extension}
 ```
 
-Beat and utterance IDs must be unique safe identities; paths must remain below `/workspace`. ffprobe measures every output. Empty audio, invalid media duration, quota/billing failure, incomplete coverage, or a summed narration duration above 180 seconds stops the attempt before the final render.
+## 3. Duration policy
 
-The job-local public directory is then copied into the prebuilt bundle’s serve root. Narration is temporary attempt data, not a separate Artifact.
+`VIDEO_SPEC.max_duration_seconds` is 180.
 
-## Contract layers
+- The narration bridge sums measured media durations after synthesis.
+- A total at or below 180 seconds proceeds.
+- A total above 180 seconds raises the typed duration-limit failure before final rendering or persistence.
+- The Remotion harness independently calls `selectComposition()` and rejects selected composition duration above 180 seconds.
 
-The implementation intentionally has three strict representations:
+The product duration cap is independent of the Celery task's 3600-second soft and 3900-second hard limits.
 
-1. `CreativeOutline`: semantic visual intents used only for retrieval.
-2. `VideoPlan`: model-authored declarative content bound to the disclosed capability build.
-3. `VideoRenderInput`: backend-compiled, renderer-facing absolute timing and adapted layer props.
+## 4. Lifecycle, cancellation, and billing
 
-Python `VideoRenderInput` mirrors the baked Zod schema. Both require schema version 1, the capability `build_id`, `skill_version`, 1920×1080, 30 fps, at most 5,400 frames, at most 12 beats, at most 11 transitions, confined public paths, and declared capability use.
+The executor writes the trusted `narrating` heartbeat before synthesis and commits it. Model text cannot set phase or progress.
 
-Core render layers cover text/rich text, shapes/gradients, image/video, SVG/icon, chart, code, connector, audio visualization, repeated elements, and bounded groups. Specialized render layers are limited to the two vetted components; the only specialized transition is the vetted whip-pan adapter.
+The cancellation watcher runs in parallel with the full executor. A cancellation request cancels the executor task and terminates the attempt sandbox. Because all scene TTS calls are started together, cancellation does not serially prevent “later” provider calls; it cancels the in-flight narration operation as part of executor cancellation.
 
-## Deterministic timeline compilation
+Narration keeps its existing `video_presentation_generation` billing boundary and quota reserve. Worker creative LLM calls use the separate queued-deliverable billing wrapper. No duplicate outer narration reserve is added.
 
-`compile_video_timeline()` treats measured audio as authoritative:
+Transient provider failures may use the bounded Celery retry path. Duration and quota failures are terminal for the current attempt and require explicit Retry.
 
-- narration frames are `ceil(duration_seconds × 30)`;
-- each beat duration is the maximum of narration, authored minimum, and selected capability natural-length floor;
-- adjacent beats overlap only by the declared transition duration;
-- narration tracks never overlap;
-- a transition may not exceed half either adjacent beat;
-- layers are converted from beat-relative to absolute intervals and may not exceed their beat;
-- safe-margin layers stay 72 px from the 1920×1080 edge;
-- total generated elements are capped at 200;
-- total duration may not exceed 5,400 frames.
+## 5. Persistence invariants
 
-Unspecified beat seeds are SHA-256-derived from build ID, title, and beat ID. Selected IDs and assets are canonically sorted. The render input seed is derived from build ID and title. Identical plan, capability build, skill version, and measured narration therefore compile identically.
+- `DeliverableJob` exists before TTS starts.
+- Narration files are temporary attempt-owned sandbox inputs, not Artifact files.
+- No Artifact is created during narration.
+- Cancellation or narration failure prevents render, verification, and save.
+- Sandbox cleanup is attempted in worker `finally`; cleanup failure does not change the committed lifecycle result.
 
-`build_video_render_input()` adapts plan layers to the exact renderer schema, maps declared assets, emits absolute beats/transitions/audio tracks, and rejects any unsupported capability adapter.
+## 6. Acceptance
 
-## Failure and cancellation rules
-
-- Narration failure creates no Artifact and does not enter preflight.
-- Capability/build/props/path/timing errors are validation failures, not renderer fallback opportunities.
-- The persisted cancellation watcher can cancel in-flight TTS and terminate the attempt sandbox.
-- The 180-second product cap is separate from Celery’s soft/hard execution limits.
-- Final composition metadata independently rechecks duration, frame count, dimensions, and fps.
-
-## Evidence
-
-`tests/unit/deliverables/video/test_timeline.py` covers deterministic normalization/timeline behavior, measured narration coverage, bounds, transition timing, and render-input construction. `test_video_executor.py` verifies that TTS occurs once after the two-stage plan and before preflight. Narration unit coverage validates provider resolution, path confinement, concurrent synthesis, probing, billing, and duration rejection.
+- interactive enqueue invokes no TTS;
+- queued execution writes non-empty audio under the exact attempt workdir;
+- provider secrets remain outside the sandbox;
+- billing and quota checks occur through the existing narration boundary;
+- measured output above 180 seconds fails before render;
+- selected composition duration is checked again by the harness;
+- failed/cancelled narration creates no Artifact.

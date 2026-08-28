@@ -1,7 +1,6 @@
 @import "tailwindcss";
 @import "fumadocs-ui/css/neutral.css";
 @import "fumadocs-ui/css/preset.css";
-@import "@videojs/react/video/skin.css";
 
 @plugin "tailwindcss-animate";
 
@@ -594,19 +593,6 @@ button {
 	display: none;
 	width: 0;
 	height: 0;
-}
-
-/* The embedding surface owns its edges; remove only Video.js's outer frame. */
-.media-default-skin--video.surfsense-video-player {
-	--media-border-radius: 0px;
-	--border-color: transparent;
-	border-radius: 0;
-	outline: none;
-}
-
-.media-default-skin--video.surfsense-video-player::after {
-	display: none;
-	box-shadow: none;
 }
 
 @source "../node_modules/@llamaindex/chat-ui/**/*.{ts,tsx}";
