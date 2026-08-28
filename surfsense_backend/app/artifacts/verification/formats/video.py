@@ -20,7 +20,7 @@ _MIN_FRAME_STDDEV = 1.0
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _BUILD_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _CAPABILITY_ID_RE = re.compile(r"^(?:font|video\.(?:component|transition|renderer))\.")
-_MAX_SAMPLE_FRAMES = 36
+_MAX_SAMPLE_FRAMES = 64
 _SCHEMA_VERSION = 1
 _RENDER_SETTINGS = {
     "codec": "h264",

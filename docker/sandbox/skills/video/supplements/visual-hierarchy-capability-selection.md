@@ -20,6 +20,12 @@ composition read at a glance.
   Contrast through size, position, weight, and color before adding decoration.
 - Protect safe margins and reading order. Avoid dense corners, equal emphasis
   everywhere, tiny labels, and important content beneath captions.
+- Use `SpatialGrid` to reserve non-overlapping regions and `SpatialStack` for
+  concurrently visible text or cards within a region. Do not independently
+  absolute-position sibling text blocks. Animate inside each allocated region.
+- Use `FittedText` for variable copy and choose width, line, and maximum-size
+  bounds that preserve the intended hierarchy. Shorten copy before it becomes
+  unreadable.
 - Respect native canvas metadata and staging behavior. If a capability cannot
   remain legible and unclipped in its assigned region, adapt it or create a
   simpler job-local component.

@@ -9,17 +9,18 @@ Review against the intended communication, not merely technical validity.
 - Do capability choices fit the information, vibe, available duration, and
   continuous composition?
 - Are narration, captions, assets, and visual emphasis mutually consistent?
+- Are concurrent text and cards allocated through `SpatialStack` or
+  `SpatialGrid`, with motion kept inside their regions?
 
-## Deterministic preflight
+## Source validation
 
 - Treat validation errors as source defects; do not work around them.
-- When supplied deterministic build or preflight diagnostics, make one
-  coordinated source/content repair that addresses the root cause.
-- Return corrected content only; backend code owns rebuilding and rechecking.
+- When supplied build diagnostics, make one coordinated source repair that
+  addresses the root cause.
+- Return corrected content only; backend code owns rebuilding.
 
 ## Final verification
 
-- Backend code performs the full render only after deterministic preflight.
 - Backend verification proves that picture and narration are present, duration
   and frame coverage match measured cue timing, and imported capabilities resolve.
 - Author motion, pacing, transitions, and captions defensively because final

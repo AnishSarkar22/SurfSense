@@ -3,7 +3,11 @@ import {mkdir, readFile, rename, rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import path from "node:path";
 import {fileURLToPath, pathToFileURL} from "node:url";
-import {makeCancelSignal, renderMedia, selectComposition} from "@remotion/renderer";
+import {
+  makeCancelSignal,
+  renderMedia,
+  selectComposition,
+} from "@remotion/renderer";
 import {
   assertBundleAssets,
   assertDurationLimit,
@@ -229,32 +233,19 @@ export async function render(argv = process.argv.slice(2)) {
     !argv[bundleOption + 1] ||
     argv.indexOf("--job-dir", bundleOption + 1) !== -1
   ) {
-    throw new Error(
-      "Usage: node render.mjs --job-dir job --preflight props.json | " +
-        "--job-dir job props.json out.mp4",
-    );
+    throw new Error("Usage: node render.mjs --job-dir job props.json out.mp4");
   }
   const jobDir = path.resolve(argv[bundleOption + 1]);
   const positional = argv.filter(
     (_, index) => index !== bundleOption && index !== bundleOption + 1,
   );
-  const mode = positional[0] === "--preflight" ? "preflight" : "render";
-  const propsArg = mode === "render" ? positional[0] : positional[1];
-  const outputArg = mode === "render" ? positional[1] : positional[2];
-  const expected = 2;
-  if (
-    !propsArg ||
-    (mode !== "preflight" && !outputArg) ||
-    positional.length !== expected
-  ) {
-    throw new Error(
-      "Usage: node render.mjs --job-dir job --preflight props.json | " +
-        "--job-dir job props.json out.mp4",
-    );
+  const [propsArg, outputArg] = positional;
+  if (!propsArg || !outputArg || positional.length !== 2) {
+    throw new Error("Usage: node render.mjs --job-dir job props.json out.mp4");
   }
 
   const propsPath = path.resolve(propsArg);
-  const outputPath = outputArg ? path.resolve(outputArg) : undefined;
+  const outputPath = path.resolve(outputArg);
   const progress = progressWriter();
   const cancellation = cancellationController();
   let phase = "validate";
@@ -300,14 +291,6 @@ export async function render(argv = process.argv.slice(2)) {
         fps: 30,
       },
     };
-
-    if (mode === "preflight") {
-      const result = {...baseReceipt, ok: true, phase: "preflight"};
-      progress.write({phase: "preflight", progress: 1});
-      await progress.flush();
-      console.log(JSON.stringify(result));
-      return result;
-    }
 
     releaseAdmission = await acquireAdmission(cancellation);
     phase = "render";

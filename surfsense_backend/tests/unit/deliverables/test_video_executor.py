@@ -172,8 +172,14 @@ def test_request_and_model_contract_exclude_operational_fields() -> None:
         )
 
 
-def test_disclosure_exposes_full_public_catalog_with_import_names() -> None:
-    disclosure = executor.build_public_capability_catalog(_index())
+def test_disclosure_exposes_selected_public_catalog_with_import_names() -> None:
+    disclosure = executor.build_public_capability_catalog(
+        _index(),
+        selected_ids=(
+            "video.component.animated-bar-chart",
+            "font.inter",
+        ),
+    )
 
     assert disclosure["build_id"] == _index().build_id
     assert disclosure["module"] == "@surfsense/video/capabilities"
@@ -332,10 +338,6 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
     )
     commands: list[str] = []
 
-    async def preflight(_sandbox, workdir, props_path, *, job_id):
-        commands.append(executor._render_command(workdir, "--preflight", props_path))
-        return None
-
     async def render(_sandbox, workdir, props_path, output_path):
         commands.append(executor._render_command(workdir, props_path, output_path))
 
@@ -365,7 +367,6 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
         executor, "_finalize_job_assets", AsyncMock(return_value=_manifest())
     )
     monkeypatch.setattr(executor, "_trusted_render_input", lambda *_a, **_k: render_input)
-    monkeypatch.setattr(executor, "_timed_preflight", preflight)
     monkeypatch.setattr(executor, "_render", render)
     monkeypatch.setattr(
         executor,
@@ -381,7 +382,7 @@ async def test_executor_starts_tts_and_bundle_together_and_reuses_job(
     assert result.repair_count == 0
     assert kept_alive.is_set()
     assert model_calls == [CreativeVideoProject]
-    assert len(commands) == 2
+    assert len(commands) == 1
     assert not hasattr(executor, "get_vision_llm")
     assert all("--stills" not in command for command in commands)
     assert all(
@@ -455,40 +456,6 @@ async def test_source_repair_protects_cue_identity_text_and_language(
         )
 
 
-async def test_content_repair_rebundles_changed_source_exactly_once(
-    monkeypatch,
-) -> None:
-    sandbox = FakeSandboxSession()
-    before = _project()
-    repaired = _project(source="export const JobComposition = () => null;\n")
-    bundle = AsyncMock(return_value=_manifest())
-    finalize = AsyncMock(return_value=_manifest())
-    materialize = AsyncMock()
-    monkeypatch.setattr(
-        executor, "_repair_project", AsyncMock(return_value=repaired)
-    )
-    monkeypatch.setattr(executor, "_materialize_project", materialize)
-    monkeypatch.setattr(executor, "_timed_bundle", bundle)
-    monkeypatch.setattr(executor, "_finalize_job_assets", finalize)
-
-    result = await executor._content_repair(
-        object(),
-        sandbox=sandbox,
-        skill=_skill(),
-        before=before,
-        narration=_narration(),
-        findings="TypeScript compilation failed",
-        workdir=PurePosixPath("/workspace/deliverable-job-7-attempt-1"),
-        index=_index(),
-        job_id=7,
-    )
-
-    assert result[0] == repaired
-    materialize.assert_awaited_once()
-    bundle.assert_awaited_once()
-    finalize.assert_awaited_once()
-
-
 def test_backend_commands_are_fixed_and_render_uses_prepared_job(monkeypatch) -> None:
     workdir = PurePosixPath("/workspace/deliverable-job-7-attempt-1")
     monkeypatch.setattr(executor.app_config, "VIDEO_SANDBOX_FRAME_CONCURRENCY", 2)
@@ -506,12 +473,12 @@ def test_backend_commands_are_fixed_and_render_uses_prepared_job(monkeypatch) ->
         "--public-dir /workspace/deliverable-job-7-attempt-1/public"
     )
     assert executor._render_command(
-        workdir, "--preflight", workdir / "props.json"
+        workdir, workdir / "props.json", "/workspace/video.mp4"
     ) == (
         "cd -- /workspace/deliverable-job-7-attempt-1 && "
         "VIDEO_SANDBOX_FRAME_CONCURRENCY=2 node render.mjs "
         "--job-dir /workspace/deliverable-job-7-attempt-1/job "
-        "--preflight /workspace/deliverable-job-7-attempt-1/props.json"
+        "/workspace/deliverable-job-7-attempt-1/props.json /workspace/video.mp4"
     )
 
 

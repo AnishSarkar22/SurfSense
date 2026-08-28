@@ -34,7 +34,28 @@ for (const [name, source, expected] of [
   [
     "remote asset expressions",
     `export const JobComposition = () => <img src={"https://example.com/image.png"} />;`,
-    /Remote or data URL/,
+    /Remote JSX asset URL/,
+  ],
+  [
+    "data asset URLs",
+    `export const JobComposition = () => <img src="data:image/png;base64,AAAA" />;`,
+    /Remote JSX asset URL/,
+  ],
+  [
+    "protocol-relative asset URLs",
+    `export const JobComposition = () => <a href="//example.com">Example</a>;`,
+    /Remote JSX asset URL/,
+  ],
+  [
+    "conditional React hooks",
+    `import {useState} from "react";
+const Conditional = ({show}: {show: boolean}) => {
+  if (!show) return null;
+  const [value] = useState(0);
+  return <div>{value}</div>;
+};
+export const JobComposition = () => <Conditional show />;`,
+    /React Hooks validation failed.*called conditionally/,
   ],
   [
     "dynamic imports",
@@ -45,6 +66,11 @@ for (const [name, source, expected] of [
     "unapproved packages",
     `import x from "lodash"; export const JobComposition = () => x;`,
     /Import is not allowed/,
+  ],
+  [
+    "runtime artifacts",
+    `import {Artifact} from "remotion"; export const JobComposition = () => <Artifact filename="output.json" content="{}" />;`,
+    /Reserved runtime API/,
   ],
   [
     "escaping local imports",
@@ -67,6 +93,19 @@ for (const [name, source, expected] of [
     }
   });
 }
+
+test("source policy permits URL-like prose outside resource attributes", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "surfsense-source-policy-"));
+  try {
+    await writeFile(
+      path.join(root, "JobComposition.tsx"),
+      `export const JobComposition = () => <div>Today: scale across enterprise software. Visit https://example.com.</div>;`,
+    );
+    await validateSource(root);
+  } finally {
+    await rm(root, {recursive: true, force: true});
+  }
+});
 
 test("source policy rejects package manifests", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "surfsense-source-policy-"));

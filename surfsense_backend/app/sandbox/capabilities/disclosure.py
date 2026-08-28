@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
-from .schema import CapabilityIndex, CapabilityKind, materialize_json
+from .schema import CapabilityId, CapabilityIndex, CapabilityKind, materialize_json
 
 
-def build_public_capability_catalog(index: CapabilityIndex) -> dict[str, object]:
-    """Expose the complete generated public catalog without retrieval-era scoring."""
+def build_public_capability_catalog(
+    index: CapabilityIndex,
+    *,
+    selected_ids: tuple[CapabilityId, ...],
+) -> dict[str, object]:
+    """Materialize only the deterministic shortlist's model-facing declarations."""
 
     capabilities: list[dict[str, object]] = []
-    for capability in index.capabilities:
+    by_id = index.by_id()
+    if len(selected_ids) != len(set(selected_ids)):
+        raise ValueError("selected capability IDs must be unique")
+    unknown = set(selected_ids) - set(by_id)
+    if unknown:
+        raise ValueError(f"selected capability IDs are unknown: {sorted(unknown)}")
+    for capability_id in selected_ids:
+        capability = by_id[capability_id]
         if capability.kind is CapabilityKind.RENDERER:
             continue
         export_name = capability.declaration.get("public_export")
@@ -42,6 +53,9 @@ def build_public_capability_catalog(index: CapabilityIndex) -> dict[str, object]
                     else None
                 ),
                 "props_schema": materialize_json(capability.props_schema),
+                "example_props": materialize_json(
+                    capability.deterministic_test_props
+                ),
             }
         )
     if not capabilities:

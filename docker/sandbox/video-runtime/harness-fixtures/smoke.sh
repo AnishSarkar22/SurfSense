@@ -24,7 +24,6 @@ node scripts/bundle-job.mjs \
 node scripts/finalize-job.mjs \
   --job-dir "${WORK}/job" \
   --public-dir "${WORK}/public"
-node render.mjs --job-dir "${WORK}/job" --preflight "${WORK}/input.json"
 node render.mjs --job-dir "${WORK}/job" "${WORK}/input.json" "${WORK}/smoke.mp4"
 
 test -s "${WORK}/smoke.mp4"

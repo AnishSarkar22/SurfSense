@@ -1,6 +1,9 @@
 import {readFile, readdir, lstat} from "node:fs/promises";
 import path from "node:path";
 import {fileURLToPath, pathToFileURL} from "node:url";
+import tsParser from "@typescript-eslint/parser";
+import {Linter} from "eslint";
+import reactHooks from "eslint-plugin-react-hooks";
 import ts from "typescript";
 import {authoringModules} from "./authoring-modules.mjs";
 
@@ -38,6 +41,59 @@ const forbiddenIdentifiers = new Set([
 ]);
 const maxFiles = 32;
 const maxBytes = 256 * 1024;
+const assetBaseUrl = new URL("https://surfsense.invalid/");
+const hooksLinter = new Linter({configType: "flat"});
+const hooksConfig = [
+  {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: "latest",
+        ecmaFeatures: {jsx: true},
+        sourceType: "module",
+      },
+    },
+    plugins: {"react-hooks": reactHooks},
+    rules: {"react-hooks/rules-of-hooks": "error"},
+  },
+];
+
+const isAllowedSourcePath = (relative) => {
+  if (!relative.endsWith(".ts") && !relative.endsWith(".tsx")) return false;
+  if (relative.split("/").includes("..")) return false;
+  return Array.from(relative).every((character) => {
+    const code = character.charCodeAt(0);
+    return (
+      (code >= 48 && code <= 57) ||
+      (code >= 65 && code <= 90) ||
+      (code >= 97 && code <= 122) ||
+      ["_", ".", "/", "-"].includes(character)
+    );
+  });
+};
+
+const staticJsxAttributeValue = (initializer) => {
+  if (ts.isStringLiteral(initializer)) return initializer.text;
+  if (
+    ts.isJsxExpression(initializer) &&
+    initializer.expression &&
+    (ts.isStringLiteral(initializer.expression) ||
+      ts.isNoSubstitutionTemplateLiteral(initializer.expression))
+  ) {
+    return initializer.expression.text;
+  }
+  return null;
+};
+
+const isExternalAssetReference = (value) => {
+  try {
+    const parsed = new URL(value, assetBaseUrl);
+    return parsed.protocol !== assetBaseUrl.protocol || parsed.host !== assetBaseUrl.host;
+  } catch {
+    return false;
+  }
+};
 
 const sourceFiles = async (root, directory = root) => {
   const entries = await readdir(directory, {withFileTypes: true});
@@ -51,7 +107,7 @@ const sourceFiles = async (root, directory = root) => {
       continue;
     }
     const relative = path.relative(root, target).replaceAll(path.sep, "/");
-    if (!/^[a-zA-Z0-9_./-]+\.(?:ts|tsx)$/.test(relative) || relative.includes("..")) {
+    if (!isAllowedSourcePath(relative)) {
       throw new Error(`Unsupported source path: ${relative}`);
     }
     files.push(target);
@@ -86,6 +142,19 @@ export async function validateSource(sourceRoot) {
   const importedCapabilityIds = new Set();
 
   for (const [filename, source] of sources) {
+    const relativeFilename = path.relative(root, filename);
+    const hookErrors = hooksLinter
+      .verify(source, hooksConfig, {filename: relativeFilename})
+      .filter(({severity}) => severity === 2);
+    if (hookErrors.length > 0) {
+      const detail = hookErrors
+        .slice(0, 8)
+        .map(({line, column, message}) => `${line}:${column} ${message}`)
+        .join("; ");
+      throw new Error(
+        `React Hooks validation failed in ${relativeFilename}: ${detail}`,
+      );
+    }
     const ast = ts.createSourceFile(
       filename,
       source,
@@ -103,6 +172,16 @@ export async function validateSource(sourceRoot) {
           }
         } else if (!allowedPackages.has(specifier)) {
           throw new Error(`Import is not allowed: ${specifier}`);
+        }
+        if (
+          specifier === "remotion" &&
+          node.importClause?.namedBindings &&
+          ts.isNamedImports(node.importClause.namedBindings) &&
+          node.importClause.namedBindings.elements.some(
+            (element) => (element.propertyName?.text ?? element.name.text) === "Artifact",
+          )
+        ) {
+          throw new Error("Reserved runtime API cannot be imported: Artifact");
         }
         if (specifier === "@surfsense/video/capabilities") {
           const bindings = node.importClause?.namedBindings;
@@ -153,17 +232,11 @@ export async function validateSource(sourceRoot) {
         ts.isJsxAttribute(node) &&
         ["src", "href"].includes(node.name.getText(ast)) &&
         node.initializer &&
-        ts.isStringLiteral(node.initializer) &&
-        /^[a-z][a-z0-9+.-]*:/i.test(node.initializer.text)
+        isExternalAssetReference(staticJsxAttributeValue(node.initializer) ?? "")
       ) {
-        throw new Error(`Remote JSX asset URL is forbidden: ${node.initializer.text}`);
-      }
-      if (
-        ts.isStringLiteral(node) &&
-        !ts.isImportDeclaration(node.parent) &&
-        /^[a-z][a-z0-9+.-]*:/i.test(node.text)
-      ) {
-        throw new Error(`Remote or data URL is forbidden: ${node.text}`);
+        throw new Error(
+          `Remote JSX asset URL is forbidden: ${staticJsxAttributeValue(node.initializer)}`,
+        );
       }
       ts.forEachChild(node, visit);
     };

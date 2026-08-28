@@ -1,0 +1,37 @@
+{
+  "id": "video.component.backdrop",
+  "kind": "component",
+  "summary": "An offline full-frame color or gradient with an optional inset content frame.",
+  "category": "layout",
+  "tags": ["background", "frame", "layout", "color", "gradient"],
+  "vibe": "clean",
+  "use_for": ["Scene backgrounds", "Rounded inset content framing"],
+  "avoid_for": ["Remote image backgrounds", "Transition presentations", "Ambient loops"],
+  "natural_frame_length": 150,
+  "tier": "vetted",
+  "dependencies": ["remotion"],
+  "native_canvas": {"width": 1280, "height": 720, "fps": 30},
+  "deterministic": true,
+  "test_props": {"fill": {"type": "gradient", "value": "linear-gradient(135deg, #111827, #312e81)"}},
+  "props_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "fill": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "value"],
+        "properties": {
+          "type": {"enum": ["color", "gradient"]},
+          "value": {"type": "string", "minLength": 1, "maxLength": 256}
+        }
+      },
+      "padding": {"type": "number", "minimum": 0, "maximum": 20},
+      "radius": {"type": "number", "minimum": 0, "maximum": 10},
+      "shadow": {"type": "string", "maxLength": 256}
+    }
+  },
+  "upstream_docs_url": "https://remocn.dev/docs/layout/backdrop.md",
+  "vendored_revision": "registry-fetched-2026-08-28",
+  "loader": "component.backdrop"
+}

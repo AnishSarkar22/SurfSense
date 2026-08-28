@@ -1,0 +1,33 @@
+{
+  "id": "video.component.animated-line-chart",
+  "kind": "component",
+  "summary": "A time-series path draws from left to right with an optional leading dot.",
+  "category": "data-visualization",
+  "tags": ["chart", "line", "trend", "time-series", "metrics"],
+  "vibe": "data",
+  "use_for": ["Growth trends", "Time-ordered metrics", "Hockey-stick reveals"],
+  "avoid_for": ["Categorical comparisons", "Single values", "Fewer than two points"],
+  "natural_frame_length": 90,
+  "tier": "vetted",
+  "dependencies": ["remotion"],
+  "native_canvas": {"width": 1920, "height": 1080, "fps": 30},
+  "deterministic": true,
+  "test_props": {"data": [12, 19, 8, 15, 22, 28, 32], "strokeColor": "#22c55e"},
+  "props_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "data": {"type": "array", "minItems": 2, "maxItems": 40, "items": {"type": "number", "minimum": -1000000, "maximum": 1000000}},
+      "width": {"type": "number", "minimum": 320, "maximum": 1920},
+      "height": {"type": "number", "minimum": 180, "maximum": 1080},
+      "strokeColor": {"type": "string", "minLength": 1, "maxLength": 64},
+      "strokeWidth": {"type": "number", "minimum": 1, "maximum": 24},
+      "gridColor": {"type": "string", "minLength": 1, "maxLength": 64},
+      "showDot": {"type": "boolean"},
+      "speed": {"type": "number", "minimum": 0.25, "maximum": 4}
+    }
+  },
+  "upstream_docs_url": "https://remocn.dev/docs/ui-blocks/animated-line-chart.md",
+  "vendored_revision": "registry-fetched-2026-08-28",
+  "loader": "component.animated-line-chart"
+}

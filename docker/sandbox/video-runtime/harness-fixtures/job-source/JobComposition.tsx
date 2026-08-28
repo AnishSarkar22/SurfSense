@@ -1,6 +1,10 @@
 import type React from "react";
 import {AbsoluteFill} from "remotion";
 import {
+  FittedText,
+  SpatialGrid,
+  SpatialStack,
+  TimelineLayer,
   useAsset,
   useNarrationCue,
   useNarrationCues,
@@ -15,30 +19,41 @@ export const JobComposition: React.FC = () => {
   const icon = useAsset("surfsense-icon");
   const drift = useSeededRandom("chart-drift");
   if (!cue) return null;
+  const durationInFrames = cues.at(-1)?.endFrame ?? 1;
   return (
     <AbsoluteFill
       style={{
-        alignItems: "center",
         background: "#020617",
         color: "#f8fafc",
-        display: "flex",
         fontFamily: "Inter, sans-serif",
-        justifyContent: "center",
       }}
     >
-      <div style={{position: "absolute", left: 120, top: 100}}>
-        <LocalPulse asset={icon} cue={cue} />
-      </div>
-      <div style={{fontSize: 54, position: "absolute", top: 90}}>
-        {cue.cueId} · frames {cue.startFrame}–{cue.endFrame} ·{" "}
-        {cue.durationInFrames} frames · {Math.round(cue.progress * 100)}%
-      </div>
-      <div style={{height: 500, width: 1000, translate: `${drift * 8}px 0`}}>
-        <AnimatedBarChart
-          data={[35, 60, 45, 80 + cues.length]}
-          labels={["Q1", "Q2", "Q3", "Q4"]}
-        />
-      </div>
+      <TimelineLayer id="fixture chart" from={0} durationInFrames={durationInFrames + 30}>
+        <SpatialGrid
+          minItemWidth={600}
+          gap={64}
+          align="center"
+          style={{height: "100%", padding: 120}}
+        >
+          <SpatialStack gap={32}>
+            <LocalPulse asset={icon} cue={cue} />
+            <FittedText
+              id="fixture heading"
+              maxWidth={720}
+              maxLines={2}
+              maxFontSize={54}
+            >
+              {`${cue.cueId} · frames ${cue.startFrame}–${cue.endFrame} · ${cue.durationInFrames} frames · ${Math.round(cue.progress * 100)}%`}
+            </FittedText>
+          </SpatialStack>
+          <div style={{height: 500, minWidth: 0, translate: `${drift * 8}px 0`}}>
+            <AnimatedBarChart
+              data={[35, 60, 45, 80 + cues.length]}
+              labels={["Q1", "Q2", "Q3", "Q4"]}
+            />
+          </div>
+        </SpatialGrid>
+      </TimelineLayer>
     </AbsoluteFill>
   );
 };

@@ -14,17 +14,21 @@
 		"benchmark": "node harness-fixtures/benchmark.mjs"
 	},
 	"dependencies": {
-		"@remotion/fonts": "4.0.514",
 		"@remotion/bundler": "4.0.514",
+		"@remotion/fonts": "4.0.514",
+		"@remotion/layout-utils": "4.0.514",
 		"@remotion/media": "4.0.514",
 		"@remotion/renderer": "4.0.514",
 		"@remotion/transitions": "4.0.514",
+		"@types/react": "19.2.14",
+		"@types/react-dom": "19.2.3",
+		"@typescript-eslint/parser": "^8.68.0",
+		"eslint": "^10.9.1",
+		"eslint-plugin-react-hooks": "^7.1.1",
 		"react": "19.2.3",
 		"react-dom": "19.2.3",
 		"remotion": "4.0.514",
 		"typescript": "5.9.3",
-		"@types/react": "19.2.14",
-		"@types/react-dom": "19.2.3",
 		"zod": "4.4.3"
 	},
 	"devDependencies": {

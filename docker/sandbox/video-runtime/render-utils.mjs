@@ -81,7 +81,7 @@ export async function assertBundleAssets(input, bundleDir) {
 const clampFrame = (frame, totalFrames) =>
   Math.max(0, Math.min(totalFrames - 1, Math.round(frame)));
 
-export function neutralSampleFrames(input, limit = 36) {
+export function neutralSampleFrames(input, limit = 64) {
   const totalFrames = input.duration_in_frames;
   const samples = new Map();
   for (const sample of input.sample_frames) {

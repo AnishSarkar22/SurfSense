@@ -46,6 +46,7 @@ from app.sandbox import SandboxResourceProfile, SandboxSession, get_registry
 from app.sandbox.capabilities import (
     build_public_capability_catalog,
     load_capability_index,
+    retrieve_capability_ids,
 )
 from app.sandbox.capabilities.schema import (
     CapabilityId,
@@ -276,7 +277,8 @@ async def execute_video_deliverable(
     )
     if index.runtime_build_id is None:
         raise ValueError("video capability index lacks a runtime build identity")
-    disclosure = build_public_capability_catalog(index)
+    disclosed_ids = retrieve_capability_ids(index, f"{job.title}\n{request.brief}")
+    disclosure = build_public_capability_catalog(index, selected_ids=disclosed_ids)
 
     await heartbeat("authoring", 15)
     async with _phase_timing("authoring", job_id=job.id):
@@ -360,32 +362,7 @@ async def execute_video_deliverable(
         )
 
     props_path = await _write_render_input(sandbox, workdir, render_input)
-    await heartbeat("preflight", 55)
-    preflight_issue = await _timed_preflight(
-        sandbox, workdir, props_path, job_id=job.id
-    )
-    if preflight_issue is not None:
-        if repairs >= VIDEO_SPEC.max_repair_cycles:
-            raise RuntimeError(f"video preflight failed: {preflight_issue}")
-        project, narration, manifest, render_input, props_path = await _content_repair(
-            llm,
-            sandbox=sandbox,
-            skill=skill,
-            before=project,
-            narration=narration,
-            findings=preflight_issue,
-            workdir=workdir,
-            index=index,
-            job_id=job.id,
-        )
-        repairs = 1
-        repeated_issue = await _timed_preflight(
-            sandbox, workdir, props_path, job_id=job.id
-        )
-        if repeated_issue is not None:
-            raise RuntimeError(f"video preflight failed: {repeated_issue}")
-
-    await heartbeat("rendering", 80)
+    await heartbeat("rendering", 55)
     async with _phase_timing("render", job_id=job.id):
         await _render(sandbox, workdir, props_path, output_path)
 
@@ -754,13 +731,17 @@ async def _repair_project(
     *,
     skill: LoadedVideoSkill,
     project: CreativeVideoProject,
-    findings: str,
+    findings: str | list[dict[str, object]],
 ) -> CreativeVideoProject:
     repaired = await _invoke_structured(
         llm,
         skill=skill,
         payload={
-            "findings": findings[-_FINDINGS_CHARS:],
+            "findings": (
+                findings[-_FINDINGS_CHARS:]
+                if isinstance(findings, str)
+                else findings
+            ),
             "current_project": project.model_dump(mode="json"),
             "protected_fields": [
                 "narration_cues.cue_id",
@@ -782,41 +763,6 @@ async def _repair_project(
     ):
         raise ValueError("source repair changed protected cue identity, text, or language")
     return repaired
-
-
-async def _content_repair(
-    llm,
-    *,
-    sandbox: SandboxSession,
-    skill: LoadedVideoSkill,
-    before: CreativeVideoProject,
-    narration,
-    findings: str,
-    workdir: PurePosixPath,
-    index: CapabilityIndex,
-    job_id: int,
-):
-    async with _phase_timing("repair", job_id=job_id):
-        repaired = await _repair_project(
-            llm,
-            skill=skill,
-            project=before,
-            findings=findings,
-        )
-        source_changed = repaired.source_files != before.source_files
-        assets_changed = repaired.assets != before.assets
-        if source_changed or assets_changed:
-            await _materialize_project(sandbox, workdir, repaired)
-        if source_changed or assets_changed:
-            await _timed_bundle(sandbox, workdir, job_id)
-            manifest = await _finalize_job_assets(sandbox, workdir, job_id)
-        else:
-            manifest = await _read_job_manifest(sandbox, workdir)
-        render_input = _trusted_render_input(
-            repaired, narration, index=index, manifest=manifest
-        )
-        props_path = await _write_render_input(sandbox, workdir, render_input)
-        return repaired, narration, manifest, render_input, props_path
 
 
 async def _read_job_manifest(
@@ -844,20 +790,6 @@ async def _write_render_input(
     return path
 
 
-async def _timed_preflight(
-    sandbox: SandboxSession,
-    workdir: PurePosixPath,
-    props_path: str,
-    *,
-    job_id: int,
-) -> str | None:
-    async with _phase_timing("select/preflight", job_id=job_id):
-        result = await _run_bash(
-            sandbox, _render_command(workdir, "--preflight", props_path)
-        )
-    return None if result.ok else result.output[-_FINDINGS_CHARS:]
-
-
 async def _render(
     sandbox: SandboxSession,
     workdir: PurePosixPath,
@@ -874,14 +806,15 @@ async def _render(
 
 def _render_command(
     workdir: PurePosixPath,
-    *arguments: str | PurePosixPath,
+    props_path: str | PurePosixPath,
+    output_path: str,
 ) -> str:
-    quoted_arguments = " ".join(shlex.quote(str(argument)) for argument in arguments)
     return (
         f"cd -- {shlex.quote(str(workdir))} && "
         f"VIDEO_SANDBOX_FRAME_CONCURRENCY="
         f"{app_config.VIDEO_SANDBOX_FRAME_CONCURRENCY} node render.mjs "
-        f"--job-dir {shlex.quote(str(workdir / 'job'))} {quoted_arguments}"
+        f"--job-dir {shlex.quote(str(workdir / 'job'))} "
+        f"{shlex.quote(str(props_path))} {shlex.quote(output_path)}"
     )
 
 

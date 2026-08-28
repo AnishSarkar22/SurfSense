@@ -2,7 +2,12 @@ import {loadFont} from "@remotion/fonts";
 import {Audio} from "@remotion/media";
 import type React from "react";
 import {useEffect, useState} from "react";
-import {AbsoluteFill, Sequence, staticFile, useDelayRender} from "remotion";
+import {
+  AbsoluteFill,
+  Sequence,
+  staticFile,
+  useDelayRender,
+} from "remotion";
 import {VideoRuntimeProvider} from "./authoring-context";
 import {
   fontCapabilities,
@@ -17,9 +22,13 @@ const fontPromises = fontCapabilities.map(({family, file, format, weight}) =>
 );
 const trustedIds = new Set<string>(trustedCapabilityIds);
 
-const ResourcePreloader: React.FC<{selectedIds: string[]}> = ({selectedIds}) => {
+const ResourceGate: React.FC<{
+  selectedIds: string[];
+  children: React.ReactNode;
+}> = ({selectedIds, children}) => {
   const {delayRender, continueRender, cancelRender} = useDelayRender();
   const [handle] = useState(() => delayRender("Loading trusted video capabilities"));
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const unknown = selectedIds.filter((id) => !trustedIds.has(id));
@@ -28,10 +37,13 @@ const ResourcePreloader: React.FC<{selectedIds: string[]}> = ({selectedIds}) => 
       return;
     }
     Promise.all(fontPromises)
-      .then(() => continueRender(handle))
+      .then(() => {
+        setReady(true);
+        continueRender(handle);
+      })
       .catch(cancelRender);
   }, [cancelRender, continueRender, handle, selectedIds]);
-  return null;
+  return ready ? children : null;
 };
 
 const Watermark: React.FC = () => (
@@ -44,6 +56,7 @@ const Watermark: React.FC = () => (
       height: 46,
       display: "grid",
       placeItems: "center",
+      pointerEvents: "none",
       borderRadius: 999,
       background: "rgba(2,6,23,.46)",
       zIndex: 9999,
@@ -61,21 +74,22 @@ export const TrustedVideoHost: React.FC<VideoRenderInput> = (input) => {
   }
   return (
     <AbsoluteFill style={{background: "#020617"}}>
-      <ResourcePreloader selectedIds={input.selected_capability_ids} />
-      <VideoRuntimeProvider value={input}>
-        <JobComposition />
-      </VideoRuntimeProvider>
-      {input.audio_tracks.map((track) => (
-        <Sequence
-          key={track.cue_id}
-          from={track.start_frame}
-          durationInFrames={track.duration_in_frames}
-          layout="none"
-        >
-          <Audio src={staticFile(track.src)} volume={track.volume} />
-        </Sequence>
-      ))}
-      {input.watermark ? <Watermark /> : null}
+      <ResourceGate selectedIds={input.selected_capability_ids}>
+        <VideoRuntimeProvider value={input}>
+          <JobComposition />
+        </VideoRuntimeProvider>
+        {input.audio_tracks.map((track) => (
+          <Sequence
+            key={track.cue_id}
+            from={track.start_frame}
+            durationInFrames={track.duration_in_frames}
+            layout="none"
+          >
+            <Audio src={staticFile(track.src)} volume={track.volume} />
+          </Sequence>
+        ))}
+        {input.watermark ? <Watermark /> : null}
+      </ResourceGate>
     </AbsoluteFill>
   );
 };

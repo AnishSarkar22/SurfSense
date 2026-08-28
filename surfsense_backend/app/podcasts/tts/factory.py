@@ -15,8 +15,8 @@ KOKORO_SERVICE = "local/kokoro"
 def get_text_to_speech() -> TextToSpeech:
     """Build the provider selected by ``TTS_SERVICE`` (adapters lazy-imported).
 
-    Cached because the Kokoro adapter holds loaded pipelines that must be reused
-    across segments and requests rather than rebuilt per call.
+    Cached because the Kokoro adapter supervises a warm process whose loaded
+    pipelines are reused across segments and requests.
     """
     from app.config import config as app_config
 

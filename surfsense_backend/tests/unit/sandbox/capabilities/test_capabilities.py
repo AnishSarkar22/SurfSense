@@ -17,6 +17,7 @@ from app.sandbox.capabilities.loader import (
     clear_capability_index_cache,
     load_capability_index,
 )
+from app.sandbox.capabilities.retrieval import retrieve_capability_ids
 from app.sandbox.capabilities.schema import (
     CapabilityEnvelope,
     CapabilityIndex,
@@ -51,6 +52,7 @@ def _capability(
     tags: tuple[str, ...],
     use_for: tuple[str, ...] = (),
     avoid_for: tuple[str, ...] = (),
+    dependencies: tuple[str, ...] = (),
     tier: CapabilityTier = CapabilityTier.VETTED,
 ) -> CapabilityEnvelope[dict[str, object]]:
     return CapabilityEnvelope[dict[str, object]](
@@ -62,6 +64,7 @@ def _capability(
         tags=tags,
         use_for=use_for,
         avoid_for=avoid_for,
+        dependencies=dependencies,
         natural_frame_length=30,
         tier=tier,
         props_schema={"type": "object", "additionalProperties": False},
@@ -197,7 +200,9 @@ def test_node_generated_index_satisfies_python_contract(tmp_path: Path) -> None:
     )
     animated_bar_chart = index.by_id()["video.component.animated-bar-chart"]
     assert animated_bar_chart.declaration["public_export"] == "AnimatedBarChart"
-    catalog = build_public_capability_catalog(index)
+    catalog = build_public_capability_catalog(
+        index, selected_ids=tuple(index.by_id())
+    )
     disclosed = next(
         capability
         for capability in catalog["capabilities"]
@@ -244,13 +249,17 @@ async def test_loader_rejects_version_or_expected_build_mismatch(change) -> None
         )
 
 
-def test_public_catalog_is_complete_and_rejects_missing_exports() -> None:
+def test_public_catalog_is_bounded_to_selected_ids_and_rejects_missing_exports() -> None:
     index = _index()
-    catalog = build_public_capability_catalog(index)
+    selected = (
+        "video.component.metric-grid",
+        "video.component.core.text",
+    )
+    catalog = build_public_capability_catalog(index, selected_ids=selected)
 
     assert catalog["build_id"] == index.build_id
     assert [item["id"] for item in catalog["capabilities"]] == [
-        capability.id for capability in index.capabilities
+        *selected,
     ]
     broken = _capability(
         "video.component.broken",
@@ -259,4 +268,56 @@ def test_public_catalog_is_complete_and_rejects_missing_exports() -> None:
         tags=("broken",),
     ).model_copy(update={"declaration": {}})
     with pytest.raises(ValueError, match="lacks a public export"):
-        build_public_capability_catalog(_index_for((broken,)))
+        build_public_capability_catalog(
+            _index_for((broken,)), selected_ids=(broken.id,)
+        )
+
+
+def test_retrieval_is_deterministic_diverse_and_closes_dependencies() -> None:
+    helper = _capability(
+        "video.component.chart-label",
+        category="typography",
+        summary="Labels for data charts",
+        tags=("labels", "data"),
+    )
+    metric = _capability(
+        "video.component.metric-grid",
+        category="data",
+        summary="Animated metric grid for quarterly KPI comparison",
+        tags=("metrics", "grid", "data"),
+        use_for=("quarterly KPI comparison",),
+        dependencies=(helper.id,),
+    )
+    confetti = _capability(
+        "video.component.confetti",
+        category="celebration",
+        summary="Celebratory confetti burst",
+        tags=("celebration",),
+        avoid_for=("serious financial reporting",),
+    )
+    generated = tuple(
+        _capability(
+            f"video.component.option-{index:03d}",
+            category=("data", "typography", "interface", "background")[index % 4],
+            summary=f"Vetted visual option {index}",
+            tags=("business", f"option-{index}"),
+            use_for=("financial reporting",),
+        )
+        for index in range(147)
+    )
+    index = _index_for((helper, metric, confetti, *generated))
+
+    first = retrieve_capability_ids(
+        index, "Quarterly KPI comparison for serious financial reporting"
+    )
+    second = retrieve_capability_ids(
+        index, "Quarterly KPI comparison for serious financial reporting"
+    )
+
+    assert first == second
+    assert 8 <= len(first) <= 16
+    assert metric.id in first
+    assert helper.id in first
+    assert confetti.id not in first
+    categories = [index.by_id()[capability_id].category for capability_id in first]
+    assert all(categories.count(category) <= 3 for category in set(categories))

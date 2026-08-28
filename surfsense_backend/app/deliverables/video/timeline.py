@@ -75,17 +75,17 @@ def _neutral_sample_frames(
             cue.start_frame + cue.duration_in_frames - 1,
             f"cue-end:{cue.cue_id}",
         )
-    for position in range(1, 6):
-        frame = round(last_frame * position / 6)
-        reasons.setdefault(frame, f"even:{position}/6")
+    for frame in range(FPS * 5, last_frame, FPS * 5):
+        reasons.setdefault(frame, f"coverage:{frame // FPS}s")
     for item in declared:
         sample = (
             item if isinstance(item, SampleFrame) else SampleFrame.model_validate(item)
         )
         reasons[sample.frame] = sample.reason
+    selected = dict(list(reasons.items())[:64])
     return tuple(
         SampleFrame(frame=frame, reason=reason)
-        for frame, reason in sorted(reasons.items())
+        for frame, reason in sorted(selected.items())
     )
 
 

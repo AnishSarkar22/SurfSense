@@ -110,7 +110,6 @@ for (const durationSeconds of durations) {
       "--public-dir",
       publicDir,
     ]);
-    const preflight = await measure(work, job, "preflight", ["--preflight", input]);
     const render = await measure(work, job, "render", [input, output]);
     const outputBytes = (await stat(output)).size;
     const receipt = JSON.parse(await readFile(`${output}.render.json`, "utf8"));
@@ -120,7 +119,6 @@ for (const durationSeconds of durations) {
         frame_count: durationSeconds * 30,
         build_id: capabilityIndex.build_id,
         catalog_load_ms: catalogLoadMs,
-        preflight,
         render,
         output_bytes: outputBytes,
         receipt_render_seconds: receipt.render_seconds,

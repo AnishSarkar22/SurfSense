@@ -4,9 +4,10 @@ Motion should explain change and preserve comprehension.
 
 - Use backend-provided measured narration cue intervals as the timing source of
   truth. Read them through the trusted authoring API.
-- Author visual timing freely with `Sequence`, interpolation, springs, and
-  frame-driven components. Keep all source timing relative to the composition
-  frame or measured cue intervals.
+- Author visual timing freely with interpolation, springs, and frame-driven
+  components. Use `TimelineLayer` instead of raw `Sequence` for independently
+  timed temporary visuals so their lifetime is explicit.
+  Persistent visual systems may remain mounted across multiple narration cues.
 - Respect each selected capability's documented natural motion. Do not speed an
   effect merely to fit overcrowded narration.
 - Reserve entrances for establishing hierarchy, transitions for changes in

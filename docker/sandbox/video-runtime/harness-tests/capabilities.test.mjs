@@ -32,6 +32,7 @@ const contextSource = await readFile(
   path.join(root, "src/authoring-context.tsx"),
   "utf8",
 );
+const spatialSource = await readFile(path.join(root, "src/SpatialLayout.tsx"), "utf8");
 const registrySource = await readFile(
   path.join(root, "src/generated/capability-registry.ts"),
   "utf8",
@@ -167,6 +168,18 @@ test("public authoring and capability APIs expose only the supported surface", (
     assert.match(contractSource, new RegExp(`export declare const ${hook}\\b`));
     assert.match(authoringSource, new RegExp(`export const ${hook}\\b`));
   }
+  for (const component of [
+    "TimelineLayer",
+    "FittedText",
+    "SpatialStack",
+    "SpatialGrid",
+  ]) {
+    assert.match(contractSource, new RegExp(`export declare const ${component}\\b`));
+    assert.match(authoringSource, new RegExp(`export \\{${component}\\}`));
+  }
+  assert.match(spatialSource, /repeat\(auto-fit, minmax\(/);
+  assert.doesNotMatch(spatialSource, /throw new Error/);
+  assert.doesNotMatch(contractSource, /\bcolumns\s*:/);
   assert.doesNotMatch(contractSource, /\b(?:cue_id|start_frame|duration_in_frames)\b/);
   assert.doesNotMatch(
     authoringSource,

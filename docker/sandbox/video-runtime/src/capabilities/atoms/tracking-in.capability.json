@@ -1,0 +1,33 @@
+{
+  "id": "video.component.tracking-in",
+  "kind": "component",
+  "summary": "Wide tracking and blur collapse into a precise title lockup.",
+  "category": "typography",
+  "tags": ["text", "tracking", "blur", "title", "entrance"],
+  "vibe": "premium",
+  "use_for": ["Brand-name reveals", "Precision-themed title entrances"],
+  "avoid_for": ["Sentences", "Per-character staggers", "Casual playful scenes"],
+  "natural_frame_length": 90,
+  "tier": "vetted",
+  "dependencies": ["remotion"],
+  "native_canvas": {"width": 1280, "height": 720, "fps": 30},
+  "deterministic": true,
+  "test_props": {"text": "REMOCN", "startTracking": 0.6, "startBlur": 14},
+  "props_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["text"],
+    "properties": {
+      "text": {"type": "string", "minLength": 1, "maxLength": 40},
+      "startTracking": {"type": "number", "minimum": -0.03, "maximum": 1},
+      "startBlur": {"type": "number", "minimum": 0, "maximum": 40},
+      "fontSize": {"type": "number", "minimum": 16, "maximum": 220},
+      "color": {"type": "string", "minLength": 1, "maxLength": 64},
+      "fontWeight": {"type": "number", "minimum": 100, "maximum": 900},
+      "speed": {"type": "number", "minimum": 0.25, "maximum": 4}
+    }
+  },
+  "upstream_docs_url": "https://remocn.dev/docs/typography/tracking-in.md",
+  "vendored_revision": "registry-fetched-2026-08-28",
+  "loader": "component.tracking-in"
+}

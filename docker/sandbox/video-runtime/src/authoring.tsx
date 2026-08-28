@@ -3,6 +3,10 @@ import type * as Contract from "./authoring-contract";
 import type {NarrationCueTiming} from "./authoring-contract";
 import {useTrustedVideoRuntime} from "./authoring-context";
 import type {NarrationCue} from "./schemas/VideoRenderInput";
+export {FittedText} from "./FittedText";
+export {SpatialGrid} from "./SpatialLayout";
+export {SpatialStack} from "./SpatialLayout";
+export {TimelineLayer} from "./TimelineLayer";
 
 const toTiming = (cue: NarrationCue): NarrationCueTiming => ({
   cueId: cue.cue_id,

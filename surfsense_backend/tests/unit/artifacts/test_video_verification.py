@@ -355,6 +355,55 @@ async def test_video_adapter_accepts_single_deduplicated_neutral_sample():
     assert result.structural.clean
 
 
+async def test_video_adapter_accepts_runtime_sample_limit():
+    expected_frames = 64
+    expected_duration = expected_frames / 30
+    sidecar = _receipt(
+        expected_duration=expected_duration,
+        expected_frames=expected_frames,
+    )
+    sidecar["sample_frames"] = [
+        {"frame": frame, "reason": f"coverage:{frame}"} for frame in range(64)
+    ]
+
+    result = await check_video(
+        ProbeSession(
+            expected_duration=expected_duration,
+            expected_frames=expected_frames,
+            probed_duration=expected_duration,
+            probed_frames=expected_frames,
+            sidecar=sidecar,
+        ),
+        "/workspace/out.mp4",
+    )
+
+    assert result.structural.clean
+
+
+async def test_video_adapter_rejects_more_than_runtime_sample_limit():
+    expected_frames = 65
+    expected_duration = expected_frames / 30
+    sidecar = _receipt(
+        expected_duration=expected_duration,
+        expected_frames=expected_frames,
+    )
+    sidecar["sample_frames"] = [
+        {"frame": frame, "reason": f"coverage:{frame}"} for frame in range(65)
+    ]
+
+    with pytest.raises(ValueError, match="render metadata is invalid"):
+        await check_video(
+            ProbeSession(
+                expected_duration=expected_duration,
+                expected_frames=expected_frames,
+                probed_duration=expected_duration,
+                probed_frames=expected_frames,
+                sidecar=sidecar,
+            ),
+            "/workspace/out.mp4",
+        )
+
+
 async def test_video_adapter_rejects_empty_narration_audio():
     session = ProbeSession()
     original_run_command = session.run_command
