@@ -3,11 +3,11 @@
 import pytest
 
 from modules.artifacts.formats import FORMATS
-from worker.studio.builders import BUILDERS
-from worker.studio.builders.summary import build
-from worker.studio.media import MEDIA
-from worker.studio.office import OFFICE
-from worker.studio.text import parse_json
+from worker.artifacts.builders import BUILDERS
+from worker.artifacts.builders.summary import build
+from worker.artifacts.media import MEDIA
+from worker.artifacts.office import OFFICE
+from worker.artifacts.text import parse_json
 
 pytestmark = pytest.mark.unit
 

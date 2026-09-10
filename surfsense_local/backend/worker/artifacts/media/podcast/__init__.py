@@ -1,8 +1,8 @@
 import logging
 
-from worker.studio.artifact import Built, Source
-from worker.studio.builder import Builder
-from worker.studio.text import as_list, as_text, parse_json, slug
+from worker.artifacts.artifact import Built, Source
+from worker.artifacts.builder import Builder
+from worker.artifacts.text import as_list, as_text, parse_json, slug
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def prompt(_sources: list[Source], user_prompt: str | None) -> str:
 
 
 def build(raw: str, _sources: list[Source]) -> Built:
-    from worker.studio.media.podcast import tts
+    from worker.artifacts.media.podcast import tts
 
     spec = parse_json(raw)
     title = as_text(spec.get("title")) or "Podcast"
@@ -46,7 +46,7 @@ def build(raw: str, _sources: list[Source]) -> Built:
         turns.append(tts.Turn(_VOICES.get(speaker, _VOICES["A"]), text))
 
     logger.info(
-        "studio: podcast %s turns (%s spoken chars); calling kokoro",
+        "artifact: podcast %s turns (%s spoken chars); calling kokoro",
         len(turns),
         sum(len(turn.text) for turn in turns),
     )

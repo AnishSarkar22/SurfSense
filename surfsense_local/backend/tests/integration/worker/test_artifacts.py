@@ -12,8 +12,8 @@ from modules.llm.resolution import ResolvedImageGeneration
 from modules.workspaces.models import Workspace
 from shared.config import get_storage_settings
 from shared.db import create_session_factory
-from worker.studio import office, persist, run
-from worker.studio.artifact import Built
+from worker.artifacts import office, persist, run
+from worker.artifacts.artifact import Built
 
 pytestmark = pytest.mark.integration
 
@@ -86,7 +86,7 @@ def _capture_model(monkeypatch: pytest.MonkeyPatch, reply: str) -> list[str]:
         seen.append(system)
         return reply
 
-    monkeypatch.setattr("worker.studio.generate.run_model", fake)
+    monkeypatch.setattr("worker.artifacts.generate.run_model", fake)
     return seen
 
 
@@ -101,7 +101,7 @@ def _capture_image(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     selection = type("Selection", (), {"name": "flux"})()
     monkeypatch.setattr(
-        "worker.studio.media.image.resolve_image_generation",
+        "worker.artifacts.media.image.resolve_image_generation",
         lambda _session: ResolvedImageGeneration(selection, FakeImageGenerator()),
     )
     return seen
@@ -354,7 +354,7 @@ def test_podcast_synthesizes_a_wav_from_the_transcript(
         '{"speaker": "B", "text": "Remarkable."}]}',
     )
     monkeypatch.setattr(
-        "worker.studio.media.podcast.tts.synthesize", lambda turns: b"RIFF" + b"\x00" * 40
+        "worker.artifacts.media.podcast.tts.synthesize", lambda turns: b"RIFF" + b"\x00" * 40
     )
     artifact = make_artifact(session, fmt="podcast", prompt="keep it short")
 
@@ -414,7 +414,7 @@ def test_a_generation_failure_leaves_a_reason(
     def boom(*args: object, **kwargs: object) -> str:
         raise RuntimeError("the model refused")
 
-    monkeypatch.setattr("worker.studio.generate.generate", boom)
+    monkeypatch.setattr("worker.artifacts.generate.generate", boom)
     artifact = make_artifact(session)
 
     with pytest.raises(RuntimeError, match="refused"):
@@ -434,7 +434,7 @@ def test_an_image_failure_is_recorded_without_requesting_a_huey_retry(
     def fail(*_args: object, **_kwargs: object) -> Built:
         raise NonRetryableImageError("image endpoint returned HTTP 500")
 
-    monkeypatch.setattr("worker.studio.media.render", fail)
+    monkeypatch.setattr("worker.artifacts.media.render", fail)
     artifact = make_artifact(session, fmt="image")
 
     run(artifact.id)

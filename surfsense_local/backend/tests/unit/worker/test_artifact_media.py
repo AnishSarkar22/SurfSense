@@ -4,8 +4,8 @@ import pytest
 
 from modules.llm.providers.protocols import GeneratedImage
 from modules.llm.resolution import ModelResolutionError, ResolvedImageGeneration
-from worker.studio.artifact import Source
-from worker.studio.media import image, podcast
+from worker.artifacts.artifact import Source
+from worker.artifacts.media import image, podcast
 
 pytestmark = pytest.mark.unit
 
@@ -53,7 +53,7 @@ def test_podcast_voices_a_two_host_transcript(
 ) -> None:
     """The transcript is the searchable body; the synthesised WAV is the file."""
     monkeypatch.setattr(
-        "worker.studio.media.podcast.tts.synthesize", lambda turns: b"RIFFfake"
+        "worker.artifacts.media.podcast.tts.synthesize", lambda turns: b"RIFFfake"
     )
     raw = (
         '{"title": "Saturn", "turns": [{"speaker": "A", "text": "Hi."}, '
@@ -73,7 +73,7 @@ def test_podcast_without_the_voice_pack_fails_clearly(
 ) -> None:
     """A machine lacking Kokoro gets a clear reason, like the parser-pack path."""
     monkeypatch.setattr(
-        "worker.studio.media.podcast.tts.missing_kokoro_files",
+        "worker.artifacts.media.podcast.tts.missing_kokoro_files",
         lambda: ["kokoro-v1.0.onnx"],
     )
     raw = '{"title": "T", "turns": [{"speaker": "A", "text": "Hi."}]}'

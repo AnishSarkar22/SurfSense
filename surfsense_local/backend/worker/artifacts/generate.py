@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from modules.llm.providers.types import Message
 from modules.llm.resolution import ModelResolutionError, resolve_generation
-from worker.studio.artifact import Source
-from worker.studio.builder import Builder
+from worker.artifacts.artifact import Source
+from worker.artifacts.builder import Builder
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def generate(
 def run_model(session: Session, system: str, sources: list[Source]) -> str:
     """Send one system prompt plus the grounding to the selected model.
 
-    The shared core of every Studio generation: the builder path passes a
+    The shared core of every artifact generation: the builder path passes a
     builder's prompt, the code path passes its own. Both collect the stream the
     worker cannot await lazily.
     """
@@ -49,14 +49,14 @@ def run_model(session: Session, system: str, sources: list[Source]) -> str:
     ]
     started = time.monotonic()
     logger.info(
-        "studio: model %s/%s starting (%s source chars)",
+        "artifact: model %s/%s starting (%s source chars)",
         selected.provider,
         selected.name,
         sum(len(source.content) for source in sources),
     )
     reply = asyncio.run(_collect(generator.chat(selected.name, messages)))
     logger.info(
-        "studio: model %s/%s returned %s chars in %.1fs",
+        "artifact: model %s/%s returned %s chars in %.1fs",
         selected.provider,
         selected.name,
         len(reply),

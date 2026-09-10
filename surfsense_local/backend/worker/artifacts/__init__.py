@@ -1,3 +1,3 @@
-from worker.studio.pipeline import run
+from worker.artifacts.pipeline import run
 
 __all__ = ["run"]

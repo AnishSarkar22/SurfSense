@@ -57,16 +57,16 @@ def synthesize(turns: list[Turn]) -> bytes:
 
     import numpy as np
 
-    logger.info("studio: kokoro loading engine")
+    logger.info("artifact: kokoro loading engine")
     load_started = time.monotonic()
     kokoro = _engine()
-    logger.info("studio: kokoro engine ready in %.1fs", time.monotonic() - load_started)
+    logger.info("artifact: kokoro engine ready in %.1fs", time.monotonic() - load_started)
     gap = np.zeros(int(SAMPLE_RATE * GAP_SECONDS), dtype=np.float32)
     chunks: list[Any] = []
     for index, turn in enumerate(turns, start=1):
         turn_started = time.monotonic()
         logger.info(
-            "studio: kokoro turn %s/%s voice=%s %s chars",
+            "artifact: kokoro turn %s/%s voice=%s %s chars",
             index,
             len(turns),
             turn.voice,
@@ -74,7 +74,7 @@ def synthesize(turns: list[Turn]) -> bytes:
         )
         samples, _ = kokoro.create(turn.text, voice=turn.voice, speed=1.0, lang="en-us")
         logger.info(
-            "studio: kokoro turn %s/%s done in %.1fs",
+            "artifact: kokoro turn %s/%s done in %.1fs",
             index,
             len(turns),
             time.monotonic() - turn_started,
@@ -83,7 +83,7 @@ def synthesize(turns: list[Turn]) -> bytes:
         chunks.append(gap)
 
     audio = np.concatenate(chunks) if chunks else np.zeros(1, dtype=np.float32)
-    logger.info("studio: kokoro stitching wav (%s turns)", len(turns))
+    logger.info("artifact: kokoro stitching wav (%s turns)", len(turns))
     return _wav(audio)
 
 

@@ -9,7 +9,7 @@ from modules.documents.models import DocumentStatus
 Prompt = Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)]
 
 
-class StudioJobCreate(BaseModel):
+class ArtifactJobCreate(BaseModel):
     """A request to generate one artifact from a workspace's documents."""
 
     format: str
@@ -23,6 +23,7 @@ class FormatRead(BaseModel):
 
     key: str
     label: str
+    description: str
     requires_role: str | None
     available: bool
     unavailable_reason: str | None

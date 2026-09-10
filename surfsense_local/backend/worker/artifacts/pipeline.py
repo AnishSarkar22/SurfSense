@@ -9,8 +9,8 @@ from modules.llm.providers.openai_compatible import NonRetryableImageError
 from shared.config import get_storage_settings
 from shared.db import create_db_engine, create_session_factory
 from worker.notify import notify_artifact_updates
-from worker.studio import gather, generate, media, office, persist
-from worker.studio.builders import BUILDERS
+from worker.artifacts import gather, generate, media, office, persist
+from worker.artifacts.builders import BUILDERS
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def _generate(session: Session, artifact: Artifact) -> None:
     document = artifact.document
     started = time.monotonic()
     logger.info(
-        "studio: artifact %s format=%s starting", artifact.id, artifact.format
+        "artifact: artifact %s format=%s starting", artifact.id, artifact.format
     )
     document.status = DocumentStatus.PROCESSING
     session.commit()
@@ -48,7 +48,7 @@ def _generate(session: Session, artifact: Artifact) -> None:
         sources = gather.gather(session, meta.get("source_document_ids", []))
         prompt = meta.get("prompt")
         logger.info(
-            "studio: artifact %s gathered %s sources (%s chars)",
+            "artifact: artifact %s gathered %s sources (%s chars)",
             artifact.id,
             len(sources),
             sum(len(source.content) for source in sources),
@@ -67,7 +67,7 @@ def _generate(session: Session, artifact: Artifact) -> None:
             family = "builder"
             raw = generate.generate(session, builder, sources, prompt)
             logger.info(
-                "studio: artifact %s model reply %s chars; building",
+                "artifact: artifact %s model reply %s chars; building",
                 artifact.id,
                 len(raw),
             )
@@ -76,7 +76,7 @@ def _generate(session: Session, artifact: Artifact) -> None:
             raise RuntimeError(f"no route for artifact format {artifact.format!r}")
 
         logger.info(
-            "studio: artifact %s family=%s render done in %.1fs; persisting",
+            "artifact: artifact %s family=%s render done in %.1fs; persisting",
             artifact.id,
             family,
             time.monotonic() - started,
@@ -88,7 +88,7 @@ def _generate(session: Session, artifact: Artifact) -> None:
         session.commit()
         notify_artifact_updates(artifact)
         logger.info(
-            "studio: artifact %s ready in %.1fs",
+            "artifact: artifact %s ready in %.1fs",
             artifact.id,
             time.monotonic() - started,
         )
@@ -99,7 +99,7 @@ def _generate(session: Session, artifact: Artifact) -> None:
         session.commit()
         notify_artifact_updates(artifact)
         logger.info(
-            "studio: artifact %s failed after %.1fs: %s",
+            "artifact: artifact %s failed after %.1fs: %s",
             artifact.id,
             time.monotonic() - started,
             document.error_message,

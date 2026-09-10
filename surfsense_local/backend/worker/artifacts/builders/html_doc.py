@@ -1,8 +1,8 @@
 import html
 
-from worker.studio.artifact import Built, Source
-from worker.studio.builder import Builder
-from worker.studio.text import as_list, as_text, parse_json, slug
+from worker.artifacts.artifact import Built, Source
+from worker.artifacts.builder import Builder
+from worker.artifacts.text import as_list, as_text, parse_json, slug
 
 MIME = "text/html"
 

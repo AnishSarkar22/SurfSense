@@ -31,16 +31,16 @@ def execute(code: str) -> dict:
 
     def target() -> None:
         try:
-            exec(compile(code, "<studio-office>", "exec"), namespace)
+            exec(compile(code, "<artifact-office>", "exec"), namespace)
         except BaseException as error:  # any failure becomes the job's
             failure.append(error)
 
-    logger.info("studio: office exec started (%ss cap)", TIMEOUT_SECONDS)
+    logger.info("artifact: office exec started (%ss cap)", TIMEOUT_SECONDS)
     thread = threading.Thread(target=target, daemon=True)
     thread.start()
     thread.join(TIMEOUT_SECONDS)
     if thread.is_alive():
-        logger.info("studio: office exec still running after %ss", TIMEOUT_SECONDS)
+        logger.info("artifact: office exec still running after %ss", TIMEOUT_SECONDS)
         raise RuntimeError(f"generated code did not finish within {TIMEOUT_SECONDS}s")
     if failure:
         error = failure[0]

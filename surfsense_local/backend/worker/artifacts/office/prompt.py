@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from worker.studio.office.spec import Office
+from worker.artifacts.office.spec import Office
 
 _CONTRACT = """Write one standalone Python script that builds a {label} from the \
 sources below, using their facts only.

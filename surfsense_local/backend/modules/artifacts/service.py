@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from modules.artifacts.formats import FORMATS, FORMATS_BY_KEY, Format
 from modules.artifacts.models import Artifact
-from modules.artifacts.schemas import FormatRead, StudioJobCreate
-from modules.artifacts.tasks import studio_job
+from modules.artifacts.schemas import ArtifactJobCreate, FormatRead
+from modules.artifacts.tasks import artifact_job
 from modules.documents.models import Document, DocumentStatus, DocumentType
 from modules.llm.models import ModelRole, SelectedModel
 from modules.workspaces.models import Workspace
@@ -22,8 +22,9 @@ def list_formats(session: Session) -> list[FormatRead]:
         available, reason = _availability(session, fmt)
         formats.append(
             FormatRead(
-            key=fmt.key,
-            label=fmt.label,
+                key=fmt.key,
+                label=fmt.label,
+                description=fmt.description,
                 requires_role=fmt.requires_role,
                 available=available,
                 unavailable_reason=reason,
@@ -35,11 +36,11 @@ def list_formats(session: Session) -> list[FormatRead]:
 def create_artifact_job(
     session: Session,
     workspace: Workspace,
-    payload: StudioJobCreate,
+    payload: ArtifactJobCreate,
     *,
     tool_call_id: str | None = None,
 ) -> Artifact:
-    """Validate a Studio request, create the artifact, and enqueue generation.
+    """Validate an artifact request, create the row, and enqueue generation.
 
     The one seam both triggers share: the REST route passes no tool_call_id, a
     future create_artifact tool passes its own. Nothing else differs.
@@ -81,8 +82,8 @@ def create_artifact_job(
     # Before enqueueing, not by the request session afterwards: the worker is
     # another process and would look for a row this request had not written.
     session.commit()
-    studio_job(artifact.id)
-    logger.info("studio: enqueued artifact %s format=%s", artifact.id, fmt.key)
+    artifact_job(artifact.id)
+    logger.info("artifact: enqueued artifact %s format=%s", artifact.id, fmt.key)
     return artifact
 
 

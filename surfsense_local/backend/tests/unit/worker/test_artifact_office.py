@@ -2,9 +2,9 @@
 
 import pytest
 
-from worker.studio import generate, office
-from worker.studio.artifact import Source
-from worker.studio.office import runner
+from worker.artifacts import generate, office
+from worker.artifacts.artifact import Source
+from worker.artifacts.office import runner
 
 pytestmark = pytest.mark.unit
 

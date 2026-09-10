@@ -10,16 +10,16 @@ from modules.artifacts.dependencies import ArtifactDep
 from modules.artifacts.models import Artifact, ArtifactFileRole
 from modules.artifacts.schemas import (
     ArtifactDetail,
+    ArtifactJobCreate,
     ArtifactRead,
     FormatRead,
-    StudioJobCreate,
 )
 from modules.artifacts.service import create_artifact_job, list_formats
 from modules.documents.models import Document, DocumentType
 from modules.workspaces.dependencies import WorkspaceDep
 from shared.config import get_storage_settings
 
-router = APIRouter(tags=["studio"])
+router = APIRouter(tags=["artifacts"])
 
 # Served inline so the viewer can render or stream; markup is forced to download
 # so a generated page never runs its script on the API origin.
@@ -27,22 +27,22 @@ _INLINE_UNSAFE = {"text/html", "image/svg+xml"}
 
 
 @router.get(
-    "/workspaces/{workspace_id}/studio/formats",
+    "/workspaces/{workspace_id}/artifacts/formats",
     response_model=list[FormatRead],
-    summary="List the Studio formats and whether each is usable",
+    summary="List the artifact formats and whether each is usable",
 )
-def studio_formats(workspace: WorkspaceDep, session: SessionDep) -> list[FormatRead]:
+def artifact_formats(workspace: WorkspaceDep, session: SessionDep) -> list[FormatRead]:
     return list_formats(session)
 
 
 @router.post(
-    "/workspaces/{workspace_id}/studio/jobs",
+    "/workspaces/{workspace_id}/artifacts/jobs",
     response_model=ArtifactRead,
     status_code=status.HTTP_201_CREATED,
     summary="Generate an artifact from documents",
 )
-def create_studio_job(
-    workspace: WorkspaceDep, payload: StudioJobCreate, session: SessionDep
+def create_artifact_job_route(
+    workspace: WorkspaceDep, payload: ArtifactJobCreate, session: SessionDep
 ) -> ArtifactRead:
     artifact = create_artifact_job(session, workspace, payload)
     return ArtifactRead.of(artifact)

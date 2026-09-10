@@ -9,15 +9,15 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from worker.studio import generate
-from worker.studio.artifact import Built, Source
-from worker.studio.office import prompt, runner
-from worker.studio.office.docx import docx
-from worker.studio.office.pdf import pdf
-from worker.studio.office.pptx import pptx
-from worker.studio.office.spec import Office
-from worker.studio.office.xlsx import xlsx
-from worker.studio.text import as_text, slug
+from worker.artifacts import generate
+from worker.artifacts.artifact import Built, Source
+from worker.artifacts.office import prompt, runner
+from worker.artifacts.office.docx import docx
+from worker.artifacts.office.pdf import pdf
+from worker.artifacts.office.pptx import pptx
+from worker.artifacts.office.spec import Office
+from worker.artifacts.office.xlsx import xlsx
+from worker.artifacts.text import as_text, slug
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def render(
 
     for attempt in range(CODE_ATTEMPTS):
         logger.info(
-            "studio: office %s attempt %s/%s asking the model",
+            "artifact: office %s attempt %s/%s asking the model",
             fmt,
             attempt + 1,
             CODE_ATTEMPTS,
@@ -44,7 +44,7 @@ def render(
         raw = generate.run_model(session, system, sources)
         try:
             logger.info(
-                "studio: office %s attempt %s running %s chars of code",
+                "artifact: office %s attempt %s running %s chars of code",
                 fmt,
                 attempt + 1,
                 len(raw),
@@ -57,7 +57,7 @@ def render(
                 )
         except Exception as error:
             logger.info(
-                "studio: office %s attempt %s failed: %s",
+                "artifact: office %s attempt %s failed: %s",
                 fmt,
                 attempt + 1,
                 error,

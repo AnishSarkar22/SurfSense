@@ -213,7 +213,7 @@ async def test_a_processing_document_cannot_be_deleted(
 async def test_documents_are_filtered_by_type(
     client: AsyncClient, workspace_id: int, engine: Engine
 ) -> None:
-    """Studio output shares the table with uploads; the view has to be able to split them."""
+    """Artifact output shares the table with uploads; the view has to be able to split them."""
     await client.post(
         f"/workspaces/{workspace_id}/documents", json={"title": "note", "content": "x"}
     )

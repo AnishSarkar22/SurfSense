@@ -1,4 +1,4 @@
-from worker.studio.office.spec import Office, load_skill
+from worker.artifacts.office.spec import Office, load_skill
 
 pdf = Office(
     key="pdf",

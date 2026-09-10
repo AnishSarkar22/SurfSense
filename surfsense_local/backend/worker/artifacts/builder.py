@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from worker.studio.artifact import Built, Source
+from worker.artifacts.artifact import Built, Source
 
 
 @dataclass(frozen=True)

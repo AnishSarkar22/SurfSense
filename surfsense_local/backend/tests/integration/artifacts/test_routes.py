@@ -11,7 +11,7 @@ pytestmark = pytest.mark.integration
 
 @pytest.fixture
 async def workspace_id(client: AsyncClient) -> int:
-    """Every Studio route hangs off a workspace, so every test needs one."""
+    """Every artifact route hangs off a workspace, so every test needs one."""
     created = await client.post("/workspaces", json={"name": "Research"})
     return int(created.json()["id"])
 
@@ -45,13 +45,14 @@ async def test_formats_lists_summary_as_available(
     client: AsyncClient, workspace_id: int, choose_model: None
 ) -> None:
     """Generation-backed formats are available with the selected chat model."""
-    response = await client.get(f"/workspaces/{workspace_id}/studio/formats")
+    response = await client.get(f"/workspaces/{workspace_id}/artifacts/formats")
 
     assert response.status_code == 200
     summary = next(f for f in response.json() if f["key"] == "summary")
     assert summary["available"] is True
     assert summary["requires_role"] == "generation"
     assert summary["unavailable_reason"] is None
+    assert summary["description"] == "Generate a summary based on your sources"
 
     infographic = next(f for f in response.json() if f["key"] == "infographic")
     assert infographic["available"] is True
@@ -67,7 +68,7 @@ async def test_a_job_creates_a_pending_artifact(
     source_id = make_ready_source(engine, workspace_id)
 
     created = await client.post(
-        f"/workspaces/{workspace_id}/studio/jobs",
+        f"/workspaces/{workspace_id}/artifacts/jobs",
         json={"format": "summary", "document_ids": [source_id]},
     )
 
@@ -91,7 +92,7 @@ async def test_a_job_needs_a_generation_model(
     source_id = make_ready_source(engine, workspace_id)
 
     response = await client.post(
-        f"/workspaces/{workspace_id}/studio/jobs",
+        f"/workspaces/{workspace_id}/artifacts/jobs",
         json={"format": "summary", "document_ids": [source_id]},
     )
 
@@ -105,7 +106,7 @@ async def test_a_job_rejects_an_unknown_format(
     source_id = make_ready_source(engine, workspace_id)
 
     response = await client.post(
-        f"/workspaces/{workspace_id}/studio/jobs",
+        f"/workspaces/{workspace_id}/artifacts/jobs",
         json={"format": "hologram", "document_ids": [source_id]},
     )
 
@@ -120,7 +121,7 @@ async def test_a_job_rejects_a_source_from_another_workspace(
     foreign_id = make_ready_source(engine, int(other.json()["id"]))
 
     response = await client.post(
-        f"/workspaces/{workspace_id}/studio/jobs",
+        f"/workspaces/{workspace_id}/artifacts/jobs",
         json={"format": "summary", "document_ids": [foreign_id]},
     )
 
@@ -137,7 +138,7 @@ async def test_a_job_waits_for_a_source_to_index(
     )
 
     response = await client.post(
-        f"/workspaces/{workspace_id}/studio/jobs",
+        f"/workspaces/{workspace_id}/artifacts/jobs",
         json={"format": "summary", "document_ids": [int(note.json()["id"])]},
     )
 
@@ -150,7 +151,7 @@ async def test_an_artifact_can_be_deleted(
     """Deleting the artifact removes its row; the detail route then 404s."""
     source_id = make_ready_source(engine, workspace_id)
     created = await client.post(
-        f"/workspaces/{workspace_id}/studio/jobs",
+        f"/workspaces/{workspace_id}/artifacts/jobs",
         json={"format": "summary", "document_ids": [source_id]},
     )
     artifact_id = created.json()["id"]

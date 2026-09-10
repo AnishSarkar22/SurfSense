@@ -3,7 +3,7 @@ import asyncio
 from sqlalchemy.orm import Session
 
 from modules.llm.resolution import ModelResolutionError, resolve_image_generation
-from worker.studio.artifact import Built, Source
+from worker.artifacts.artifact import Built, Source
 
 GROUNDING_CHARS = 6_000
 _EXTENSIONS = {

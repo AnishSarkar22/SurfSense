@@ -8,7 +8,7 @@ from modules.artifacts.models import Artifact, ArtifactFile, ArtifactFileRole
 from modules.documents.models import Document
 from shared.config import get_storage_settings
 from worker.ingestion import chunking, embedding, indexing
-from worker.studio.artifact import Built
+from worker.artifacts.artifact import Built
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +34,9 @@ def persist(
     """
     document.title = built.title
     document.content = built.markdown
-    logger.info("studio: persist artifact %s indexing", artifact.id)
+    logger.info("artifact: persist artifact %s indexing", artifact.id)
     _index(session, document, built.markdown)
-    logger.info("studio: persist artifact %s writing files", artifact.id)
+    logger.info("artifact: persist artifact %s writing files", artifact.id)
     _write_files(session, artifact, built)
 
 

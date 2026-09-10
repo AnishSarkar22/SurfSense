@@ -1,5 +1,5 @@
-from worker.studio.artifact import Built, Source
-from worker.studio.builder import Builder
+from worker.artifacts.artifact import Built, Source
+from worker.artifacts.builder import Builder
 
 MAX_TITLE = 200
 
