@@ -1,7 +1,7 @@
 /**
  * The two Python sidecars. They are the same shape: a frozen onedir binary in
  * the packaged app, `uv run` in dev, over the same SURFSENSE_LOCAL_* env. Chat
- * hits Ollama from the API; Studio generation hits it from the worker — both
+ * hits Ollama from the API; artifact generation hits it from the worker — both
  * need the bundled address.
  */
 import { join } from "node:path"
