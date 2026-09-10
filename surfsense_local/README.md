@@ -7,7 +7,7 @@ Local-first desktop app for research over your own documents. Runs fully offline
 - **Workspaces** — group documents per project
 - **Ingest** — PDFs and files parsed with Docling, chunked and embedded locally
 - **Chat with citations** — hybrid retrieval (BM25 + vector) grounded in your documents
-- **Studio** — generate artifacts (summaries, podcasts) from selected documents
+- **Artifacts** — generate summaries, podcasts, and other deliverables from selected documents
 - **Airgapped** — models and parsers on disk; nothing calls home
 
 ## Requirements
@@ -75,7 +75,7 @@ Vite SPA  ───> FastAPI                 Ollama / llama.cpp
 | `electron/` | Main process, sidecar lifecycle |
 | `backend/api/` | App factory, session dependency |
 | `backend/modules/` | One folder per feature: models, schemas, routes |
-| `backend/worker/` | Huey consumer, ingest and Studio pipelines |
+| `backend/worker/` | Huey consumer, ingest and artifact pipelines |
 | `backend/shared/` | Engine, session, Alembic entrypoint |
 | `backend/alembic/` | Migration history; the only thing that creates schema |
 | `packaging/` | PyInstaller + electron-builder specs |
