@@ -21,9 +21,9 @@ import {
   SettingsDialog,
   type SettingsSectionId,
 } from "@/features/settings/settings-dialog"
+import { ArtifactsSection } from "@/features/artifacts/artifacts-section"
 import { SourcesPanel } from "@/features/sources/sources-panel"
 import { useSources } from "@/features/sources/use-sources"
-import { StudioDialog } from "@/features/studio/studio-dialog"
 import type { Workspace } from "@/features/workspaces/api"
 import { useWorkspaces } from "@/features/workspaces/use-workspaces"
 import { WorkspaceRail } from "@/features/workspaces/workspace-rail"
@@ -115,8 +115,8 @@ function WorkspaceDashboard({
           onDeleteSelected={() => void sources.deleteSelected()}
           onSelectionChange={sources.setDocumentSelected}
           onUpload={(files) => void sources.upload(files)}
-          studioSlot={
-            <StudioDialog
+          artifacts={
+            <ArtifactsSection
               workspaceId={workspace.id}
               documents={sources.documents}
             />

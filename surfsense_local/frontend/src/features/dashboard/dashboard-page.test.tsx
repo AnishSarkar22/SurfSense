@@ -15,6 +15,10 @@ const workspace = {
   updated_at: "2026-09-05T00:00:00Z",
 }
 
+function isArtifactCatalog(path: string) {
+  return path.endsWith("/artifacts") || path.endsWith("/artifacts/formats")
+}
+
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
@@ -67,6 +71,9 @@ describe("dashboard chat", () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input)
+        if (isArtifactCatalog(path)) {
+          return Response.json([])
+        }
         if (path === "/llm/providers") {
           return Response.json([
             { name: "ollama", healthy: true, can_download: true },
@@ -155,6 +162,9 @@ describe("dashboard chat", () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input)
+        if (isArtifactCatalog(path)) {
+          return Response.json([])
+        }
         if (path === "/llm/providers") {
           return Response.json([
             { name: "ollama", healthy: true, can_download: true },
@@ -300,6 +310,9 @@ describe("dashboard chat", () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input)
+        if (isArtifactCatalog(path)) {
+          return Response.json([])
+        }
         if (path === "/llm/providers") {
           return Response.json([
             { name: "ollama", healthy: true, can_download: true },
@@ -483,6 +496,9 @@ describe("dashboard chat", () => {
   it("loads threads and sources for the selected workspace", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)
+      if (isArtifactCatalog(path)) {
+        return Response.json([])
+      }
       if (path === "/llm/providers") {
         return Response.json([
           { name: "ollama", healthy: true, can_download: true },
@@ -536,6 +552,9 @@ describe("dashboard chat", () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input)
+        if (isArtifactCatalog(path)) {
+          return Response.json([])
+        }
         if (path === "/llm/providers") {
           return Response.json([
             { name: "ollama", healthy: true, can_download: true },
@@ -622,6 +641,9 @@ describe("dashboard chat", () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input)
+        if (isArtifactCatalog(path)) {
+          return Response.json([])
+        }
         if (path === "/llm/providers") {
           return Response.json([
             { name: "ollama", healthy: true, can_download: true },

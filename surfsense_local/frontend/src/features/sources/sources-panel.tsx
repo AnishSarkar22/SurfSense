@@ -232,7 +232,7 @@ export function SourcesPanel({
   onDeleteSelected,
   onSelectionChange,
   onUpload,
-  studioSlot,
+  artifacts,
 }: {
   documents: WorkspaceDocument[]
   selectedDocumentIds: number[]
@@ -248,7 +248,7 @@ export function SourcesPanel({
   onDeleteSelected: () => void
   onSelectionChange: (documentId: number, selected: boolean) => void
   onUpload: (files: File[]) => void
-  studioSlot?: ReactNode
+  artifacts?: ReactNode
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
   const sourceRows = useRef(new Map<number, HTMLDivElement>())
@@ -295,7 +295,6 @@ export function SourcesPanel({
             onChange={uploadSelectedFiles}
           />
           <div className="flex items-center gap-2">
-            {studioSlot}
             <Button
               size="sm"
               variant="outline"
@@ -315,6 +314,7 @@ export function SourcesPanel({
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             ) : null}
+            {artifacts}
             {isLoading
               ? [0, 1, 2].map((item) => (
                   <Skeleton key={item} className="h-20 w-full" />
