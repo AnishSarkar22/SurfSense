@@ -25,7 +25,7 @@
 | Document status | JSONB `{"state":…}` | **`status` TEXT** | enum: `pending` \| `processing` \| `ready` \| `failed` — simpler for SQLite; map from cloud `DocumentStatus` when copying ingest |
 | Dedup key | `unique_identifier_hash` | **`dedup_key`** | same role, clearer name; compute same hash when porting dedup logic |
 | Body text | `content` + `source_markdown` | **`content`** only | one markdown body field; cloud duplicated for Plate/BlockNote — Local drops editor legacy unless copied |
-| Artifact sidecar | `artifacts` | **`artifacts`** | keep (ADR-0003 shape when Studio ships) |
+| Artifact sidecar | `artifacts` | **`artifacts`** | keep (ADR-0003 shape when artifacts ship) |
 
 **API routes (Local):** the surface below is the whole contract for workspaces and
 documents. No `/new_chat`.
@@ -47,7 +47,7 @@ documents. No `/new_chat`.
 | `GET` | `/workspaces/{id}/documents/{doc}/original` | 2 |
 
 Later phases add `/workspaces/{id}/chat/threads` (3), `/settings` (3), and the
-Studio routes (4).
+artifact routes (4).
 
 **List semantics:** filters `?document_type=` and `?status=` (repeatable), paged
 with `?limit=` (default 50, max 200) and `?offset=`. ARTIFACT rows are included;
@@ -179,7 +179,7 @@ First launch may create one default workspace; schema allows many.
 | `blocknote_document`, `source_markdown`, `content_needs_reindexing` | **omit** unless editor copy forces it |
 
 **`document_type` subset:** `FILE` (upload), `NOTE` (written in the app, no file
-behind it), `ARTIFACT` (Studio). No connector enum entries.
+behind it), `ARTIFACT` (generated deliverable). No connector enum entries.
 
 **Unique:** `(workspace_id, dedup_key)` where dedup applies.
 

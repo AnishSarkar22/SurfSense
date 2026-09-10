@@ -84,13 +84,13 @@ installed model still answers through its runtime adapter. Remote model lists
 are fetched live and never copied into SQLite. Two endpoints with the same model
 id remain distinct because selection identity includes the connection id.
 
-## Chat vs Studio
+## Chat vs Artifacts
 
 ```text
 CHAT
   question → hybrid search (app) → trim chunks → LLM → answer + citations
 
-STUDIO (button)
+ARTIFACTS (Sources panel section)
   pick artifact type → pick documents → optional prompt
     → retrieve (app) → LLM → builder → artifacts row + file
 

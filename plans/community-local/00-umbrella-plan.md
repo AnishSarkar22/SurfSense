@@ -10,7 +10,7 @@
 |---|---|---|
 | **Frontend** | [`frontend/`](frontend/) | `surfsense_local/frontend/` |
 | **API** | [`api/`](api/) | `electron/`, `backend/api/`, migrations, packaging |
-| **Worker** | [`worker/`](worker/) | `backend/worker/`, ingest, `shared/search`, studio pipelines |
+| **Worker** | [`worker/`](worker/) | `backend/worker/`, ingest, `shared/search`, artifact pipelines |
 
 Shared: [`00c-data-model.md`](00c-data-model.md), [`00b-diagrams.md`](00b-diagrams.md).
 
@@ -26,7 +26,7 @@ Same phase number = integrate together.
 | **1** | [`01-shell.md`](frontend/01-shell.md) ◐ | [`01-skeleton.md`](api/01-skeleton.md) ✓ | [`01-boot.md`](worker/01-boot.md) ✓ |
 | **2** | [`02-documents.md`](frontend/02-documents.md) | [`02-upload.md`](api/02-upload.md) ✓ | [`02-ingest.md`](worker/02-ingest.md) ✓ |
 | **3** | [`03-chat.md`](frontend/03-chat.md) | [`03-chat.md`](api/03-chat.md) ✓ | [`03-search.md`](worker/03-search.md) ✓ |
-| **4** | [`04-studio.md`](frontend/04-studio.md) | [`04-studio.md`](api/04-studio.md) | [`04-studio.md`](worker/04-studio.md) |
+| **4** | [`04-artifacts.md`](frontend/04-artifacts.md) | [`04-artifacts.md`](api/04-artifacts.md) | [`04-artifacts.md`](worker/04-artifacts.md) |
 | **5** | [`05-install-ux.md`](frontend/05-install-ux.md) | [`05a-model-recommendations.md`](api/05a-model-recommendations.md) + [`05b-openai-compatible-connections.md`](api/05b-openai-compatible-connections.md) + [`05c-packaging.md`](api/05c-packaging.md) | [`05-packaging.md`](worker/05-packaging.md) |
 | **6** | import, license, egress settings ([`00d-pivot-plan.md`](00d-pivot-plan.md)) | `modules/migration/`, `modules/license/`, keychain, auto-update ([`00d-pivot-plan.md`](00d-pivot-plan.md)) | — (import reuses `ingest_document`) |
 
@@ -63,7 +63,7 @@ pack.
 | Docling / chunk / embed | | ✓ |
 | Hybrid search | calls | implements (`shared/`) |
 | Chat LLM stream | ✓ | |
-| Studio builder | | ✓ |
+| Artifact builder | | ✓ |
 | Electron / installers | ✓ | |
 
 ## Positioning
@@ -99,7 +99,7 @@ Docker Compose, Postgres, Zero, Redis, Celery, LangGraph, git KB, scrapers, MCP,
 
 ## Open items
 
-Model pack hosting (Phase 5 only); default workspace on first launch. **Studio resolved:** deterministic builders (LLM emits structured content, a trusted per-format function renders — no sandbox), a hybrid `create_artifact_job` service (explicit job now, agentic tool later), image artifacts through an explicitly selected OpenAI-compatible Images model, deterministic infographics through the generation model, and Kokoro-82M bundled for offline podcasts — [`frontend/`](frontend/04-studio.md) · [`api/`](api/04-studio.md) · [`worker/`](worker/04-studio.md). **Done:** the freshness push — `GET /workspaces/{id}/events` (SSE fan-out to the renderer) and `POST /internal/events` (worker → API notify on row change) ship in `modules/events/`; the frontend still consumes it via `queryClient.invalidateQueries` (see the UI freshness decision).
+Model pack hosting (Phase 5 only); default workspace on first launch. **Artifacts resolved:** deterministic builders (LLM emits structured content, a trusted per-format function renders — no sandbox), a hybrid `create_artifact_job` service (explicit job now, agentic tool later), image artifacts through an explicitly selected OpenAI-compatible Images model, deterministic infographics through the generation model, and Kokoro-82M bundled for offline podcasts — [`frontend/`](frontend/04-artifacts.md) · [`api/`](api/04-artifacts.md) · [`worker/`](worker/04-artifacts.md). **Done:** the freshness push — `GET /workspaces/{id}/events` (SSE fan-out to the renderer) and `POST /internal/events` (worker → API notify on row change) ship in `modules/events/`; the frontend still consumes it via `queryClient.invalidateQueries` (see the UI freshness decision).
 
 ## Copy sources
 

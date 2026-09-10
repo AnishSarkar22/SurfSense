@@ -18,7 +18,7 @@ Upload files and see ingest status.
   `POST .../documents/{doc}/retry`.
 - Row actions: rename → `PATCH .../documents/{doc}`, delete → `DELETE` the same path.
 - The list returns ARTIFACT rows too. Filter with `?document_type=FILE&document_type=NOTE`
-  so Studio output does not appear as something the user uploaded.
+  so generated artifacts do not appear as something the user uploaded.
 - Open a document → `GET .../documents/{doc}` for its extracted text; notes are
   editable in place and go back to `pending` when saved.
 

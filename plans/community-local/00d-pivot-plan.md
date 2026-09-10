@@ -1,6 +1,6 @@
 # SurfSense Pivot: Hosted SaaS to Airgapped Open Core
 
-> Sunset the hosted SaaS and relaunch SurfSense as an airgapped open-source desktop app (Apache-2.0, free public installers) monetized through a Keygen-issued license. v1.0.0 ships the app, Studio artifacts, cloud-to-local import, and license purchase; the first plugin (hosted scraper API) lands the week after.
+> Sunset the hosted SaaS and relaunch SurfSense as an airgapped open-source desktop app (Apache-2.0, free public installers) monetized through a Keygen-issued license. v1.0.0 ships the app, artifacts, cloud-to-local import, and license purchase; the first plugin (hosted scraper API) lands the week after.
 
 Every item below is a decision, not an assumption. Timeline is intentionally absent; work is ordered, not dated, and launch is the day the launch gates are green. This document is the single source for the pivot. The phase docs in this folder ([`00-umbrella-plan.md`](00-umbrella-plan.md), `api/`, `worker/`, `frontend/`) remain the technical specs for the local app itself; "community-local" stays as the internal folder name, the user-facing name is **SurfSense**.
 
@@ -8,9 +8,9 @@ Three workstreams, joined by four frozen contracts:
 
 | Workstream | Owner | Owns |
 |---|---|---|
-| **A - the app** | Dev A | `surfsense_local/`: rename, packaging, import, license module, keychain, egress panel, auto-update, Studio review |
+| **A - the app** | Dev A | `surfsense_local/`: rename, packaging, import, license module, keychain, egress panel, auto-update, artifact review |
 | **B - portal and wind-down** | Dev B | `surfsense_backend/`, `surfsense_web/`: export, Stripe, license routes, portal pages, infra scale-down, comms |
-| **C - Studio** | Contractors | Studio pipeline and every artifact builder, end to end |
+| **C - Artifacts** | Contractors | Artifact pipeline and every builder, end to end |
 
 ## Decision log
 
@@ -45,7 +45,7 @@ Three workstreams, joined by four frozen contracts:
 **Artifacts**
 - Generation runs **on the user's machine, unsandboxed**; risk accepted, sandboxing sold to enterprise later.
 - In MVP: Summary, Mind map, Flashcards, Quiz, Interactive HTML, DOCX, XLSX, PPTX, PDF, Podcast, Infographics. **Video is out.**
-- Contractors own Studio **end-to-end** (routes, worker job, UI, builders). Dev A reviews.
+- Contractors own artifacts **end-to-end** (routes, worker job, UI, builders). Dev A reviews.
 
 **Hosted wind-down**
 - Deployment is **Azure VMs with docker-compose**. Prod auth is **Google OAuth only**. 5,000-50,000 registered users. Unspent credit exposure **under $500**.
@@ -133,7 +133,7 @@ Speed is not the constraint; waste is. With two fast devs the only ways to lose 
 | `surfsense_local/electron/`, `.github/workflows/release-local.yml`, `surfsense_local/backend/modules/license/` and `modules/migration/`, Settings and import screens in `surfsense_local/frontend/`, `surfsense_desktop/` (v0.0.40 only) | Dev A |
 | `surfsense_backend/`, `surfsense_web/`, compose and infra | Dev B |
 | `plans/community-local/contracts/` | Dev A drafts, Dev B approves; changes after the freeze are a PR both sign off |
-| Studio routes, worker job, builders, Studio panel | Contractors |
+| Artifact routes, worker job, builders, Artifacts section | Contractors |
 | Shared packaging files (`electron-builder.yml`, `worker.spec`) and the `electron/` preload | Dev A owns; contractors change them by PR |
 
 **Dependency graph.** Solid edges block. The five hexagons are the only times two workstreams have to meet; everything else runs in parallel.
@@ -160,7 +160,7 @@ flowchart LR
   A9[A9 keychain] --> C6[C6 infographics]
   A10[A10 egress panel] --> C6
   A4 --> C5[C5 podcast bundles]
-  C1[C1 Studio skeleton] --> C2[C2 to C5 builders]
+  C1[C1 Artifacts skeleton] --> C2[C2 to C5 builders]
   C1 --> C6
   A7[A7 auto-update] --> Gates{{"Sync 4: launch gates"}}
   Tag --> Gates
@@ -181,7 +181,7 @@ flowchart LR
 - **Build against the fixture, not against each other.** Nobody waits for the other side of a contract to exist; the two end-to-end syncs are where the sides meet, once.
 - **Do not polish what dies in 30 days.** `/sunset`, the export UI, and the hosted redirects are function-only.
 - **Contractors' cross-cutting needs are PRs to Dev A**, not edits to Dev A's files: the IPC method for `printToPDF` (C4), `extraResources` entries for Kokoro and ffmpeg (C5), hidden imports in `worker.spec` (C3). C6 waits for A9 and A10 and is last in the contractor list for that reason.
-- **Dev A's Studio review is continuous, not a phase.** It checks two things: the spec-to-builder rule and packaging impact. Nothing else.
+- **Dev A's artifact review is continuous, not a phase.** It checks two things: the spec-to-builder rule and packaging impact. Nothing else.
 
 ## Workstream A - the app (Dev A)
 
@@ -202,7 +202,7 @@ Ordered. Each step is independently shippable to `dev`.
 8. **License module.** New `modules/license/`: import file, verify offline, persist, clock-rollback watermark (highest timestamp seen in SQLite; earlier clock marks the license untrusted), `GET /license/status`. Settings UI to drop or paste the file. Needs a real Keygen-signed test file, so the founder's Keygen account precedes it. The trial button is added at T+7.
 9. **Keychain.** `provider_credentials.api_key` is plaintext SQLite today. Move to Electron `safeStorage` through a typed preload method. One hand-written Alembic revision drops the plaintext column; no data migration, since nothing has shipped.
 10. **Egress panel.** One toggle per destination - Keygen (activation), GitHub (updates), each BYO provider - all **off by default**, each showing its last call. This is the answer to "airgapped app with a plugin store" and an enterprise selling point. The scraper API toggle is added at T+7.
-11. **Review Studio PRs**, enforcing the rule in Workstream C.
+11. **Review artifact PRs**, enforcing the rule in Workstream C.
 
 **T+7, v1.1.0 (after launch):** scraper client - thin HTTP module against Dev B's endpoint with the license as bearer; results land as documents; inert unless the toggle is on and a license is present. Plus the trial button and the scraper toggle. Delivered through auto-update, which is why step 7 must be solid at v1.0.0. The client ships **in the public app under Apache-2.0**: enforcement is server-side, so there is nothing to hide, and the private BSL repo is for future plugins that carry real logic.
 
@@ -219,13 +219,13 @@ Ordered. Each step is independently shippable to `dev`.
 
 **T+7, plugin release:** auth middleware on the capabilities routes accepting `Authorization: License <key>`, validated against Keygen with a short cache. PAT auth for MCP gated on an active license for that user. Per-license usage counters - instrumentation only, no cap. Enable `POST /license/trial`.
 
-## Workstream C - Studio (contractors)
+## Workstream C - Artifacts (contractors)
 
-Own [api/04-studio.md](api/04-studio.md), [worker/04-studio.md](worker/04-studio.md), [frontend/04-studio.md](frontend/04-studio.md) end-to-end.
+Own [api/04-artifacts.md](api/04-artifacts.md), [worker/04-artifacts.md](worker/04-artifacts.md), [frontend/04-artifacts.md](frontend/04-artifacts.md) end-to-end.
 
 **The one rule:** the cloud sandbox pattern is "LLM writes a script, sandbox runs it." Do not port that. The LLM emits a **structured spec**; a deterministic **builder** renders it. Then nothing LLM-written executes on the user's machine, which turns the accepted risk from "arbitrary code" into "malformed JSON." Interactive HTML renders in a sandboxed iframe exactly as cloud does today.
 
-1. **Pipeline skeleton.** `POST /workspaces/{id}/studio/jobs`, Huey `studio_job(artifact_id)`, artifact list and get routes, Studio panel in the right column. Reuse the `artifacts` and `artifact_files` tables that already exist.
+1. **Pipeline skeleton.** `POST /workspaces/{id}/artifacts/jobs`, Huey `artifact_job(artifact_id)`, artifact list and get routes, Artifacts section in the Sources panel. Reuse the `artifacts` and `artifact_files` tables that already exist.
 2. **Zero-dependency builders.** Summary, Mind map, Flashcards, Quiz, Interactive HTML. Nothing to bundle.
 3. **Office builders.** DOCX, XLSX, PPTX via `python-docx`, `openpyxl`, `python-pptx` from a spec. Add hidden imports to `worker.spec` - PyInstaller only sees what `import` statements name. Download-only; no LibreOffice, so no rendered previews.
 4. **PDF** via Electron's `printToPDF`: worker renders HTML, API hands it to the main process over IPC, result stored as the artifact primary file. No extra dependency. The IPC method lives in `electron/`, which Dev A owns: submit it as a PR to Dev A.
@@ -244,7 +244,7 @@ There is no launch date. T-0 is the first day every box below is checked; the ru
 - [ ] Purchase path end to end in Stripe test mode: Checkout to webhook to Keygen to license file to `GET /license/status` showing the plan (A8 + B2 + B3).
 - [ ] Keychain and egress panel merged; every outbound destination off by default (A9, A10).
 - [ ] Portal live: `/sunset`, `/pricing`, `/license/success`, `/license`, `/downloads`, landing; Zero removed (B4-B6).
-- [ ] Studio: every MVP artifact type builds from the packaged app, not just from the dev tree (C1-C6).
+- [ ] Artifacts: every MVP artifact type builds from the packaged app, not just from the dev tree (C1-C6).
 - [ ] `SUNSET_MODE` tested on the compose stack: writes return 410, export and license routes unaffected; scale-down runbook written; Redis dependency verified (B7).
 - [ ] Announcement (runbook step 1) sent at least once before this day.
 

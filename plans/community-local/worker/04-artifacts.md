@@ -1,11 +1,11 @@
-# Worker — Phase 4: Studio pipeline
+# Worker — Phase 4: Artifacts pipeline
 
-> Owns: `worker/studio/`. Schema: [`../00c-data-model.md`](../00c-data-model.md)
+> Owns: `worker/artifacts/`. Schema: [`../00c-data-model.md`](../00c-data-model.md)
 > (`artifacts`), [ADR-0003](../../../docs/adr/0003-artifacts-as-documents.md).
 
 ## Goal
 
-`studio_job(artifact_id)` — the selected generation model writes **structured
+`artifact_job(artifact_id)` — the selected generation model writes **structured
 content** and a trusted **builder** renders the bytes. The Image format is the
 one explicit exception: its selected image model returns image bytes through
 the OpenAI-compatible Images API. Both paths land as an `ARTIFACT` document +
@@ -36,7 +36,7 @@ One folder, mirroring `worker/ingestion/`:
 - **`pipeline.py`** — engine per job, same shape as
   [`ingestion/pipeline.py`](../../../surfsense_local/backend/worker/ingestion/pipeline.py):
   drive the `ARTIFACT` document `pending → processing → ready | failed`, notify
-  on each change ([`../api/04-studio.md`](../api/04-studio.md) `/internal/events`).
+  on each change ([`../api/04-artifacts.md`](../api/04-artifacts.md) `/internal/events`).
   Steps: retrieve context over the chosen documents (`shared/search`) → generate
   the format's structured content (`Generator`) → `build` → write blobs → set
   the document's markdown body and index it through the existing ingest path so
@@ -99,6 +99,6 @@ outside MVP.
 
 ## Interface from API
 
-`studio_job(artifact_id)` — [`../api/04-studio.md`](../api/04-studio.md). The
+`artifact_job(artifact_id)` — [`../api/04-artifacts.md`](../api/04-artifacts.md). The
 same service entry (`create_artifact_job`) is what a future chat tool wraps, so
 the worker path is identical for the explicit job and the agentic call.

@@ -255,7 +255,7 @@ resets this marker. Settings Use actions must not call this route.
 Deletes an installed local generation model through the runtime API. For
 Ollama, the adapter calls `DELETE /api/delete` with the exact model name and
 tag. The endpoint rejects remote providers, embedding-only models, active
-downloads, active chat streams, and deletion while the separate Studio worker
+downloads, active chat streams, and deletion while the separate artifact worker
 is generating. If the deleted model is
 selected, the same transaction clears `SelectedModel` and reports
 `selection_cleared: true`.

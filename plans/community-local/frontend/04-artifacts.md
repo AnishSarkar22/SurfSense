@@ -1,25 +1,29 @@
-# Frontend — Phase 4: Studio
+# Frontend — Phase 4: Artifacts
 
-> Owns: `features/studio/`. Routes: [`../api/04-studio.md`](../api/04-studio.md).
+> Owns: `features/artifacts/`. Routes: [`../api/04-artifacts.md`](../api/04-artifacts.md).
 > Freshness: TanStack Query + SSE ([`../00-umbrella-plan.md`](../00-umbrella-plan.md)).
 
 ## Goal
 
-A Studio surface: pick a format, pick documents, optional prompt → generate →
+An Artifacts surface: pick a format, pick documents, optional prompt → generate →
 track → view or download. Separate from chat, one deliverable at a time.
 
 ## Work
 
 Mirror `features/sources/` layout (page, hook, `api.ts`, components):
 
-- **Entry** — a Studio surface off the workspace, distinct from the chat panel.
-- **Format picker** from `GET /studio/formats`. Image renders disabled when no
-  image-generation role is selected, with a link to the OpenAI-compatible model
-  setup. Infographic remains available with the generation role; the frontend
-  does not infer availability from credentials.
+- **Entry** — an Artifacts section in the Sources panel, above All sources.
+  Generated artifacts sit in a full-width row above a 3-column format grid
+  with icons. Clicking an available card collapses the grid to Sources /
+  Prompt / Generate. Hover shows the format `description`; an unavailable
+  card keeps the `unavailable_reason` tooltip and does not open compose.
+- **Format picker** from `GET /workspaces/{id}/artifacts/formats`. Image
+  renders disabled when no image-generation role is selected, with a link to
+  the OpenAI-compatible model setup. Infographic remains available with the
+  generation role; the frontend does not infer availability from credentials.
 - **Document picker** — multi-select over the workspace's sources (reuse the
   sources list) + an optional prompt / theme field.
-- **Submit** → `POST /workspaces/{id}/studio/jobs`, returns the artifact id.
+- **Submit** → `POST /workspaces/{id}/artifacts/jobs`, returns the artifact id.
 - **Track** with TanStack Query on `GET /artifacts/{id}`; SSE invalidates the
   document event for that id, `refetchInterval` is the fallback while running —
   the same freshness path as ingest, no bespoke polling loop.
@@ -43,5 +47,5 @@ Mirror `features/sources/` layout (page, hook, `api.ts`, components):
 
 ## Needs from API / worker
 
-The Studio routes and job completion — [`../api/04-studio.md`](../api/04-studio.md),
-[`../worker/04-studio.md`](../worker/04-studio.md).
+The artifact routes and job completion — [`../api/04-artifacts.md`](../api/04-artifacts.md),
+[`../worker/04-artifacts.md`](../worker/04-artifacts.md).

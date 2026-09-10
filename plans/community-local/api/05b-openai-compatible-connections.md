@@ -2,8 +2,8 @@
 
 > Owns: `backend/modules/llm/connections/`, the remote-provider adapters,
 > connection migrations, and the normalized remote-model API. Frontend:
-> [`../frontend/05-install-ux.md`](../frontend/05-install-ux.md). Studio:
-> [`04-studio.md`](04-studio.md), [`../worker/04-studio.md`](../worker/04-studio.md).
+> [`../frontend/05-install-ux.md`](../frontend/05-install-ux.md). Artifacts:
+> [`04-artifacts.md`](04-artifacts.md), [`../worker/04-artifacts.md`](../worker/04-artifacts.md).
 
 ## Goal
 
@@ -176,8 +176,8 @@ resolve image_generation selection
   └── openai_compatible + connection_id → load connection → image provider
 ```
 
-Chat, title generation, and text Studio builders use the generation resolver.
-The image Studio format uses the image resolver. No caller reads secrets or
+Chat, title generation, and text artifact builders use the generation resolver.
+The image artifact format uses the image resolver. No caller reads secrets or
 constructs providers itself.
 
 ## HTTP contract
@@ -292,7 +292,7 @@ The server does not persist a second verification flag.
 Selection never runs inference implicitly. Image testing always requires an
 explicit user action because it performs real inference and may cost money.
 “Use without testing” is allowed for trusted internal deployments; the first
-real chat or Studio request then reports the provider error normally.
+real chat or artifact request then reports the provider error normally.
 
 `POST /llm/connections/{id}/image-test` accepts `{model, prompt?}`, resolves the
 real image adapter, and returns the generated image bytes with their validated
@@ -315,7 +315,7 @@ The UI does not assume that “vLLM” means one endpoint serving every modality
 A common setup is one core vLLM card assigned to Chat and another vLLM-Omni
 card assigned to Image. A gateway card can expose and hold both assignments.
 Organizations with no approved image-serving endpoint simply leave Image
-unassigned; this does not block onboarding, chat, or non-image Studio formats.
+unassigned; this does not block onboarding, chat, or non-image artifact formats.
 
 Each card loads its models independently and progressively. A slow or failed
 connection does not block local models or other connections. Model identity in
@@ -338,7 +338,7 @@ must implement `/images/generations` or `/images` and offers `Test image`,
 Onboarding requires one generation selection. Image setup is optional and stays
 in the same OpenAI-compatible tab; there is no separate image-provider section.
 
-## Studio contract
+## Artifact contract
 
 `image` remains an artifact format. It is available only when
 `SelectedModel(IMAGE_GENERATION)` resolves to a configured connection.
@@ -357,7 +357,7 @@ Artifact(format=image)
 emits a strict infographic schema; a trusted deterministic builder renders
 SVG/HTML and an optional PNG preview. This keeps labels and numbers accurate,
 works with vLLM, and follows the existing “structured content → trusted
-builder” Studio rule.
+builder” artifact rule.
 
 If no image model is selected, only the Image format is unavailable.
 Infographic remains available whenever generation is available.
@@ -435,7 +435,7 @@ Delete:
 - Remote model responses are never copied into a catalogue table.
 - Disconnecting a connection immediately clears only the roles that reference
   it.
-- Chat and all text Studio formats continue through the selected generation
+- Chat and all text artifact formats continue through the selected generation
   model.
 - Image writes through existing artifact storage; infographic requires no image
   endpoint.
