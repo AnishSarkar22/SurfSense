@@ -107,9 +107,9 @@ async def delete_model(
             status.HTTP_409_CONFLICT,
             f"model does not support generation: {model_name}",
         )
-    # ponytail: Studio does not persist the model used by each job, so block all
-    # local deletes while one runs. Record provider/model per job to narrow this.
-    studio_running = session.scalar(
+    # ponytail: jobs do not persist the model they used, so block all local
+    # deletes while one runs. Record provider/model per job to narrow this.
+    artifact_running = session.scalar(
         select(Document.id)
         .where(
             Document.document_type == DocumentType.ARTIFACT,
@@ -117,10 +117,10 @@ async def delete_model(
         )
         .limit(1)
     )
-    if studio_running is not None:
+    if artifact_running is not None:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "a model cannot be deleted while Studio is generating",
+            "a model cannot be deleted while an artifact is generating",
         )
     install_lock = service.install_lock(store.name)
     if install_lock.locked():

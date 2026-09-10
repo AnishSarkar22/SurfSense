@@ -212,12 +212,12 @@ async def test_a_model_cannot_be_deleted_while_ollama_is_installing(
     assert reply.json()["detail"] == "ollama is currently installing a model"
 
 
-async def test_a_model_cannot_be_deleted_while_studio_is_generating(
+async def test_a_model_cannot_be_deleted_while_an_artifact_is_generating(
     client: AsyncClient, engine: Engine, ollama_server: str
 ) -> None:
-    """The API sees model work running in the separate Studio worker."""
+    """The API sees model work running in the separate artifact worker."""
     with create_session_factory(engine)() as session:
-        workspace = Workspace(name="Studio")
+        workspace = Workspace(name="Artifacts")
         session.add(workspace)
         session.flush()
         session.add(
@@ -239,7 +239,8 @@ async def test_a_model_cannot_be_deleted_while_studio_is_generating(
 
     assert reply.status_code == 409
     assert (
-        reply.json()["detail"] == "a model cannot be deleted while Studio is generating"
+        reply.json()["detail"]
+        == "a model cannot be deleted while an artifact is generating"
     )
 
 
