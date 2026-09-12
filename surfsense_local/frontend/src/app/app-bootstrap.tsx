@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -10,6 +11,10 @@ import {
   getProviderModels,
   type ModelSelection,
 } from "@/features/model-selection/api"
+import { getModelCatalog } from "@/features/model-catalog/api"
+import {
+  catalogQueryKey,
+} from "@/features/model-catalog/use-model-catalog"
 import { OnboardingPage } from "@/features/onboarding/onboarding-page"
 import { listWorkspaces, type Workspace } from "@/features/workspaces/api"
 
@@ -109,6 +114,24 @@ function GlobalLoader() {
 
 export function AppBootstrap() {
   const [state, setState] = useState<BootstrapState>({ status: "loading" })
+  const queryClient = useQueryClient()
+
+  // A cold model scan is slow, but nearly all of it is spent waiting on the
+  // llmfit subprocess rather than on us. Start it as soon as the window is up
+  // so the model step is ready when reached. Deliberately kept out of
+  // fetchBootstrapState and never awaited: the global loader must not wait.
+  useEffect(() => {
+    void queryClient
+      .query({
+        queryKey: catalogQueryKey,
+        queryFn: ({ signal }) => getModelCatalog(false, signal),
+      })
+      // Unlike the deprecated prefetchQuery, query() rejects. Nothing awaits
+      // this, so swallow it: the model page fetches again and owns the error
+      // state. An unhandled rejection here would surface as a console error
+      // on a perfectly normal offline start.
+      .catch(() => {})
+  }, [queryClient])
 
   useEffect(() => {
     let active = true
