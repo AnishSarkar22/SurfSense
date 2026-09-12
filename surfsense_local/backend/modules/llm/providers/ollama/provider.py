@@ -183,6 +183,11 @@ class OllamaProvider:
             for key, value in (
                 ("num_predict", max_tokens),
                 ("temperature", temperature),
+                # Scored and served at the same context. Set here, not at the
+                # call sites: Ollama reloads the model when runner options
+                # differ between consecutive requests, and title generation
+                # runs immediately before the first chat turn.
+                ("num_ctx", get_llm_settings().llmfit_max_context),
             )
             if value is not None
         }

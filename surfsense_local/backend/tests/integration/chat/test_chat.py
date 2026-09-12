@@ -139,8 +139,14 @@ async def test_a_message_streams_a_grounded_reply(
     threads = (await client.get(f"/workspaces/{workspace_id}/chat/threads")).json()
     assert threads[0]["title"] == "Revenue Growth"
     assert ollama_server[0]["think"] is False
-    assert ollama_server[0]["options"] == {"num_predict": 12, "temperature": 0}
-    assert "options" not in ollama_server[1]
+    # num_ctx is set in the provider, so both calls carry it: differing runner
+    # options between consecutive requests make Ollama reload the model.
+    assert ollama_server[0]["options"] == {
+        "num_predict": 12,
+        "temperature": 0,
+        "num_ctx": 8192,
+    }
+    assert ollama_server[1]["options"] == {"num_ctx": 8192}
 
 
 async def test_a_followup_carries_the_earlier_turn(
