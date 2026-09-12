@@ -23,6 +23,13 @@ class StorageSettings(BaseSettings):
         return self.data_dir / "surfsense.db"
 
     @property
+    def scan_cache_path(self) -> Path:
+        # Scored models keyed by a hardware/llmfit fingerprint. Cannot live
+        # beside the binary: that path is read-only on Windows and Linux,
+        # signed on macOS, and replaced wholesale on every update.
+        return self.data_dir / "llmfit-scan.json"
+
+    @property
     def queue_path(self) -> Path:
         return self.data_dir / "huey.db"
 
@@ -75,8 +82,12 @@ class LLMSettings(BaseSettings):
     llmfit_expected_version: str = "1.1.11"
     llmfit_timeout_seconds: float = 30.0
     llmfit_max_context: int = 8192
-    # ponytail: calibration constant; replace with measured peak app overhead.
-    recommendation_reserve_gb: float = 2.0
+    # `recommend` ranks then truncates, so ask for more rows than the
+    # catalog holds rather than silently lose its tail.
+    llmfit_bulk_limit: int = 20000
+    # Whole-scan ceiling, well above the slowest observed run. Without it a
+    # stuck subprocess would hang the catalog request indefinitely.
+    llmfit_scan_deadline_seconds: float = 90.0
 
 
 @lru_cache
