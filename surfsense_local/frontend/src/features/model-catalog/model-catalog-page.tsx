@@ -248,12 +248,15 @@ export function ModelCatalogPage({
           },
         ]
   ).filter((section) => section.rows.length > 0)
-  // Estimates reserve resources for SurfSense and may vary by workload.
   const busy =
     disabled ||
     install.isPending ||
     selectInstalled.isPending ||
     deleteModel.isPending
+  // A background prefetch shares this query key, so isFetching covers scans
+  // the user did not start. Derived, never a manual flag: React Query clears
+  // it on error, so the button cannot stick disabled.
+  const scanning = rescan.isPending || catalog.isFetching
 
   const act = (row: CatalogRow) => {
     if (busy) {
@@ -332,15 +335,15 @@ export function ModelCatalogPage({
           type="button"
           size="sm"
           variant="outline"
-          disabled={rescan.isPending || busy}
+          disabled={scanning || busy}
           onClick={() => rescan.mutate()}
         >
-          {rescan.isPending ? (
+          {scanning ? (
             <Spinner data-icon="inline-start" />
           ) : (
             <RefreshCwIcon data-icon="inline-start" />
           )}
-          {rescan.isPending ? "Rescanning..." : "Rescan hardware"}
+          {scanning ? "Rescanning..." : "Rescan hardware"}
         </Button>
       </div>
 
