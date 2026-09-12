@@ -30,7 +30,6 @@ def _scored(**changes: object) -> ScoredModel:
         family="Qwen",
         display_name="Qwen3-8B",
         parameter_count="8B",
-        params_b=8.0,
         use_case="chat",
         fit=FitLevel.GOOD,
         score=80,
@@ -38,14 +37,11 @@ def _scored(**changes: object) -> ScoredModel:
         run_mode="gpu",
         best_quant="Q4_K_M",
         memory_required_gb=6,
-        memory_available_gb=16,
-        utilization_pct=37.5,
         disk_size_gb=5.2,
         estimated_tps=30,
         prefill_tps=None,
         ttft_ms=None,
         estimate_confidence="estimated",
-        estimate_basis=None,
         effective_context_length=8192,
         capability_ids=("tool_use",),
         license="apache-2.0",
@@ -60,7 +56,7 @@ class Advisor:
         self.models = models
         self.calls = 0
 
-    async def scan(self, max_context: int) -> AdvisorCatalog:
+    async def scan(self, max_context: int, *, refresh: bool = False) -> AdvisorCatalog:
         self.calls += 1
         return AdvisorCatalog(
             SystemProfile(available_ram_gb=16),
@@ -119,7 +115,6 @@ def _manifest() -> CuratedModelsManifest:
                 {
                     "model_id": "Qwen/Qwen3-8B",
                     "family": "Qwen3",
-                    "minimum_fit": "good",
                     "minimum_context": 8192,
                     "allowed_quantizations": ["Q4_K_M"],
                     "artifacts": {
@@ -142,7 +137,6 @@ def _qwen_1_7_manifest() -> CuratedModelsManifest:
                 {
                     "model_id": "Qwen/Qwen3-1.7B",
                     "family": "Qwen3",
-                    "minimum_fit": "good",
                     "minimum_context": 8192,
                     "allowed_quantizations": ["Q4_K_M"],
                     "artifacts": {
@@ -175,7 +169,6 @@ async def test_catalog_partitions_recommended_explore_and_embeddings() -> None:
         [Runtime()],
         _manifest(),
         max_context=8192,
-        reserve_gb=2,
     )
 
     result = await service.catalog(selected=None)
@@ -186,22 +179,6 @@ async def test_catalog_partitions_recommended_explore_and_embeddings() -> None:
     assert result.recommended[0].quantization == "Q4_K_M"
 
 
-async def test_memory_reserve_can_only_downgrade_fit() -> None:
-    """SurfSense peak memory turns a nominal good fit into a warning."""
-    service = CatalogService(
-        Advisor((_scored(memory_required_gb=13.0),)),
-        [Runtime()],
-        _manifest(),
-        max_context=8192,
-        reserve_gb=2,
-    )
-
-    result = await service.catalog(selected=None)
-
-    assert result.recommended == ()
-    assert result.explore[0].fit is FitLevel.MARGINAL
-
-
 async def test_installed_models_are_authoritative_and_not_duplicated() -> None:
     """Runtime inventory wins over llmfit's installed metadata."""
     runtime = Runtime([InstalledModel("ollama", "qwen3:8b", ("completion",), "Q4_K_M")])
@@ -210,7 +187,6 @@ async def test_installed_models_are_authoritative_and_not_duplicated() -> None:
         [runtime],
         _manifest(),
         max_context=8192,
-        reserve_gb=2,
     )
 
     result = await service.catalog(selected=("ollama", "qwen3:8b"))
@@ -231,7 +207,6 @@ async def test_embedding_only_installed_models_stay_out_of_generation_catalog() 
         [runtime],
         _manifest(),
         max_context=8192,
-        reserve_gb=2,
     )
 
     result = await service.catalog(selected=None)
@@ -265,7 +240,6 @@ async def test_curated_model_owns_a_colliding_runtime_target(
         [runtime],
         _qwen_1_7_manifest(),
         max_context=8192,
-        reserve_gb=2,
     )
 
     result = await service.catalog(selected=("ollama", "qwen3:1.7b"))
@@ -298,7 +272,6 @@ async def test_ambiguous_non_curated_models_use_exact_runtime_target(
         [Runtime()],
         CuratedModelsManifest(schema_version=1, models=[]),
         max_context=8192,
-        reserve_gb=2,
     )
 
     with caplog.at_level("WARNING"):
@@ -334,7 +307,6 @@ async def test_refresh_invalidates_opaque_install_ids() -> None:
         [Runtime()],
         _manifest(),
         max_context=8192,
-        reserve_gb=2,
     )
     first = await service.catalog(selected=None)
     old_id = first.recommended[0].catalog_id
@@ -354,7 +326,6 @@ async def test_a_second_runtime_needs_no_advisor_or_schema_change() -> None:
         [Runtime(), LlamaRuntime()],
         CuratedModelsManifest(schema_version=1, models=[]),
         max_context=8192,
-        reserve_gb=2,
     )
 
     result = await service.catalog(selected=None)
@@ -372,7 +343,6 @@ async def test_disk_space_is_rejected_before_install_streaming(
         [Runtime()],
         _manifest(),
         max_context=8192,
-        reserve_gb=2,
         runtime_storage={"ollama": tmp_path},
     )
     catalog = await service.catalog(selected=None)

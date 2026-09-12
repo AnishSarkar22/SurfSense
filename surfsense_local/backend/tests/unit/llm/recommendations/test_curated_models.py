@@ -14,9 +14,33 @@ def test_packaged_manifest_has_eight_unique_curated_models() -> None:
     manifest = load_curated_models()
 
     assert manifest.schema_version == 1
-    assert manifest.advisor_providers == ["Alibaba"]
     assert len(manifest.models) == 8
     assert len({model.model_id for model in manifest.models}) == 8
+    # Every pinned quantization is the one we pass to `llmfit plan --quant`.
+    for model in manifest.models:
+        assert model.artifacts.ollama is not None
+        assert model.artifacts.ollama.quantization in model.allowed_quantizations
+
+
+def test_manifest_rejects_a_pin_outside_its_allow_list() -> None:
+    """Scoring one artifact and installing another must fail at load."""
+    with pytest.raises(ValidationError, match="allowed_quantizations"):
+        CuratedModelsManifest.model_validate(
+            {
+                "schema_version": 1,
+                "models": [
+                    {
+                        "model_id": "Qwen/Qwen3-8B",
+                        "family": "Qwen3",
+                        "minimum_context": 8192,
+                        "allowed_quantizations": ["Q4_K_M"],
+                        "artifacts": {
+                            "ollama": {"name": "qwen3:8b", "quantization": "Q8_0"}
+                        },
+                    }
+                ],
+            }
+        )
 
 
 def test_manifest_rejects_duplicate_model_ids() -> None:
@@ -24,7 +48,6 @@ def test_manifest_rejects_duplicate_model_ids() -> None:
     model = {
         "model_id": "Qwen/Qwen3-8B",
         "family": "Qwen3",
-        "minimum_fit": "good",
         "minimum_context": 8192,
         "allowed_quantizations": ["Q4_K_M"],
         "artifacts": {"ollama": {"name": "qwen3:8b", "quantization": "Q4_K_M"}},
@@ -41,7 +64,6 @@ def test_manifest_rejects_duplicate_ollama_targets() -> None:
     qwen_chat = {
         "model_id": "Qwen/Qwen3-1.7B",
         "family": "Qwen3",
-        "minimum_fit": "good",
         "minimum_context": 8192,
         "allowed_quantizations": ["Q4_K_M"],
         "artifacts": {"ollama": {"name": "qwen3:1.7b", "quantization": "Q4_K_M"}},
