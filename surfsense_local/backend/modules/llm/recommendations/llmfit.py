@@ -57,6 +57,19 @@ _VENDOR_TOOL_DIRS = (
     r"C:\Program Files\NVIDIA Corporation\NVSMI",
 )
 
+# An AppImage points the dynamic loader at its own bundled libraries so the
+# Electron it ships can start. Inherited by nvidia-smi that is harmful: a host
+# tool loading the wrong libc fails, and llmfit reports the machine as having
+# no GPU. Our llmfit build is statically linked and needs none of these.
+_LOADER_OVERRIDES = frozenset(
+    {
+        "LD_LIBRARY_PATH",
+        "LD_PRELOAD",
+        "DYLD_LIBRARY_PATH",
+        "DYLD_INSERT_LIBRARIES",
+    }
+)
+
 # Tuple fields survive a JSON round-trip as lists.
 _TUPLE_FIELDS = ("capability_ids", "gguf_sources", "notes")
 
@@ -273,7 +286,7 @@ class LlmfitAdvisor:
                 stderr=asyncio.subprocess.PIPE,
                 limit=MAX_OUTPUT_BYTES,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                env={**os.environ, "PATH": _tool_search_path(os.environ)},
+                env=_subprocess_env(os.environ),
             )
         except FileNotFoundError as error:
             raise LlmfitError(
@@ -350,6 +363,18 @@ class LlmfitAdvisor:
         except OSError as error:
             LOGGER.warning("could not write llmfit cache: %s", error)
             temporary.unlink(missing_ok=True)
+
+
+def _subprocess_env(environ: Mapping[str, str]) -> dict[str, str]:
+    """The environment llmfit, and the vendor tools it spawns, should see.
+
+    Two corrections to what we inherit: PATH gains the directories vendor
+    tools hide in, and the dynamic-loader overrides are dropped so a host
+    tool cannot be handed libraries meant for a bundled runtime.
+    """
+    env = {key: value for key, value in environ.items() if key not in _LOADER_OVERRIDES}
+    env["PATH"] = _tool_search_path(environ)
+    return env
 
 
 def _tool_search_path(
