@@ -9,6 +9,7 @@ from modules.llm.recommendations.llmfit import (
     _fit_level,
     _ram_override,
     _run_mode,
+    _subprocess_env,
     _tool_search_path,
 )
 from modules.llm.recommendations.types import FitLevel, SystemProfile
@@ -293,3 +294,54 @@ else:
     await LlmfitAdvisor(executable, "1.1.11", 5).scan(8192)
 
     assert str(vendor) in seen.read_text()
+
+
+def test_loader_overrides_are_dropped_for_the_subprocess() -> None:
+    """An AppImage aims these at its own libraries; a host tool must not obey."""
+    env = _subprocess_env(
+        {
+            "PATH": "/usr/bin",
+            "LD_LIBRARY_PATH": "/tmp/appimage/usr/lib",
+            "LD_PRELOAD": "/tmp/appimage/shim.so",
+            "DYLD_LIBRARY_PATH": "/tmp/bundle/lib",
+            "DYLD_INSERT_LIBRARIES": "/tmp/bundle/insert.dylib",
+        }
+    )
+
+    assert "LD_LIBRARY_PATH" not in env
+    assert "LD_PRELOAD" not in env
+    assert "DYLD_LIBRARY_PATH" not in env
+    assert "DYLD_INSERT_LIBRARIES" not in env
+
+
+def test_the_rest_of_the_environment_is_preserved() -> None:
+    """Only the loader overrides go; llmfit still needs everything else."""
+    env = _subprocess_env(
+        {"PATH": "/usr/bin", "HOME": "/home/anish", "LD_LIBRARY_PATH": "/x"}
+    )
+
+    assert env["HOME"] == "/home/anish"
+    assert env["PATH"] == "/usr/bin"
+
+
+async def test_the_subprocess_never_sees_a_loader_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Dropping it from the dict is pointless if the child still inherits it."""
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/appimage/usr/lib")
+    seen = tmp_path / "env.txt"
+    executable = _executable(
+        tmp_path,
+        f"""
+import os, sys
+if "--version" in sys.argv:
+    open({str(seen)!r}, "w").write(os.environ.get("LD_LIBRARY_PATH", "<unset>"))
+    print("llmfit 1.1.11")
+else:
+    sys.exit(1)
+""",
+    )
+
+    await LlmfitAdvisor(executable, "1.1.11", 5).scan(8192)
+
+    assert seen.read_text() == "<unset>"
