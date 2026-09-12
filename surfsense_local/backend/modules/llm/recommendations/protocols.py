@@ -11,7 +11,9 @@ from modules.llm.recommendations.types import (
 
 
 class ModelAdvisor(Protocol):
-    async def scan(self, max_context: int) -> AdvisorCatalog: ...
+    async def scan(
+        self, max_context: int, *, refresh: bool = False
+    ) -> AdvisorCatalog: ...
 
 
 @runtime_checkable
