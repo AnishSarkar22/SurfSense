@@ -11,7 +11,7 @@ from modules.llm.activity import model_activity, model_key
 from modules.llm.providers.types import Message, Model
 from modules.llm.recommendations.dependencies import get_catalog_service
 from modules.workspaces.models import Workspace
-from shared.config import get_llm_settings
+from shared.config import get_llm_settings, get_storage_settings
 from shared.db import create_session_factory
 
 pytestmark = pytest.mark.integration
@@ -364,16 +364,28 @@ def _configure_llmfit(
         ]
     }
     executable = tmp_path / "llmfit"
+    # Dispatches on subcommand like the real binary. `plan` exits 1 with empty
+    # stdout for an id it does not know, which is a soft miss for that row.
     executable.write_text(
         "#!/usr/bin/env python3\n"
         "import sys\n"
         f"system = {json.dumps(system)!r}\n"
         f"fit = {json.dumps(fit)!r}\n"
-        'print("llmfit 1.1.11" if "--version" in sys.argv '
-        'else system if "system" in sys.argv else fit)\n'
+        'if "--version" in sys.argv:\n'
+        '    print("llmfit 1.1.11")\n'
+        'elif "system" in sys.argv:\n'
+        "    print(system)\n"
+        'elif "recommend" in sys.argv:\n'
+        "    print(fit)\n"
+        "else:\n"
+        "    sys.exit(1)\n"
     )
     executable.chmod(0o755)
     monkeypatch.setattr(get_llm_settings(), "llmfit_path", executable)
+    # Each test gets its own cache so a fingerprint hit cannot leak across them.
+    monkeypatch.setattr(
+        get_storage_settings(), "data_dir", tmp_path / "data", raising=False
+    )
     get_catalog_service.cache_clear()
 
 
@@ -440,7 +452,13 @@ async def test_ranked_catalog_installs_and_selects_in_one_stream(
     _configure_llmfit(tmp_path, monkeypatch)
     catalog = (await client.get("/llm/catalog")).json()
 
-    assert [row["canonical_id"] for row in catalog["recommended"]] == ["Qwen/Qwen3-8B"]
+    # Every curated model renders somewhere, scored one first; the two the
+    # stub reports as installed route to Installed rather than Recommended.
+    recommended = [row["canonical_id"] for row in catalog["recommended"]]
+    assert recommended[0] == "Qwen/Qwen3-8B"
+    rendered = {*recommended, *(row["label"] for row in catalog["installed"])}
+    assert len(recommended) == 6
+    assert {"qwen3:1.7b", "qwen3:4b"} <= rendered
     catalog_id = catalog["recommended"][0]["catalog_id"]
 
     events = []
@@ -504,5 +522,5 @@ async def test_missing_llmfit_keeps_installed_models_available(
         "qwen3:1.7b",
         "qwen3:4b",
     }
-    assert catalog["warnings"][0]["code"] == "missing"
+    assert "missing" in {warning["code"] for warning in catalog["warnings"]}
     get_catalog_service.cache_clear()
