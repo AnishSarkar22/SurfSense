@@ -13,7 +13,7 @@ from modules.llm.recommendations.curated_models import (
 from modules.llm.recommendations.llmfit import LlmfitAdvisor
 from modules.llm.recommendations.protocols import LocalRuntime
 from modules.llm.recommendations.types import RecommendationWarning
-from shared.config import get_llm_settings
+from shared.config import get_llm_settings, get_storage_settings
 
 
 @lru_cache
@@ -32,11 +32,25 @@ def get_catalog_service() -> CatalogService:
                 "SurfSense Recommended models are temporarily unavailable.",
             ),
         )
+    # The pinned quantization travels with each id: it is the `--quant`
+    # argument, so curated models are scored as the artifact we install.
+    curated = tuple(
+        (
+            model.model_id,
+            None
+            if model.artifacts.ollama is None
+            else model.artifacts.ollama.quantization,
+        )
+        for model in curated_models.models
+    )
     advisor = LlmfitAdvisor(
         settings.llmfit_path,
         settings.llmfit_expected_version,
         settings.llmfit_timeout_seconds,
-        tuple(curated_models.advisor_providers),
+        curated,
+        cache_path=get_storage_settings().scan_cache_path,
+        bulk_limit=settings.llmfit_bulk_limit,
+        deadline_seconds=settings.llmfit_scan_deadline_seconds,
     )
     storage = (
         {"ollama": settings.ollama_models_dir}
@@ -48,7 +62,6 @@ def get_catalog_service() -> CatalogService:
         runtimes,
         curated_models,
         max_context=settings.llmfit_max_context,
-        reserve_gb=settings.recommendation_reserve_gb,
         runtime_storage=storage,
         initial_warnings=warnings,
     )
