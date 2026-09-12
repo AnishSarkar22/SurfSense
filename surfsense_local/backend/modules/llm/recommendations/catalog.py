@@ -54,7 +54,6 @@ class CatalogService:
         curated_models: CuratedModelsManifest,
         *,
         max_context: int,
-        reserve_gb: float,
         runtime_storage: dict[str, Path] | None = None,
         initial_warnings: tuple[RecommendationWarning, ...] = (),
     ) -> None:
@@ -64,7 +63,6 @@ class CatalogService:
             model.model_id: model for model in curated_models.models
         }
         self._max_context = max_context
-        self._reserve_gb = reserve_gb
         self._runtime_storage = runtime_storage or {}
         self._initial_warnings = initial_warnings
         self._scan: AdvisorCatalog | None = None
@@ -82,7 +80,9 @@ class CatalogService:
                 self._plans.clear()
                 self._logged_collision_keys.clear()
             if self._scan is None:
-                self._scan = await self._advisor.scan(self._max_context)
+                self._scan = await self._advisor.scan(
+                    self._max_context, refresh=refresh
+                )
             return self._scan
 
     async def catalog(
@@ -139,6 +139,7 @@ class CatalogService:
         explore: list[CatalogRow] = []
         installed: list[CatalogRow] = []
         matched_installed: set[tuple[str, str]] = set()
+        rendered_curated: set[str] = set()
         resolved_by_key: dict[
             tuple[str, str],
             tuple[LocalRuntime, ScoredModel, InstallPlan, CuratedModel | None],
@@ -154,7 +155,6 @@ class CatalogService:
             if _is_embedding(raw_model):
                 continue
             model, curated_model = self._apply_curated_model(raw_model)
-            model = _apply_reserve(model, self._reserve_gb)
             resolved = await self._resolve(model)
             if resolved is None:
                 continue
@@ -236,12 +236,17 @@ class CatalogService:
                 installed=is_installed,
                 selected=selected == key,
                 can_install=runtime_status.get(runtime.name, False),
+                curated_model=curated_model,
             )
             self._plans[row.catalog_id] = (runtime, model, plan)
+            if curated_model is not None:
+                rendered_curated.add(curated_model.model_id)
             if is_installed:
                 installed.append(row)
                 matched_installed.add(key)
-            elif _is_recommended(model, curated_model):
+            elif curated_model is not None:
+                # Team-tested models are always listed, even when they do not
+                # fit: a disabled row explains itself, an absent one does not.
                 recommended.append(row)
             elif model.fit in {
                 FitLevel.PERFECT,
@@ -249,6 +254,31 @@ class CatalogService:
                 FitLevel.MARGINAL,
             }:
                 explore.append(row)
+
+        # A curated model llmfit could not score at all still gets a row, built
+        # from the manifest. Routed through _resolve/_row so it registers in
+        # self._plans; a hand-built CatalogRow would fail preflight on click.
+        for model_id, curated_model in self._curated_models.items():
+            if model_id in rendered_curated:
+                continue
+            placeholder = _curated_placeholder(model_id, curated_model)
+            resolved = await self._resolve(placeholder)
+            if resolved is None:
+                continue
+            runtime, plan = resolved
+            key = (runtime.name, plan.model_name)
+            if key in resolved_by_key or key in installed_by_key:
+                continue
+            row = self._row(
+                placeholder,
+                plan,
+                installed=False,
+                selected=selected == key,
+                can_install=runtime_status.get(runtime.name, False),
+                curated_model=curated_model,
+            )
+            self._plans[row.catalog_id] = (runtime, placeholder, plan)
+            recommended.append(row)
 
         for key, local_model in installed_by_key.items():
             if key in matched_installed or "completion" not in local_model.capabilities:
@@ -351,12 +381,25 @@ class CatalogService:
         installed: bool,
         selected: bool,
         can_install: bool,
+        curated_model: CuratedModel | None = None,
     ) -> CatalogRow:
         warnings = list(model.notes)
         if model.fit is FitLevel.MARGINAL:
             warnings.append("This model may be slow or fail at long context.")
         if model.fit is FitLevel.TOO_TIGHT:
             warnings.append("This model is too large for the available memory.")
+        if model.fit is FitLevel.UNKNOWN:
+            warnings.append("No current llmfit estimate is available.")
+        # Chat pins num_ctx to the scored context, so a model that cannot reach
+        # it would be installed and then behave badly.
+        short_context = (
+            curated_model is not None
+            and (model.effective_context_length or 0) < curated_model.minimum_context
+        )
+        if short_context:
+            warnings.append(
+                "This model runs with a shorter context than SurfSense needs."
+            )
         return CatalogRow(
             catalog_id=self._id(model.canonical_id, plan.runtime),
             canonical_id=model.canonical_id,
@@ -379,7 +422,11 @@ class CatalogService:
             quantization=plan.quantization,
             installed=installed,
             selected=selected,
-            can_install=can_install and model.fit is not FitLevel.TOO_TIGHT,
+            can_install=(
+                can_install
+                and model.fit is not FitLevel.TOO_TIGHT
+                and not short_context
+            ),
             can_delete=installed,
             warnings=tuple(warnings),
         )
@@ -413,7 +460,6 @@ def _runtime_target_model(
         display_name=runtime_model,
         publisher=None,
         parameter_count=None,
-        params_b=None,
         use_case=None,
         score=None,
         capability_ids=(),
@@ -426,37 +472,45 @@ def _runtime_target_model(
     )
 
 
+def _curated_placeholder(model_id: str, curated_model: CuratedModel) -> ScoredModel:
+    """A curated model as the manifest alone describes it.
+
+    fit is UNKNOWN rather than a guess, but the row stays installable: these
+    are hand-vetted configurations and onboarding depends on them.
+    """
+    ollama = curated_model.artifacts.ollama
+    display = model_id.rsplit("/", 1)[-1]
+    return ScoredModel(
+        canonical_id=model_id,
+        publisher=None,
+        family=curated_model.family,
+        display_name=display,
+        parameter_count=None,
+        use_case=None,
+        fit=FitLevel.UNKNOWN,
+        score=None,
+        runtime=None,
+        run_mode=None,
+        best_quant=None,
+        memory_required_gb=None,
+        disk_size_gb=None,
+        estimated_tps=None,
+        prefill_tps=None,
+        ttft_ms=None,
+        estimate_confidence=None,
+        effective_context_length=curated_model.minimum_context,
+        capability_ids=(),
+        license=None,
+        ollama_name=None if ollama is None else ollama.name,
+        gguf_sources=(),
+        ollama_quantization=None if ollama is None else ollama.quantization,
+    )
+
+
 def _is_embedding(model: ScoredModel) -> bool:
     return (model.use_case is not None and "embedding" in model.use_case) or (
         bool(model.capability_ids)
         and set(model.capability_ids).issubset({"embedding", "embeddings"})
-    )
-
-
-def _apply_reserve(model: ScoredModel, reserve_gb: float) -> ScoredModel:
-    required = model.memory_required_gb
-    available = model.memory_available_gb
-    if required is None or available is None:
-        return model
-    adjusted = max(0.0, available - reserve_gb)
-    utilization = required / adjusted if adjusted else float("inf")
-    fit = model.fit
-    if utilization > 1:
-        fit = FitLevel.TOO_TIGHT
-    elif utilization > 0.9 and FIT_ORDER[fit] < FIT_ORDER[FitLevel.MARGINAL]:
-        fit = FitLevel.MARGINAL
-    return replace(model, fit=fit, utilization_pct=utilization * 100)
-
-
-def _is_recommended(model: ScoredModel, curated_model: CuratedModel | None) -> bool:
-    return (
-        curated_model is not None
-        and model.fit in {FitLevel.PERFECT, FitLevel.GOOD}
-        and (model.effective_context_length or 0) >= curated_model.minimum_context
-        and (
-            not curated_model.allowed_quantizations
-            or model.ollama_quantization in curated_model.allowed_quantizations
-        )
     )
 
 
