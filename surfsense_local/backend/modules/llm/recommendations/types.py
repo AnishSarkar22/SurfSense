@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
 
 
 class FitLevel(StrEnum):
@@ -38,7 +37,6 @@ class ScoredModel:
     family: str
     display_name: str
     parameter_count: str | None
-    params_b: float | None
     use_case: str | None
     fit: FitLevel
     score: float | None
@@ -46,14 +44,11 @@ class ScoredModel:
     run_mode: str | None
     best_quant: str | None
     memory_required_gb: float | None
-    memory_available_gb: float | None
-    utilization_pct: float | None
     disk_size_gb: float | None
     estimated_tps: float | None
     prefill_tps: float | None
     ttft_ms: float | None
     estimate_confidence: str | None
-    estimate_basis: dict[str, Any] | None
     effective_context_length: int | None
     capability_ids: tuple[str, ...]
     license: str | None
