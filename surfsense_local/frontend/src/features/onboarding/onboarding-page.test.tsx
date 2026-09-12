@@ -174,7 +174,9 @@ describe("model onboarding", () => {
       screen.getByRole("button", { name: "Delete Llama 3.2 1B" })
     ).toBeTruthy()
     expect(
-      screen.getByRole("button", { name: "Start chatting" }).hasAttribute("disabled")
+      screen
+        .getByRole("button", { name: "Start chatting" })
+        .hasAttribute("disabled")
     ).toBe(false)
     expect(
       screen.getByRole("button", { name: "Delete Llama 3.2 1B" })
@@ -197,40 +199,45 @@ describe("model onboarding", () => {
   })
 
   it("leaves onboarding only after Start chatting, and needs a chat model", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const path = String(input)
-      if (path === "/llm/selection/generation") {
-        return Response.json({ detail: "not selected" }, { status: 404 })
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input)
+        if (path === "/llm/onboarding" && init?.method === "POST") {
+          throw new Error("onboarding completed without a chat model")
+        }
+        if (path === "/llm/selection/generation") {
+          return Response.json({ detail: "not selected" }, { status: 404 })
+        }
+        if (path === "/llm/selection/image_generation") {
+          return Response.json({ detail: "not selected" }, { status: 404 })
+        }
+        if (path === "/llm/connections") return Response.json([])
+        if (path === "/llm/providers") {
+          return Response.json([
+            {
+              name: "ollama",
+              healthy: true,
+              can_download: true,
+              requires_key: false,
+              configured: true,
+            },
+          ])
+        }
+        if (path === "/llm/providers/ollama/models") return Response.json([])
+        if (path === "/llm/catalog") {
+          return Response.json({
+            hardware: {},
+            llmfit_version: "1.0",
+            recommended: [],
+            explore: [],
+            installed: [],
+            warnings: [],
+            runtime_status: {},
+          })
+        }
+        return Response.json({ detail: "not found" }, { status: 404 })
       }
-      if (path === "/llm/selection/image_generation") {
-        return Response.json({ detail: "not selected" }, { status: 404 })
-      }
-      if (path === "/llm/connections") return Response.json([])
-      if (path === "/llm/providers") {
-        return Response.json([
-          {
-            name: "ollama",
-            healthy: true,
-            can_download: true,
-            requires_key: false,
-            configured: true,
-          },
-        ])
-      }
-      if (path === "/llm/providers/ollama/models") return Response.json([])
-      if (path === "/llm/catalog") {
-        return Response.json({
-          hardware: {},
-          llmfit_version: "1.0",
-          recommended: [],
-          explore: [],
-          installed: [],
-          warnings: [],
-          runtime_status: {},
-        })
-      }
-      return Response.json({ detail: "not found" }, { status: 404 })
-    })
+    )
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
     const onComplete = vi.fn()
@@ -238,9 +245,9 @@ describe("model onboarding", () => {
     await user.click(screen.getByRole("button", { name: "Start setting up" }))
 
     expect(
-      (await screen.findByRole("button", { name: "Start chatting" })).hasAttribute(
-        "disabled"
-      )
+      (
+        await screen.findByRole("button", { name: "Start chatting" })
+      ).hasAttribute("disabled")
     ).toBe(true)
     expect(onComplete).not.toHaveBeenCalled()
     expect(
@@ -257,7 +264,9 @@ describe("model onboarding", () => {
     const onComplete = vi.fn()
     render(<OnboardingPage onComplete={onComplete} />)
     await user.click(screen.getByRole("button", { name: "Start setting up" }))
-    await user.click(await screen.findByRole("button", { name: "Start chatting" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Start chatting" })
+    )
     await waitFor(() => expect(onComplete).toHaveBeenCalledOnce())
     expect(
       fetchMock.mock.calls.some(
