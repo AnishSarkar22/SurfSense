@@ -1,0 +1,67 @@
+{
+  "model_name": "Qwen/Qwen3-32B",
+  "provider": "Alibaba",
+  "context": 8192,
+  "quantization": "Q4_K_M",
+  "minimum": {
+    "vram_gb": 21.50203149312,
+    "ram_gb": 8.0,
+    "cpu_cores": 4
+  },
+  "current": {
+    "fit_level": "TooTight",
+    "run_mode": "Gpu",
+    "estimated_tps": 3.3575357468015907
+  },
+  "run_paths": [
+    {
+      "path": "gpu",
+      "feasible": true,
+      "minimum": {
+        "vram_gb": 21.50203149312,
+        "ram_gb": 8.0,
+        "cpu_cores": 4
+      },
+      "recommended": {
+        "vram_gb": 30.5,
+        "ram_gb": 12.0,
+        "cpu_cores": 8
+      },
+      "estimated_tps": 3.3575357468015907,
+      "fit_level": "TooTight",
+      "notes": [
+        "Estimated from quant/context memory and fit headroom thresholds"
+      ]
+    },
+    {
+      "path": "cpu_offload",
+      "feasible": false,
+      "minimum": null,
+      "recommended": null,
+      "estimated_tps": null,
+      "fit_level": null,
+      "notes": [
+        "CPU offload is skipped on unified-memory systems"
+      ]
+    },
+    {
+      "path": "cpu_only",
+      "feasible": true,
+      "minimum": {
+        "vram_gb": null,
+        "ram_gb": 21.50203149312,
+        "cpu_cores": 4
+      },
+      "recommended": {
+        "vram_gb": null,
+        "ram_gb": 25.802437791744,
+        "cpu_cores": 8
+      },
+      "estimated_tps": 0.9477407721653579,
+      "fit_level": "TooTight",
+      "notes": [
+        "CPU-only fit is always capped at Marginal in current heuristics"
+      ]
+    }
+  ]
+}
