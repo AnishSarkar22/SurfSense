@@ -10,7 +10,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+# Markdown escapes a literal paren inside a link target as `\(`, so the target
+# must be allowed to contain them and then unescaped before it hits the disk.
+LINK = re.compile(r"\[[^\]]*\]\(((?:[^()\\]|\\.)+)\)")
 
 
 def changed_plan_files() -> list[Path]:
@@ -32,15 +34,30 @@ def changed_plan_files() -> list[Path]:
     return [ROOT / name for name in names if name.endswith(".md")]
 
 
+def link_base(path: Path) -> Path:
+    """Where this file's relative links resolve from.
+
+    Normally the file's own directory. `seo/drafts/` holds paste-ready copies of
+    files that will live at the repo root — the README draft links `LICENSE` and
+    `./surfsense_local` — so those resolve from ROOT or every one reads as dead.
+    """
+    return ROOT if path.parent.name == "drafts" else path.parent
+
+
 def check_links(path: Path) -> list[str]:
     """Every relative link target must exist on disk."""
+    base = link_base(path)
     problems = []
     for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         for target in LINK.findall(line):
             if target.startswith(("http://", "https://", "#", "mailto:")):
                 continue
-            resolved = (path.parent / target.split("#", 1)[0]).resolve()
-            if not resolved.exists():
+            # Deliberate placeholders; 06-repo-readme.md wants them to fail
+            # visibly in a browser, which is not this check's job.
+            if "REPLACE-ME" in target:
+                continue
+            plain = re.sub(r"\\(.)", r"\1", target.split("#", 1)[0])
+            if not (base / plain).resolve().exists():
                 problems.append(f"{path.relative_to(ROOT)}:{lineno} dead link -> {target}")
     return problems
 
