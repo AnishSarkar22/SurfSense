@@ -313,9 +313,9 @@ describe("source upload", () => {
       screen.getByRole("button", { name: "Actions for processing.pdf" })
     )
     expect(
-      screen
-        .getByRole("menuitem", { name: "Delete" })
-        .getAttribute("data-disabled")
+      (await screen.findByRole("menuitem", { name: "Delete" })).getAttribute(
+        "data-disabled"
+      )
     ).not.toBeNull()
     await user.keyboard("{Escape}")
 
@@ -323,11 +323,11 @@ describe("source upload", () => {
       screen.getByRole("button", { name: "Actions for guide.txt" })
     )
     expect(
-      screen
-        .getByRole("menuitem", { name: "Delete" })
-        .getAttribute("data-disabled")
+      (await screen.findByRole("menuitem", { name: "Delete" })).getAttribute(
+        "data-disabled"
+      )
     ).toBeNull()
-    await user.click(screen.getByRole("menuitem", { name: "Delete" }))
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }))
     await user.click(screen.getByRole("button", { name: "Delete source" }))
 
     expect(onDelete).toHaveBeenCalledWith(pendingDocument.id)
@@ -367,7 +367,7 @@ describe("source upload", () => {
     await user.click(
       screen.getByRole("button", { name: "Actions for processing.pdf" })
     )
-    await user.click(screen.getByRole("menuitem", { name: "Cancel" }))
+    await user.click(await screen.findByRole("menuitem", { name: "Cancel" }))
     expect(onCancel).toHaveBeenCalledWith(pendingDocument.id)
   })
 
@@ -390,7 +390,7 @@ describe("source upload", () => {
     await user.click(
       await screen.findByRole("button", { name: "Actions for broken.pdf" })
     )
-    await user.click(screen.getByRole("menuitem", { name: "Delete" }))
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }))
     expect(
       screen.getByRole("alertdialog", { name: "Delete 1 source?" })
     ).toBeTruthy()

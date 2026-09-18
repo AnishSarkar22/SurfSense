@@ -74,17 +74,19 @@ function GeneralSettings({
               Import from SurfSense cloud
             </h3>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <button
+              <TooltipTrigger
+                render={
+                  <button
                   type="button"
                   className="relative inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-colors duration-150 before:absolute before:inset-[-10px] hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-                  aria-label="More about importing from SurfSense cloud"
-                >
-                  <InformationCircleIcon
-                    className="size-3.5"
-                    strokeWidth={1.5}
-                  />
-                </button>
+                  aria-label="More about importing from SurfSense cloud" />
+                }
+              >
+                <InformationCircleIcon
+                  className="size-3.5"
+                  strokeWidth={1.5}
+                />
+                
               </TooltipTrigger>
               <TooltipContent
                 side="top"

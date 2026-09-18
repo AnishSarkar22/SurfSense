@@ -548,7 +548,8 @@ export function ModelCatalogPage({
               variant="destructive"
               disabled={deleteModel.isPending}
               onClick={(event) => {
-                event.preventDefault()
+                // Stay open while the delete runs; see egress-prompt.tsx.
+                event.preventBaseUIHandler()
                 void confirmDelete()
               }}
             >

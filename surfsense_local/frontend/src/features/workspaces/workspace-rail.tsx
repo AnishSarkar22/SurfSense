@@ -94,12 +94,14 @@ function WorkspaceNameDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="select-none"
-        onOpenAutoFocus={(event) => {
-          event.preventDefault()
+        initialFocus={() => {
+          // Base UI focuses the first tabbable element; this dialog wants the
+          // name pre-selected instead, so it focuses by hand and opts out.
           const input = inputRef.current
-          if (!input) return
+          if (!input) return false
           input.focus()
           input.select()
+          return false
         }}
       >
         <form onSubmit={(event) => void submit(event)}>
@@ -167,10 +169,10 @@ export function WorkspaceRail({
             const selected = workspace.id === activeWorkspaceId
             return (
               <ContextMenu key={workspace.id}>
-                <ContextMenuTrigger asChild>
-                  <div className="flex w-full">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+                <ContextMenuTrigger render={<div className="flex w-full" />}>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
                         <Button
                           size="icon-lg"
                           variant="ghost"
@@ -182,35 +184,32 @@ export function WorkspaceRail({
                           aria-label={workspace.name}
                           aria-current={selected ? "page" : undefined}
                           onClick={() => onSelect(workspace.id)}
-                        >
-                          {selected ? (
-                            <span className="absolute -left-1.5 h-5 w-0.5 rounded-full bg-sidebar-primary" />
-                          ) : null}
-                          <Avatar className="size-7 rounded-lg">
-                            <AvatarFallback className="rounded-lg text-[10px] font-semibold">
-                              {workspaceMark(workspace.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        {workspace.name}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
+                        />
+                      }
+                    >
+                      {selected ? (
+                        <span className="absolute -left-1.5 h-5 w-0.5 rounded-full bg-sidebar-primary" />
+                      ) : null}
+                      <Avatar className="size-7 rounded-lg">
+                        <AvatarFallback className="rounded-lg text-[10px] font-semibold">
+                          {workspaceMark(workspace.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {workspace.name}
+                    </TooltipContent>
+                  </Tooltip>
                 </ContextMenuTrigger>
-                <ContextMenuContent
-                  className="w-36"
-                  onCloseAutoFocus={(event) => event.preventDefault()}
-                >
+                <ContextMenuContent className="w-36" finalFocus={false}>
                   <ContextMenuGroup>
-                    <ContextMenuItem onSelect={() => setRenaming(workspace)}>
+                    <ContextMenuItem onClick={() => setRenaming(workspace)}>
                       <PencilIcon />
                       Rename
                     </ContextMenuItem>
                     <ContextMenuItem
                       variant="destructive"
-                      onSelect={() => setDeleting(workspace)}
+                      onClick={() => setDeleting(workspace)}
                     >
                       <Trash2Icon />
                       Delete
@@ -221,17 +220,19 @@ export function WorkspaceRail({
             )
           })}
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon-lg"
-                variant="ghost"
-                className="rounded-xl border border-dashed border-sidebar-border"
-                disabled={isMutating}
-                aria-label="Create workspace"
-                onClick={() => setCreateOpen(true)}
-              >
-                <PlusIcon />
-              </Button>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="icon-lg"
+                  variant="ghost"
+                  className="rounded-xl border border-dashed border-sidebar-border"
+                  disabled={isMutating}
+                  aria-label="Create workspace"
+                  onClick={() => setCreateOpen(true)}
+                />
+              }
+            >
+              <PlusIcon />
             </TooltipTrigger>
             <TooltipContent side="right">Create workspace</TooltipContent>
           </Tooltip>
@@ -239,16 +240,18 @@ export function WorkspaceRail({
       </ScrollArea>
 
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            size="icon-lg"
-            variant="ghost"
-            className="rounded-xl"
-            aria-label="Open settings"
-            onClick={onOpenSettings}
-          >
-            <Settings2Icon />
-          </Button>
+        <TooltipTrigger
+          render={
+            <Button
+              size="icon-lg"
+              variant="ghost"
+              className="rounded-xl"
+              aria-label="Open settings"
+              onClick={onOpenSettings}
+            />
+          }
+        >
+          <Settings2Icon />
         </TooltipTrigger>
         <TooltipContent side="right">Settings</TooltipContent>
       </Tooltip>

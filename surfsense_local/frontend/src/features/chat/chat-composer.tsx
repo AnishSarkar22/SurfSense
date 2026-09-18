@@ -134,18 +134,20 @@ function AddSourcesButton({
         onChange={upload}
       />
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
+        <TooltipTrigger
+          render={
+            <Button
             type="button"
             size="icon-lg"
             variant="ghost"
             className={cn("rounded-xl", className)}
             disabled={isUploading}
             aria-label="Add sources"
-            onClick={() => inputRef.current?.click()}
-          >
-            <PlusIcon className="size-5" />
-          </Button>
+            onClick={() => inputRef.current?.click()} />
+          }
+        >
+          <PlusIcon className="size-5" />
+          
         </TooltipTrigger>
         <TooltipContent side="top">Add sources</TooltipContent>
       </Tooltip>

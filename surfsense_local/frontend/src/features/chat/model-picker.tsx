@@ -85,16 +85,18 @@ export function ModelPicker({
         }
       }}
     >
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className={cn(modelControlButtonClassName, className)}
-          title="Change model"
-          aria-label={`Model ${selectedLabel}. Change model.`}
-        >
-          <span className="max-w-48 truncate">{selectedLabel}</span>
-          <ChevronDownIcon className="size-3" />
-        </button>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className={cn(modelControlButtonClassName, className)}
+            title="Change model"
+            aria-label={`Model ${selectedLabel}. Change model.`}
+          />
+        }
+      >
+        <span className="max-w-48 truncate">{selectedLabel}</span>
+        <ChevronDownIcon className="size-3" />
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-72 p-0">
@@ -137,6 +139,7 @@ export function ModelPicker({
                       <DropdownMenuRadioItem
                         key={key}
                         value={key}
+                        closeOnClick
                         disabled={selectModel.isPending}
                         className={selected ? "pr-8" : "pr-1.5"}
                       >
@@ -172,7 +175,7 @@ export function ModelPicker({
         </ScrollShadow>
 
         <DropdownMenuGroup className="p-1">
-          <DropdownMenuItem onSelect={onManageModels}>
+          <DropdownMenuItem onClick={onManageModels}>
             <Settings2Icon />
             Manage models
           </DropdownMenuItem>

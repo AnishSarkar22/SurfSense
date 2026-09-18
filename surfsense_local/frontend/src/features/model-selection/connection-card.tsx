@@ -264,15 +264,17 @@ export function ConnectionCard({
               Edit
             </Button>
             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  disabled={disabled}
-                >
-                  Disconnect
-                </Button>
+              <AlertDialogTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    disabled={disabled}
+                  />
+                }
+              >
+                Disconnect
               </AlertDialogTrigger>
               <AlertDialogContent className="select-none">
                 <AlertDialogHeader>
@@ -330,10 +332,7 @@ export function ConnectionCard({
       >
         <DialogContent
           className="flex h-[85svh] max-h-[44rem] flex-col gap-0 overflow-hidden select-none sm:max-w-3xl"
-          onOpenAutoFocus={(event) => {
-            event.preventDefault()
-            searchRef.current?.focus()
-          }}
+          initialFocus={searchRef}
         >
           <DialogHeader>
             <DialogTitle>Browse models</DialogTitle>
@@ -442,7 +441,7 @@ export function ConnectionCard({
                   {filteredModels.map((model) => (
                     <li
                       key={`${connection.id}\0${model.name}`}
-                      className="flex flex-wrap items-center content-start gap-2 py-2"
+                      className="flex flex-wrap content-start items-center gap-2 py-2"
                     >
                       <div className="min-w-40 flex-1">
                         <p className="truncate text-sm font-medium">
@@ -570,9 +569,9 @@ export function ConnectionCard({
                   </>
                 ) : (
                   <>
-                    This endpoint does not publish capabilities, so chat
-                    support is unconfirmed. Testing sends one short prompt and
-                    may cost money.
+                    This endpoint does not publish capabilities, so chat support
+                    is unconfirmed. Testing sends one short prompt and may cost
+                    money.
                   </>
                 )
               ) : trying?.role === "image_generation" ? (
@@ -582,8 +581,8 @@ export function ConnectionCard({
                 </>
               ) : (
                 <>
-                  Chat support is confirmed. Testing sends one short prompt
-                  and may cost money.
+                  Chat support is confirmed. Testing sends one short prompt and
+                  may cost money.
                 </>
               )}
             </DialogDescription>

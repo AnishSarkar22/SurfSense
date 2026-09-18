@@ -51,10 +51,14 @@ describe.each(modals)("%s app-shell layout", (_name, renderModal) => {
 
     render(renderModal(), { container: root })
 
+    // Base UI locks the body by setting `overflow` inline; Radix used to mark
+    // it with `data-scroll-locked`. Assert the lock itself, not the marker.
     await waitFor(() =>
-      expect(document.body.hasAttribute("data-scroll-locked")).toBe(true)
+      expect(getComputedStyle(document.body).overflowY).toBe("hidden")
     )
-    expect(getComputedStyle(document.body).paddingTop).toBe("0px")
+    // jsdom reports an unset padding as "0" and an explicit one as "0px", and
+    // Base UI (unlike Radix) never writes padding onto the body at all.
+    expect(parseFloat(getComputedStyle(document.body).paddingTop) || 0).toBe(0)
     expect(getComputedStyle(root).paddingTop).toBe("28px")
   })
 })

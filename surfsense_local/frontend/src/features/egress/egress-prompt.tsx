@@ -105,7 +105,9 @@ export function EgressPrompt() {
           <AlertDialogAction
             disabled={allowing}
             onClick={(event) => {
-              event.preventDefault()
+              // Keep the dialog open while the retry runs; Base UI's Close
+              // stops at `preventBaseUIHandler`, not `preventDefault`.
+              event.preventBaseUIHandler()
               void allow()
             }}
           >

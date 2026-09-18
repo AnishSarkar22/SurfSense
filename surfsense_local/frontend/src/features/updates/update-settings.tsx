@@ -103,17 +103,19 @@ export function UpdateButton() {
   const label = `Restart to install ${state.version}`
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={label}
-          className="pointer-events-auto size-6 text-notice hover:text-notice"
-          onClick={() => void updatesBridge()?.install()}
-        >
-          <DownloadCircle02Icon />
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={label}
+            className="pointer-events-auto size-6 text-notice hover:text-notice"
+            onClick={() => void updatesBridge()?.install()}
+          />
+        }
+      >
+        <DownloadCircle02Icon />
       </TooltipTrigger>
       <TooltipContent side="bottom" collisionPadding={8}>
         {label}

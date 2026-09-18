@@ -83,7 +83,7 @@ describe("composer model picker", () => {
     const currentItem = await screen.findByRole("menuitemradio", {
       name: "llama3.2:1b",
     })
-    const availableItem = screen.getByRole("menuitemradio", {
+    const availableItem = await screen.findByRole("menuitemradio", {
       name: "qwen3:1.7b",
     })
     expect(currentItem.lastElementChild?.className).toContain(
@@ -124,7 +124,9 @@ describe("composer model picker", () => {
     expect(
       screen.queryByRole("menuitemradio", { name: "llama3.2:1b" })
     ).toBeNull()
-    await user.click(screen.getByRole("menuitemradio", { name: "qwen3:1.7b" }))
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: "qwen3:1.7b" })
+    )
 
     await waitFor(() =>
       expect(onModelSelected).toHaveBeenCalledWith(

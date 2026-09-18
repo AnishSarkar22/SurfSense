@@ -107,8 +107,9 @@ function WorkspaceDashboard({
         <div className="titlebar-controls-end">
           <UpdateButton />
           <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
+            <TooltipTrigger
+              render={
+                <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
@@ -118,10 +119,11 @@ function WorkspaceDashboard({
                 aria-label={
                   rightPanelOpen ? "Hide right panel" : "Show right panel"
                 }
-                onClick={toggleRightPanel}
-              >
-                <SidebarRightIcon />
-              </Button>
+                onClick={toggleRightPanel} />
+              }
+            >
+              <SidebarRightIcon />
+              
             </TooltipTrigger>
             <TooltipContent side="bottom" collisionPadding={8}>
               {rightPanelOpen ? "Hide right panel" : "Show right panel"}

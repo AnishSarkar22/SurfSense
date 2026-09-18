@@ -166,7 +166,9 @@ describe("artifact list", () => {
     await user.click(
       screen.getByRole("button", { name: "Actions for Weekly summary" })
     )
-    await user.click(screen.getByRole("menuitem", { name: "Regenerate" }))
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Regenerate" })
+    )
     expect(onRegenerate).toHaveBeenCalledWith(12)
   })
 
@@ -184,7 +186,7 @@ describe("artifact list", () => {
     expect(
       screen.queryByRole("menuitem", { name: /Regenerate|Retry/ })
     ).toBeNull()
-    await user.click(screen.getByRole("menuitem", { name: "Cancel" }))
+    await user.click(await screen.findByRole("menuitem", { name: "Cancel" }))
     expect(onCancel).toHaveBeenCalledWith(12)
   })
 
@@ -196,7 +198,7 @@ describe("artifact list", () => {
     await user.click(
       screen.getByRole("button", { name: "Actions for Weekly summary" })
     )
-    await user.click(screen.getByRole("menuitem", { name: "Delete" }))
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }))
     expect(onDelete).not.toHaveBeenCalled()
     await user.click(screen.getByRole("button", { name: "Delete artifact" }))
     expect(onDelete).toHaveBeenCalledWith(12)
@@ -220,7 +222,7 @@ describe("artifact list", () => {
     )
     expect(screen.queryByRole("menuitem", { name: "Open" })).toBeNull()
     // The same route as Regenerate, named for what a failed row needs.
-    await user.click(screen.getByRole("menuitem", { name: "Retry" }))
+    await user.click(await screen.findByRole("menuitem", { name: "Retry" }))
     expect(onRegenerate).toHaveBeenCalledTimes(2)
   })
 
@@ -303,7 +305,7 @@ describe("artifact list", () => {
 
       await user.click(screen.getByLabelText("Filter artifacts"))
       expect(
-        screen.getByRole("menuitemcheckbox", { name: /podcast/i })
+        await screen.findByRole("menuitemcheckbox", { name: /podcast/i })
       ).toBeTruthy()
       expect(screen.getByText("(2)")).toBeTruthy()
       // Only the types on hand: nothing here was generated as an image.
@@ -312,7 +314,7 @@ describe("artifact list", () => {
       ).toBeNull()
 
       await user.click(
-        screen.getByRole("menuitemcheckbox", { name: /podcast/i })
+        await screen.findByRole("menuitemcheckbox", { name: /podcast/i })
       )
       expect(
         screen.queryByRole("button", { name: "Weekly summary" })
@@ -328,19 +330,21 @@ describe("artifact list", () => {
 
       await user.click(screen.getByLabelText("Filter artifacts"))
       await user.click(
-        screen.getByRole("menuitemcheckbox", { name: /podcast/i })
+        await screen.findByRole("menuitemcheckbox", { name: /podcast/i })
       )
       expect(screen.getByLabelText("Filter artifacts (1 active)")).toBeTruthy()
 
       await user.click(
-        screen.getByRole("menuitemcheckbox", { name: /summary/i })
+        await screen.findByRole("menuitemcheckbox", { name: /summary/i })
       )
       expect(
         screen.getByRole("button", { name: "Weekly summary" })
       ).toBeTruthy()
       expect(screen.getByRole("button", { name: "Episode one" })).toBeTruthy()
 
-      await user.click(screen.getByRole("menuitem", { name: "Clear filter" }))
+      await user.click(
+        await screen.findByRole("menuitem", { name: "Clear filter" })
+      )
       expect(screen.getByLabelText("Filter artifacts")).toBeTruthy()
       expect(
         screen.getByRole("button", { name: "Weekly summary" })
@@ -374,7 +378,7 @@ describe("artifact list", () => {
 
       await user.click(screen.getByLabelText("Filter artifacts"))
       await user.click(
-        screen.getByRole("menuitemcheckbox", { name: /podcast/i })
+        await screen.findByRole("menuitemcheckbox", { name: /podcast/i })
       )
       unmount()
 

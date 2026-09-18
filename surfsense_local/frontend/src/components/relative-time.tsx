@@ -126,7 +126,7 @@ export function RelativeTime({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{time}</TooltipTrigger>
+      <TooltipTrigger render={time} />
       <TooltipContent>{exactTime}</TooltipContent>
     </Tooltip>
   )

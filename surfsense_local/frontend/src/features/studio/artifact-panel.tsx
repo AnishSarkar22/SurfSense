@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { DetailPanel } from "@/components/ui/detail-panel"
 import { Download01Icon } from "@/components/ui/icons"
 import { Spinner } from "@/components/ui/spinner"
@@ -19,7 +19,8 @@ export function ArtifactPanel({
     queryKey: ["artifact-panel", artifactId],
     queryFn: ({ signal }) => readArtifact(artifactId, signal),
   })
-  const [actionsContainer, setActionsContainer] = useState<HTMLDivElement | null>(null)
+  const [actionsContainer, setActionsContainer] =
+    useState<HTMLDivElement | null>(null)
 
   return (
     <DetailPanel
@@ -40,24 +41,27 @@ export function ArtifactPanel({
           data.format !== "flashcards" &&
           data.format !== "quiz"
             ? data.files.map((file) => (
-                <Button
+                /* A download stays a link, not a Base UI Button: the
+                   primitive's non-native mode would override role="link". */
+                <a
                   key={file.role}
-                  variant="secondary"
-                  size="icon-sm"
-                  asChild
+                  href={fileUrl(data.id, file.role)}
+                  download
+                  aria-label={
+                    file.role === "primary"
+                      ? "Download"
+                      : `Download ${file.role}`
+                  }
+                  data-slot="button"
+                  data-variant="secondary"
+                  data-size="icon-sm"
+                  className={buttonVariants({
+                    variant: "secondary",
+                    size: "icon-sm",
+                  })}
                 >
-                  <a
-                    href={fileUrl(data.id, file.role)}
-                    download
-                    aria-label={
-                      file.role === "primary"
-                        ? "Download"
-                        : `Download ${file.role}`
-                    }
-                  >
-                    <Download01Icon />
-                  </a>
-                </Button>
+                  <Download01Icon />
+                </a>
               ))
             : null}
         </>

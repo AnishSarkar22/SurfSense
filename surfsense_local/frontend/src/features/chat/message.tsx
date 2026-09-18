@@ -110,20 +110,22 @@ function MessageActions({
       <ActionBarPrimitive.Root hideWhenRunning={hideWhenRunning}>
         <Tooltip>
           <ActionBarPrimitive.Copy copiedDuration={2_000} asChild>
-            <TooltipTrigger asChild>
-              <Button
+            <TooltipTrigger
+              render={
+                <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                aria-label={isCopied ? "Copied" : "Copy message"}
-              >
-                <AuiIf condition={({ message }) => message.isCopied}>
-                  <CheckIcon />
-                </AuiIf>
-                <AuiIf condition={({ message }) => !message.isCopied}>
-                  <CopyIcon />
-                </AuiIf>
-              </Button>
+                aria-label={isCopied ? "Copied" : "Copy message"} />
+              }
+            >
+              <AuiIf condition={({ message }) => message.isCopied}>
+                <CheckIcon />
+              </AuiIf>
+              <AuiIf condition={({ message }) => !message.isCopied}>
+                <CopyIcon />
+              </AuiIf>
+              
             </TooltipTrigger>
           </ActionBarPrimitive.Copy>
           <TooltipContent>{isCopied ? "Copied" : "Copy"}</TooltipContent>

@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import {
-  ChevronDownIcon,
-  PencilIcon,
-  Trash2Icon,
-} from "@/components/ui/icons"
+import { ChevronDownIcon, PencilIcon, Trash2Icon } from "@/components/ui/icons"
 
 import {
   AssistantRuntimeProvider,
@@ -203,7 +199,7 @@ export function ThreadPanel({
                 type="button"
                 variant="ghost"
                 disabled={!canRename}
-                className="h-auto min-w-0 max-w-full px-1.5 py-0 font-heading text-base font-medium active:translate-y-0"
+                className="h-auto max-w-full min-w-0 px-1.5 py-0 font-heading text-base font-medium active:translate-y-0"
                 onClick={startEditing}
               >
                 <span className="sidebar-row-title-fade min-w-0 overflow-hidden whitespace-nowrap">
@@ -215,30 +211,33 @@ export function ThreadPanel({
                 </span>
               </Button>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Chat options for ${title}`}
-                  >
-                    <ChevronDownIcon />
-                  </Button>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Chat options for ${title}`}
+                    />
+                  }
+                >
+                  <ChevronDownIcon />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
                   sideOffset={8}
                   className="w-36"
-                  onCloseAutoFocus={(event) => {
-                    if (ignoreMenuFocusRef.current) {
-                      event.preventDefault()
-                      ignoreMenuFocusRef.current = false
-                    }
+                  finalFocus={() => {
+                    // Renaming moves focus into the title field, so the menu
+                    // must not pull it back to the trigger on close.
+                    if (!ignoreMenuFocusRef.current) return
+                    ignoreMenuFocusRef.current = false
+                    return false
                   }}
                 >
                   <DropdownMenuGroup>
                     <DropdownMenuItem
                       disabled={!canRename}
-                      onSelect={() => {
+                      onClick={() => {
                         ignoreMenuFocusRef.current = true
                         startEditing()
                       }}
@@ -248,7 +247,7 @@ export function ThreadPanel({
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       variant="destructive"
-                      onSelect={() => {
+                      onClick={() => {
                         void onDelete(thread.id)
                       }}
                     >

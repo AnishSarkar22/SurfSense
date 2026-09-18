@@ -267,8 +267,9 @@ function FormatCard({
   const Icon = FORMAT_ICONS[entry.key] ?? FileIcon
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <button
+      <TooltipTrigger
+        render={
+          <button
           type="button"
           aria-disabled={!entry.available || undefined}
           aria-pressed={entry.available ? selected : undefined}
@@ -279,13 +280,14 @@ function FormatCard({
               : "cursor-not-allowed opacity-50",
             selected && "border-primary bg-primary/5"
           )}
-          onClick={entry.available ? onSelect : undefined}
-        >
-          <Icon />
-          <span className="w-full truncate text-[11px] leading-4">
-            {entry.label}
-          </span>
-        </button>
+          onClick={entry.available ? onSelect : undefined} />
+        }
+      >
+        <Icon />
+        <span className="w-full truncate text-[11px] leading-4">
+          {entry.label}
+        </span>
+        
       </TooltipTrigger>
       <TooltipContent side="top">{formatHint(entry)}</TooltipContent>
     </Tooltip>

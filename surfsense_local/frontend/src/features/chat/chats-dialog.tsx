@@ -60,12 +60,14 @@ export function RenameChatDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className="select-none"
-        onOpenAutoFocus={(event) => {
-          event.preventDefault()
+        initialFocus={() => {
+          // Base UI focuses the first tabbable element; this dialog wants the
+          // name pre-selected instead, so it focuses by hand and opts out.
           const input = inputRef.current
-          if (!input) return
+          if (!input) return false
           input.focus()
           input.select()
+          return false
         }}
       >
         <form onSubmit={(event) => void submit(event)}>
@@ -157,10 +159,7 @@ export function ChatsDialog({
       >
         <DialogContent
           className="select-none sm:max-w-3xl"
-          onOpenAutoFocus={(event) => {
-            event.preventDefault()
-            searchRef.current?.focus()
-          }}
+          initialFocus={searchRef}
         >
           <DialogHeader>
             <DialogTitle className="text-xl">Chats</DialogTitle>
@@ -273,28 +272,30 @@ export function ChatsDialog({
                           setOpenDropdownId(open ? thread.id : null)
                         }
                       >
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="size-6 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-transparent active:translate-y-px data-[state=open]:bg-accent data-[state=open]:opacity-100"
-                            aria-label={`Actions for ${title}`}
-                            onMouseEnter={onRowMouseEnter}
-                            onMouseLeave={onRowMouseLeave}
-                          >
-                            <EllipsisIcon />
-                          </Button>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="size-6 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-transparent active:translate-y-px data-[state=open]:bg-accent data-[state=open]:opacity-100"
+                              aria-label={`Actions for ${title}`}
+                              onMouseEnter={onRowMouseEnter}
+                              onMouseLeave={onRowMouseLeave}
+                            />
+                          }
+                        >
+                          <EllipsisIcon />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                           align="end"
                           sideOffset={8}
                           className="w-36"
-                          onCloseAutoFocus={(event) => event.preventDefault()}
+                          finalFocus={false}
                         >
                           <DropdownMenuGroup>
                             <DropdownMenuItem
                               disabled={thread.id === autoNamingThreadId}
-                              onSelect={() => {
+                              onClick={() => {
                                 setOpenDropdownId(null)
                                 setRenaming(thread)
                               }}
@@ -304,7 +305,7 @@ export function ChatsDialog({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               variant="destructive"
-                              onSelect={() => {
+                              onClick={() => {
                                 setOpenDropdownId(null)
                                 void onDelete(thread.id)
                               }}
