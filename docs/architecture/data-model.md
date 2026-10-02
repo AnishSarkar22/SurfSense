@@ -93,7 +93,7 @@ Ingest writes the `chunk_vectors` row itself, because only ingest holds the vect
 | Column | Notes |
 |---|---|
 | `id` | |
-| `spec` | JSON snapshot of the embedder's spec: repo, pinned revision and file hashes, width, pooling, normalisation, prefixes, `max_tokens`, `semantic_weight`. A later edit to the app's copy of a spec cannot change what an existing index means |
+| `spec` | JSON snapshot of the embedder's spec: repo, pinned revision and file hashes for a local model, or the connection id and model id for one on a server ([embedding](embedding.md#a-servers-model)); width, pooling, normalisation, prefixes, `max_tokens`, `semantic_weight`. A later edit to the app's copy of a spec cannot change what an existing index means |
 | `vector_table` | the vec0 table holding this index's vectors; checked against a fixed name pattern before it reaches SQL |
 | `state` | `active`; `building` and `retired` are reserved for changing the model, which is not built |
 | `created_at` | |

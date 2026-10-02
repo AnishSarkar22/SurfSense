@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from api.dependencies import SessionDep, transact
 from modules.egress import service as egress
+from modules.embedding.active import active_index
+from modules.embedding.remote.recognise.listing import serves_embedders
 from modules.llm.catalog.remote.manifest.loader import remote_lookup
 from modules.llm.catalog.remote.reads_images import remote_reads_images
 from modules.llm.catalog.remote.rows import CUSTOM
@@ -142,7 +144,8 @@ async def _probe_or_reject(
     try:
         await probe_connection(base_url, api_key)
     except (httpx.HTTPError, ValueError) as error:
-        if allow_unverified:
+        # TEI serves embeddings and has no `/models`; its `/info` vouches for it.
+        if allow_unverified or await serves_embedders(base_url, api_key):
             return
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -200,6 +203,13 @@ def delete_connection(connection_id: int, session: SessionDep) -> Response:
     connection = session.get(ProviderConnection, connection_id)
     if connection is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "connection not found")
+    if embeds_through(session, connection_id):
+        # Every vector came from it; editing its key or URL stays allowed.
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{connection.label} runs this library's embedding model "
+            "and cannot be removed",
+        )
     session.delete(connection)
     session.flush()
     egress.forget_if_unused(session, egress.host_destination(connection.base_url))
@@ -334,3 +344,8 @@ async def test_connection_speech(
         media_type=audio.media_type,
         headers={"Cache-Control": "no-store"},
     )
+
+
+def embeds_through(session: Session, connection_id: int) -> bool:
+    index = active_index(session)
+    return index is not None and index.spec.connection_id == connection_id

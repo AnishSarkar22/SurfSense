@@ -1,10 +1,11 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from modules.embedding.models import EmbeddingIndex, IndexState
-from modules.embedding.spec import EmbedderSpec
+from modules.embedding.remote.endpoint import RemoteEndpoint, endpoint_for
+from modules.embedding.spec import EmbedderSpec, Source
 
 
 class EmbeddingNotChosenError(Exception):
@@ -19,6 +20,9 @@ class ActiveIndex:
     id: int
     spec: EmbedderSpec
     vector_table: str
+    # Where a remote embedder is called; None for a local one, and on a read
+    # that only shows the index.
+    endpoint: RemoteEndpoint | None = None
 
 
 def active_index(session: Session) -> ActiveIndex | None:
@@ -32,7 +36,11 @@ def active_index(session: Session) -> ActiveIndex | None:
 
 
 def require_active_index(session: Session) -> ActiveIndex:
+    """The index, ready to embed with: a remote one's server is resolved here,
+    so a host turned off in Settings stops ingest and search, and says why."""
     index = active_index(session)
     if index is None:
         raise EmbeddingNotChosenError
+    if index.spec.source is Source.REMOTE:
+        return replace(index, endpoint=endpoint_for(session, index.spec))
     return index

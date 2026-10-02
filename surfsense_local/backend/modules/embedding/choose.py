@@ -6,9 +6,11 @@ from sqlalchemy.orm import Session
 from modules.embedding.active import active_index
 from modules.embedding.bundled import BGE
 from modules.embedding.lock import lock_index
+from modules.embedding.remote.choice import checked, is_remote
 from modules.llm.catalog.local.dependencies import get_local_catalog
 from modules.llm.catalog.local.engines.onnxruntime.spec import spec_for
 from modules.llm.catalog.local.manifest import load_local_manifest
+from modules.llm.models import ProviderConnection
 
 
 def lock_chosen(session: Session, model_id: str | None) -> None:
@@ -28,6 +30,9 @@ def lock_chosen(session: Session, model_id: str | None) -> None:
         return
     if chosen == BGE.id:
         lock_index(session, BGE)
+        return
+    if is_remote(chosen):
+        _lock_remote(session, chosen)
         return
     picked = get_local_catalog().onnxruntime.installed_spec(chosen)
     if picked is not None:
@@ -51,3 +56,18 @@ def lock_chosen(session: Session, model_id: str | None) -> None:
             status.HTTP_409_CONFLICT, f"{chosen} has not finished downloading"
         )
     lock_index(session, spec_for(model))
+
+
+def _lock_remote(session: Session, choice: str) -> None:
+    """Only a model whose check passed in this run of the app."""
+    spec = checked(choice)
+    if spec is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "check this server's model again before finishing",
+        )
+    if session.get(ProviderConnection, spec.connection_id) is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "the server this model runs on was removed"
+        )
+    lock_index(session, spec)

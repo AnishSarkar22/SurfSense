@@ -197,7 +197,7 @@ Hugging Face pick is labelled not tested by SurfSense; the bundled bge-small has
 no Delete. Its search is `ModelSearch` given the embedding endpoints, which answer
 in the GGUF search's shapes, with a note that larger models are slower. A notice
 above the list says the choice can't be changed later and that the default suits
-English. It offers no server until remote embedders exist. Being last, its
+English. It offers the same server path as the other steps; there, Use checks the server's model before holding it, and a refused model says why ([embedding](../embedding.md#a-servers-model)). Being last, its
 Finish sends the choice with the call that ends onboarding; Skip and finish, or
 Finish with the choice untouched, sends none, which means bge-small
 ([embedding](../embedding.md)).

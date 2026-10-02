@@ -1,3 +1,5 @@
+import { Fragment, type ReactNode } from "react"
+
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { CircleAlertIcon } from "@/components/ui/icons"
 import { intl } from "@/i18n/intl"
@@ -17,19 +19,29 @@ function messageFrom(error: unknown) {
       })
 }
 
+/** A server's models for a section that is not a slot, in its own wrapper. */
+export type ServerModelsRenderer = (
+  connection: Connection,
+  group: { defaultOpen: boolean; onEdit: () => void }
+) => ReactNode
+
 /**
  * One group per OpenAI-compatible server, each offering its models for one
  * slot. Servers are shared across slots; only the models listed are filtered.
  */
 export function ServerModelPicker({
   modelType,
+  renderModels,
   disabled = false,
   openServerId = null,
   onEdit,
   onSelected,
   onChatCleared,
 }: {
-  modelType: ModelType
+  /** The slot each group offers models for; absent where `renderModels` is. */
+  modelType?: ModelType
+  /** Replaces the slot's own group, for a section that is not a slot. */
+  renderModels?: ServerModelsRenderer
   disabled?: boolean
   /** A server just added, whose group opens on its models. */
   openServerId?: number | null
@@ -54,16 +66,29 @@ export function ServerModelPicker({
     )
   }
 
-  return (connections.data ?? []).map((connection) => (
-    <ServerModels
-      key={connection.id}
-      connection={connection}
-      modelType={modelType}
-      disabled={disabled}
-      defaultOpen={connection.id === openServerId}
-      onEdit={() => onEdit(connection)}
-      onSelected={onSelected}
-      onChatCleared={onChatCleared}
-    />
-  ))
+  return (connections.data ?? []).map((connection) => {
+    if (renderModels) {
+      return (
+        <Fragment key={connection.id}>
+          {renderModels(connection, {
+            defaultOpen: connection.id === openServerId,
+            onEdit: () => onEdit(connection),
+          })}
+        </Fragment>
+      )
+    }
+    if (!modelType) return null
+    return (
+      <ServerModels
+        key={connection.id}
+        connection={connection}
+        modelType={modelType}
+        disabled={disabled}
+        defaultOpen={connection.id === openServerId}
+        onEdit={() => onEdit(connection)}
+        onSelected={onSelected}
+        onChatCleared={onChatCleared}
+      />
+    )
+  })
 }

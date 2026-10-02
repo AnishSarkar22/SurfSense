@@ -26,7 +26,9 @@ OpenAI-compatible connection
       └── POST /images              an alternate image route
 ```
 
-Out of scope: a standalone OpenRouter provider or its legacy Chat Completions image contract; replica management, load balancing, failover and retries across connections; storing an endpoint's model list, pricing or billing, or syncing any of it in the background; embeddings through a connection; custom headers, mTLS, private CAs and non-OpenAI transports.
+Out of scope: a standalone OpenRouter provider or its legacy Chat Completions image contract; replica management, load balancing, failover and retries across connections; storing an endpoint's model list, pricing or billing, or syncing any of it in the background; custom headers, mTLS, private CAs and non-OpenAI transports.
+
+A connection can also serve the library's embedding model, chosen at onboarding through the same connections, with its own listing and checks ([embedding](embedding.md#a-servers-model)). A server whose `/models` fails is still saved when it declares embedders of its own, as TEI does with `/info`.
 
 ## Data model
 
@@ -53,7 +55,7 @@ A base URL must be `http` or `https` with a host, and may not carry credentials,
 | `GET` | `/llm/connections` | list, by label, with `has_api_key` and never the key |
 | `POST` | `/llm/connections` | create; `201` |
 | `PUT` | `/llm/connections/{connection_id}` | replace |
-| `DELETE` | `/llm/connections/{connection_id}` | delete it and the selections that use it; `204` |
+| `DELETE` | `/llm/connections/{connection_id}` | delete it and the selections that use it; `204`. `409` while the library's embedding model runs on it ([embedding](embedding.md#a-servers-model)) |
 | `GET` | `/llm/connections/{connection_id}/models` | the endpoint's live model list |
 | `POST` | `/llm/connections/{connection_id}/chat-test` | one short answer from a chosen model |
 | `POST` | `/llm/connections/{connection_id}/image-test` | one image from a chosen model |

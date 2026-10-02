@@ -16,7 +16,9 @@ def stub_model(monkeypatch: pytest.MonkeyPatch) -> None:
     too, so a test fakes only the model call it cares about.
     """
 
-    def embed(spec: Any, texts: list[str], _purpose: Any) -> list[list[float]]:
+    def embed(
+        spec: Any, texts: list[str], _purpose: Any, *, endpoint: Any = None
+    ) -> list[list[float]]:
         # Distinct per text, so a misplaced chunk is a mismatched vector.
         return [[float(len(text) % 97)] * spec.dimension for text in texts]
 

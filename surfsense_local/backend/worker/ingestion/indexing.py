@@ -12,7 +12,13 @@ from worker.ingestion.chunking import Passage
 
 def embed_passages(index: ActiveIndex, passages: list[Passage]) -> list[list[float]]:
     texts = [passage.text for passage in passages]
-    return encoder.embed(index.spec, texts, encoder.Purpose.DOCUMENT) if texts else []
+    return (
+        encoder.embed(
+            index.spec, texts, encoder.Purpose.DOCUMENT, endpoint=index.endpoint
+        )
+        if texts
+        else []
+    )
 
 
 def replace_chunks(

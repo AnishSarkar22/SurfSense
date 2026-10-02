@@ -1,6 +1,6 @@
 # ADR 0007: Embeddings come from a bundled bge-small model run in process on the CPU
 
-- **Status:** Accepted; amended by [ADR 0036](0036-the-index-records-its-embedder.md): the width comes from the index's own record, and bge-small is the default rather than the only embedder
+- **Status:** Accepted; amended by [ADR 0036](0036-the-index-records-its-embedder.md): the width comes from the index's own record, and bge-small is the default rather than the only embedder; and by [ADR 0038](0038-embedding-may-run-on-a-connection.md): the embedding model may run on a connection
 - **Date:** 2026-09-04
 - **Source:** [Umbrella plan L106](https://github.com/MODSetter/SurfSense/blob/431914fae066e0c42a38b1fdbbab64e8f92d3d00/plans/community-local/00-umbrella-plan.md#L106), [Data model L220–224](https://github.com/MODSetter/SurfSense/blob/431914fae066e0c42a38b1fdbbab64e8f92d3d00/plans/community-local/00c-data-model.md#L220-L224)
 

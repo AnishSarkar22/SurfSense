@@ -2,6 +2,8 @@ import { requestJson } from "@/lib/api"
 
 export type EmbeddingIndex = {
   name: string
+  /** The connection a remote model runs on, by its label; null when local. */
+  server?: string | null
   spec: {
     id: string
     source: "curated" | "huggingface" | "remote"

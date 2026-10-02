@@ -206,7 +206,7 @@ def test_an_embedding_failure_leaves_a_reason(
     """The model files are missing or corrupt: fail the row, keep no chunks."""
     note = make_note(session)
 
-    def boom(*_args: object) -> list[list[float]]:
+    def boom(*_args: object, **_kwargs: object) -> list[list[float]]:
         raise RuntimeError("the model could not be loaded")
 
     # Overrides the deterministic embed stub_model installed.

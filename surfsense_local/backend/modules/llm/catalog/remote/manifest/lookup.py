@@ -44,7 +44,9 @@ class RemoteLookup:
     def has_provider(self, provider: str) -> bool:
         return provider in self._manifest.providers
 
-    def classify(self, model_id: str, provider: str | None = None) -> RemoteClassification:
+    def classify(
+        self, model_id: str, provider: str | None = None
+    ) -> RemoteClassification:
         candidates = _candidates(model_id)
         served = self._manifest.providers.get(provider) if provider else None
         if served is not None:
@@ -52,6 +54,24 @@ class RemoteLookup:
                 if candidate in served.models:
                     return _one(candidate, served.models[candidate])
         return self._maker(model_id) or self._agreed(candidates) or UNKNOWN
+
+    def entry(self, model_id: str, provider: str | None = None) -> RemoteModel | None:
+        """The entry describing this id, read in `classify`'s order: the
+        connection's provider, then the maker, then any carrier."""
+        candidates = _candidates(model_id)
+        served = self._manifest.providers.get(provider) if provider else None
+        for candidate in candidates if served is not None else ():
+            if candidate in served.models:
+                return served.models[candidate]
+        maker, _, rest = model_id.partition("/")
+        entries = self._manifest.providers.get(maker) if rest else None
+        for candidate in (rest, model_id) if entries is not None else ():
+            if candidate in entries.models:
+                return entries.models[candidate]
+        for candidate in candidates:
+            if carriers := self._carriers.get(candidate):
+                return carriers[0]
+        return None
 
     def unusable_reason(self, model_id: str, provider: str | None) -> str | None:
         """Why a model the manifest knows cannot be called here, or None.
@@ -102,7 +122,9 @@ def call_reason(call: Call | None) -> str | None:
         return None
     if call.route == "responses":
         return "Only served on /responses, which SurfSense does not call yet"
-    return f"Served through the {call.protocol} protocol, which SurfSense does not speak"
+    return (
+        f"Served through the {call.protocol} protocol, which SurfSense does not speak"
+    )
 
 
 def _candidates(model_id: str) -> tuple[str, ...]:
@@ -123,5 +145,8 @@ def _agreed_supports(each: list[Supports]) -> Supports:
         for field in fields(Supports)
     }
     return Supports(
-        **{name: next(iter(seen)) if len(seen) == 1 else None for name, seen in values.items()}
+        **{
+            name: next(iter(seen)) if len(seen) == 1 else None
+            for name, seen in values.items()
+        }
     )

@@ -24,6 +24,9 @@ from modules.embedding.active import EmbeddingNotChosenError
 from modules.embedding.huggingface.router import (
     router as embedding_huggingface_router,
 )
+from modules.embedding.remote.call import RemoteEmbeddingError
+from modules.embedding.remote.endpoint import EmbeddingServerGoneError
+from modules.embedding.remote.router import router as embedding_remote_router
 from modules.embedding.router import router as embedding_router
 from modules.events.broker import EventBroker
 from modules.events.router import router as events_router
@@ -169,11 +172,14 @@ def create_app() -> FastAPI:
     app.include_router(egress_router)
     app.include_router(embedding_router)
     app.include_router(embedding_huggingface_router)
+    app.include_router(embedding_remote_router)
     app.include_router(resource_usage_router)
     app.include_router(agent_model_router)
     app.include_router(agent_threads_router)
     app.add_exception_handler(EgressDeniedError, egress_denied)
     app.add_exception_handler(EmbeddingNotChosenError, embedding_not_chosen)
+    app.add_exception_handler(RemoteEmbeddingError, embedding_server_failed)
+    app.add_exception_handler(EmbeddingServerGoneError, embedding_server_failed)
     app.add_exception_handler(UnreadableSecretError, unreadable_secret)
     return app
 
@@ -198,6 +204,15 @@ def embedding_not_chosen(
     return JSONResponse(
         {"detail": {"code": "embedding_not_chosen", "message": str(error)}},
         status.HTTP_409_CONFLICT,
+    )
+
+
+def embedding_server_failed(_request: Request, error: Exception) -> JSONResponse:
+    """A remote embedder that cannot answer: search and ingest stop and say why,
+    never answering with another model's vectors."""
+    return JSONResponse(
+        {"detail": {"code": "embedding_server_unavailable", "message": str(error)}},
+        status.HTTP_503_SERVICE_UNAVAILABLE,
     )
 
 

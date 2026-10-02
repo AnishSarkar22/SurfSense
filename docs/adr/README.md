@@ -72,3 +72,4 @@ The Date is the day the decision was first written down. Source links are permal
 | 0035 | [The desktop app's stack also ships as one Docker container, with Caddy as its only listener](0035-docker-compose-runs-the-desktop-stack.md) | Accepted |
 | 0036 | [The index records which embedder built it, and the embedder is fixed once per install](0036-the-index-records-its-embedder.md) | Accepted |
 | 0037 | [Curated embedders are a fourth engine in the local catalog, and embedding is a type, never a slot](0037-embedding-is-a-type-not-a-slot.md) | Accepted |
+| 0038 | [The embedding model may run on a connection, once its checks pass](0038-embedding-may-run-on-a-connection.md) | Accepted |

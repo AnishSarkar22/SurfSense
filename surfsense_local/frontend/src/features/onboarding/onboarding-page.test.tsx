@@ -299,6 +299,32 @@ function backend({
       connections = [...connections, created]
       return Response.json(created)
     }
+    // OpenRouter lists one embedder; the check refuses a chat model.
+    if (/^\/embedding\/remote\/connections\/\d+\/models$/.test(path)) {
+      return Response.json([
+        {
+          name: "openai/text-embedding-3-small",
+          identified: "declared",
+          context: 8192,
+        },
+        { name: "acme/chat-embed", identified: "inferred", context: null },
+      ])
+    }
+    if (path === "/embedding/remote/check" && init?.method === "POST") {
+      const { connection_id, model } = JSON.parse(String(init.body))
+      if (model === "acme/chat-embed") {
+        return Response.json(
+          { detail: "It found 6 of 10 answers first." },
+          { status: 422 }
+        )
+      }
+      return Response.json({
+        choice: `remote:${connection_id}:${model}`,
+        name: model,
+        identified: "declared",
+        dimension: 1536,
+      })
+    }
     if (/^\/llm\/connections\/\d+\/models$/.test(path)) {
       return Response.json([])
     }
@@ -1104,8 +1130,6 @@ describe("the embedding model step", () => {
         "You can’t change this later. If you’re unsure, the default works well for English."
       )
     ).toBeTruthy()
-    // Remote embedders are not offered yet.
-    expect(screen.queryByRole("region", { name: "Use a server" })).toBeNull()
   })
 
   it("downloads a multilingual model and finishes setup with it", async () => {
@@ -1271,6 +1295,63 @@ describe("the embedding model step", () => {
         )
       ).toBe(true)
     )
+  })
+
+  it("checks a server's embedding model and finishes setup with it", async () => {
+    const fetchMock = backend({
+      selections: { ...chatChosen },
+      connections: [openRouter],
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const onComplete = vi.fn()
+    const user = userEvent.setup()
+    render(<OnboardingPage onComplete={onComplete} />)
+    await toEmbeddingStep(user)
+
+    const server = screen.getByRole("region", { name: "Use a server" })
+    await user.click(
+      within(server).getByRole("button", { name: "Show servers" })
+    )
+    await user.click(await screen.findByRole("button", { name: "Show models" }))
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Use openai/text-embedding-3-small",
+      })
+    )
+
+    await expectReady("text-embedding-3-small")
+    expect(
+      screen.getByRole("region", { name: "Model ready" }).textContent
+    ).toContain("OpenRouter")
+    await user.click(screen.getByRole("button", { name: "Finish" }))
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalledOnce())
+    expect(fetchMock.finished).toEqual([
+      { embedding_model: "remote:4:openai/text-embedding-3-small" },
+    ])
+  })
+
+  it("says why a server's model was refused, and keeps the default", async () => {
+    vi.stubGlobal(
+      "fetch",
+      backend({ selections: { ...chatChosen }, connections: [openRouter] })
+    )
+    const user = userEvent.setup()
+    render(<OnboardingPage onComplete={() => undefined} />)
+    await toEmbeddingStep(user)
+
+    const server = screen.getByRole("region", { name: "Use a server" })
+    await user.click(
+      within(server).getByRole("button", { name: "Show servers" })
+    )
+    await user.click(await screen.findByRole("button", { name: "Show models" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Use acme/chat-embed" })
+    )
+
+    expect((await screen.findByRole("alert")).textContent).toContain("6 of 10")
+    await user.click(screen.getByRole("button", { name: "Back to models" }))
+    await expectReady("BGE Small (English)")
   })
 
   it("says why a Hugging Face repo cannot run here", async () => {

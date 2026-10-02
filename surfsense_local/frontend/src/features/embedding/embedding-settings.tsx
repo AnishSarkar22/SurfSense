@@ -30,6 +30,17 @@ export function EmbeddingSettings() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-0.5">
           <h3 className="text-sm font-medium">{active.name}</h3>
+          {active.server ? (
+            <p className="text-sm text-muted-foreground">
+              {intl.formatMessage(
+                {
+                  id: "embedding_settings_server_body",
+                  defaultMessage: "Runs on {server}",
+                },
+                { server: active.server }
+              )}
+            </p>
+          ) : null}
           {active.spec.identified !== "measured" ? (
             <p className="text-sm text-muted-foreground">
               {intl.formatMessage({

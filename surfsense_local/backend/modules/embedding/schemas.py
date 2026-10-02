@@ -8,6 +8,8 @@ class IndexRead(BaseModel):
 
     name: str
     spec: EmbedderSpec
+    # The connection a remote embedder runs on, by its label; null when local.
+    server: str | None = None
 
 
 class EmbeddingIndexRead(BaseModel):

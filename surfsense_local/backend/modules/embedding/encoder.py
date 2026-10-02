@@ -9,7 +9,9 @@ import numpy as np
 
 from modules.embedding.bundled import BGE, bundled_dir
 from modules.embedding.pooling import pool
-from modules.embedding.spec import EmbedderSpec
+from modules.embedding.remote.call import embed_remote
+from modules.embedding.remote.endpoint import RemoteEndpoint
+from modules.embedding.spec import EmbedderSpec, Source
 from shared.config import get_storage_settings
 
 
@@ -32,7 +34,10 @@ def model_dir(spec: EmbedderSpec) -> Path:
 
 
 def missing_files(spec: EmbedderSpec) -> list[str]:
-    """Files the model still needs before anything can be embedded."""
+    """Files the model still needs before anything can be embedded; a remote
+    model has none."""
+    if spec.source is Source.REMOTE:
+        return []
     directory = model_dir(spec)
     return [
         pinned.path
@@ -41,13 +46,22 @@ def missing_files(spec: EmbedderSpec) -> list[str]:
     ]
 
 
-def embed(spec: EmbedderSpec, texts: list[str], purpose: Purpose) -> list[list[float]]:
-    """Embed every text with the spec's model, in batches."""
+def embed(
+    spec: EmbedderSpec,
+    texts: list[str],
+    purpose: Purpose,
+    *,
+    endpoint: RemoteEndpoint | None = None,
+) -> list[list[float]]:
+    """Embed every text with the spec's model, in batches. A remote model is
+    called at `endpoint`, which the active index carries."""
     prefix = spec.query_prefix if purpose is Purpose.QUERY else spec.document_prefix
     prefixed = [prefix + text for text in texts]
     vectors: list[list[float]] = []
     for start in range(0, len(prefixed), spec.batch):
-        vectors.extend(_embed_batch(spec, prefixed[start : start + spec.batch]))
+        vectors.extend(
+            _embed_batch(spec, prefixed[start : start + spec.batch], endpoint)
+        )
 
     wrong = next((len(v) for v in vectors if len(v) != spec.dimension), None)
     if wrong is not None:
@@ -58,12 +72,20 @@ def embed(spec: EmbedderSpec, texts: list[str], purpose: Purpose) -> list[list[f
     return vectors
 
 
-def width(spec: EmbedderSpec, text: str) -> int:
+def width(spec: EmbedderSpec, text: str, endpoint: RemoteEndpoint | None = None) -> int:
     """How wide the model's vectors really are, whatever its spec says."""
-    return len(_embed_batch(spec, [text])[0])
+    return len(_embed_batch(spec, [text], endpoint)[0])
 
 
-def _embed_batch(spec: EmbedderSpec, texts: list[str]) -> list[list[float]]:
+def _embed_batch(
+    spec: EmbedderSpec, texts: list[str], endpoint: RemoteEndpoint | None
+) -> list[list[float]]:
+    if spec.source is Source.REMOTE:
+        if endpoint is None or spec.model is None:
+            raise ValueError(f"{spec.id} is remote and was given no endpoint")
+        # Normalised here, whatever the server does: search compares by cosine.
+        pooled = np.array(embed_remote(endpoint, spec.model, texts), dtype=np.float32)
+        return _normalised(pooled).tolist()
     session, encoder = _loaded(spec, model_dir(spec))
     encoded = encoder.encode_batch(texts)
     feed = {
@@ -84,8 +106,12 @@ def _embed_batch(spec: EmbedderSpec, texts: list[str]) -> list[list[float]]:
     output = session.run(None, feed)[0]
     pooled = pool(spec.pooling, output, feed["attention_mask"])
     if spec.normalize:
-        pooled = pooled / np.linalg.norm(pooled, axis=1, keepdims=True)
+        pooled = _normalised(pooled)
     return pooled.astype(np.float32).tolist()
+
+
+def _normalised(vectors: np.ndarray) -> np.ndarray:
+    return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
 
 
 @lru_cache(maxsize=2)

@@ -58,7 +58,9 @@ def retrieve(
     # model configured on its own.
     index = require_active_index(session)
     vector = serialize_float32(
-        encoder.embed(index.spec, [query], encoder.Purpose.QUERY)[0]
+        encoder.embed(
+            index.spec, [query], encoder.Purpose.QUERY, endpoint=index.endpoint
+        )[0]
     )
     keyword = dict(_keyword_leg(session, workspace_id, query, selected_document_ids))
     candidates = keyword.keys() | set(

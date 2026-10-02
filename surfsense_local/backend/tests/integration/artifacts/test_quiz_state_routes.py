@@ -22,7 +22,9 @@ def stub_model(monkeypatch: pytest.MonkeyPatch) -> None:
     these tests don't need the bundled model on disk (see
     tests/integration/worker/conftest.py's identical fixture)."""
 
-    def embed(spec: Any, texts: list[str], _purpose: Any) -> list[list[float]]:
+    def embed(
+        spec: Any, texts: list[str], _purpose: Any, *, endpoint: Any = None
+    ) -> list[list[float]]:
         return [[float(len(text) % 97)] * spec.dimension for text in texts]
 
     monkeypatch.setattr("modules.embedding.encoder.embed", embed)

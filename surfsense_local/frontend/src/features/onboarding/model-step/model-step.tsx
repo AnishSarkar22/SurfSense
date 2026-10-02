@@ -44,7 +44,7 @@ import { stepDeletes } from "./kinds/step-deletes"
 /**
  * One onboarding step, for a slot or the embedding model; what differs is in
  * `kinds/` and `step-copy.ts`. Every local model is listed at once, the
- * recommended one first, with a server one line below for a slot: nothing is
+ * recommended one first, with a server one line below: nothing is
  * hidden behind a click. The step is done once it has a model.
  */
 export function ModelStep({
@@ -73,8 +73,10 @@ export function ModelStep({
   // A slot's download becomes its model, so a first model takes one click.
   const { jobs, installs, install, cancel } = useInstall(models.install)
   const remove = stepDeletes[modelType]()
-  // Remote embedders are not offered yet, so that step has no server.
   const slot = slotOf(modelType)
+  // A slot picks its server model itself; any other step offers servers only
+  // with a way to hold the choice.
+  const servers = slot !== null || models.serverChoice !== undefined
   const connections = useConnections()
   const [onServer, setOnServer] = useState(false)
   // With nothing connected yet there is no server page to show: Connect
@@ -153,11 +155,15 @@ export function ModelStep({
   const body = () => {
     if (models.error) return <OfflineState message={models.error.message} />
     if (models.isPending) return null
-    if (onServer && slot) {
+    if (onServer && servers) {
       return (
         // Choosing a model stays here, as in Settings: its group marks it
         // "In use", and the footer says which.
-        <ServerPath modelType={slot} openServerId={openServerId} />
+        <ServerPath
+          modelType={slot}
+          serverChoice={models.serverChoice}
+          openServerId={openServerId}
+        />
       )
     }
     return (
@@ -227,7 +233,7 @@ export function ModelStep({
           ) : null}
         </section>
 
-        {slot ? (
+        {servers ? (
           <>
             <Separator />
             <ServerOption

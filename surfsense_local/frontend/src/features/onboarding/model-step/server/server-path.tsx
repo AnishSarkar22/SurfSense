@@ -9,6 +9,8 @@ import { ServerModelPicker } from "@/features/models/remote/models/server-model-
 import { intl } from "@/i18n/intl"
 
 import type { OnboardingSlot } from "../kinds/slot"
+import type { ServerChoice } from "../kinds/step-models"
+import { EmbeddingServerModels } from "./embedding-server-models"
 
 /**
  * A model from a server, in Settings' own server groups. Connecting and
@@ -16,9 +18,13 @@ import type { OnboardingSlot } from "../kinds/slot"
  */
 export function ServerPath({
   modelType,
+  serverChoice,
   openServerId: initialOpenServerId,
 }: {
-  modelType: OnboardingSlot
+  /** Null for a step that is not a slot. */
+  modelType: OnboardingSlot | null
+  /** For a step that is not a slot: Use is checked and held, not selected. */
+  serverChoice?: ServerChoice
   /** A server added before this page opened, whose models to show first. */
   openServerId: number | null
 }) {
@@ -38,9 +44,21 @@ export function ServerPath({
     <div className="flex flex-col gap-5">
       {servers.length ? (
         <ServerModelPicker
-          modelType={modelType}
+          modelType={modelType ?? undefined}
           openServerId={openServerId}
           onEdit={openDialog}
+          renderModels={
+            serverChoice
+              ? (connection, group) => (
+                  <EmbeddingServerModels
+                    connection={connection}
+                    choice={serverChoice}
+                    disabled={false}
+                    {...group}
+                  />
+                )
+              : undefined
+          }
         />
       ) : (
         <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
