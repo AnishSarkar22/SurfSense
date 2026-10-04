@@ -37,6 +37,14 @@ export const metadata: Metadata = {
 		url: "https://www.surfsense.com",
 		siteName: "SurfSense",
 		type: "website",
+		images: [
+			{
+				url: "/og-image.png",
+				width: 1200,
+				height: 630,
+				alt: "SurfSense, the air-gapped open-source NotebookLM alternative",
+			},
+		],
 	},
 };
 

@@ -52,6 +52,7 @@ export const metadata: Metadata = {
 		url: canonicalUrl,
 		siteName: "SurfSense",
 		type: "website",
+		images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "SurfSense terms of service" }],
 	},
 };
 
