@@ -4,7 +4,7 @@
  * Layout, spacing, type, corners and colours are Tailwind on the markup. This
  * file holds the two things Tailwind cannot: the marketing palette, and the few
  * rules that need real CSS (grid hairlines, tables, menu and FAQ motion, the
- * logo cycle).
+ * logo marquee).
  *
  * The palette re-points the shared token names (`--card`, `--border`, ...)
  * inside `.ss-home`, so `bg-card` and every shadcn component on a marketing
@@ -233,7 +233,7 @@
 		/* Bar, menu card and dropdown read as one material: a hairline, a
 		 * translucent rim and a soft drop. Used as `shadow-(--nav-surface)`. */
 		--nav-surface:
-			0 0 0 1px var(--border), 0 0 0 3px color-mix(in oklab, var(--foreground) 9%, transparent),
+			0 0 0 1px var(--border), 0 0 0 5px color-mix(in oklab, var(--foreground) 9%, transparent),
 			0 16px 32px -12px rgb(0 0 0 / 0.55);
 	}
 
@@ -385,100 +385,24 @@
 	}
 
 	/* -------------------------------------------------------------------------
-	 * Logo cloud (`HomeLogos`)
+	 * Logo marquee (`HomeLogos`)
 	 *
-	 * Each cell stacks two or three marks and cross-fades between them with
-	 * keyframes, which keeps every logo and its alt text in the markup. Cells
-	 * of different sizes drift out of step rather than flipping together.
+	 * The track holds the list twice and slides by half its width, so the loop
+	 * has no seam. Pauses on hover so a visitor can read a name.
 	 * ---------------------------------------------------------------------- */
 
-	.ss-home-logo {
-		position: absolute;
-		left: 50%;
-		top: 50%;
-		translate: -50% -50%;
-		height: 2.5rem;
-		width: auto;
-		max-width: calc(100% - 2rem);
-		object-fit: contain;
-		/* Most marks are drawn dark, some with unfilled paths that render
-		 * black: invert rather than flatten so a crest's detail survives. */
-		--logo-tone: grayscale(1) invert(1) brightness(1.05);
-		/* One `filter`, so the tone and the animated blur compose. */
-		filter: var(--logo-tone) blur(var(--logo-blur, 0px));
-		opacity: 0;
-		animation-delay: calc(var(--slot) * 4s);
-		animation-iteration-count: infinite;
-		animation-timing-function: linear;
-		animation-fill-mode: both;
+	.ss-home-marquee {
+		animation: ss-home-marquee 60s linear infinite;
 	}
 
-	/* Artwork that is already light would go black if inverted. */
-	.ss-home-logo[data-light] {
-		--logo-tone: grayscale(1) brightness(1.1);
-	}
-
-	/* Every mark gets four seconds on screen. */
-	.ss-home-logo[data-slots="2"] {
-		animation-name: ss-home-logo-cycle-2;
-		animation-duration: 8s;
-	}
-
-	.ss-home-logo[data-slots="3"] {
-		animation-name: ss-home-logo-cycle-3;
-		animation-duration: 12s;
+	.ss-home-marquee:hover {
+		animation-play-state: paused;
 	}
 }
 
-@property --logo-blur {
-	syntax: "<length>";
-	inherits: false;
-	initial-value: 0px;
-}
-
-@keyframes ss-home-logo-cycle-2 {
-	0% {
-		opacity: 0;
-		--logo-blur: 4px;
-	}
-	5% {
-		opacity: 0.8;
-		--logo-blur: 0px;
-	}
-	45% {
-		opacity: 0.8;
-		--logo-blur: 0px;
-	}
-	50% {
-		opacity: 0;
-		--logo-blur: 4px;
-	}
-	100% {
-		opacity: 0;
-		--logo-blur: 4px;
-	}
-}
-
-@keyframes ss-home-logo-cycle-3 {
-	0% {
-		opacity: 0;
-		--logo-blur: 4px;
-	}
-	3.5% {
-		opacity: 0.8;
-		--logo-blur: 0px;
-	}
-	29.8% {
-		opacity: 0.8;
-		--logo-blur: 0px;
-	}
-	33.333% {
-		opacity: 0;
-		--logo-blur: 4px;
-	}
-	100% {
-		opacity: 0;
-		--logo-blur: 4px;
+@keyframes ss-home-marquee {
+	to {
+		translate: -50% 0;
 	}
 }
 
@@ -498,16 +422,10 @@
 		animation-iteration-count: 1 !important;
 	}
 
-	/* The kill switch above would snap the logos to their last keyframe,
-	 * opacity 0. Stop them by name and show the first mark of each cell. */
-	.ss-home-logo {
+	/* The kill switch above would run the marquee once and stop it mid-slide.
+	 * Hold it still at the start instead. */
+	.ss-home-marquee {
 		animation-name: none !important;
-		opacity: 0;
-	}
-
-	.ss-home-logo[data-first] {
-		opacity: 0.8;
-		--logo-blur: 0px;
 	}
 	/* biome-ignore-end lint/complexity/noImportantStyles: see above */
 }

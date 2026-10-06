@@ -1,89 +1,45 @@
 import { COMPANIES } from "@/components/homepage/home/home-content";
-import { PlusIcon } from "@/components/ui/icons";
-import { cn } from "@/lib/utils";
 
 /**
- * "Trusted by experts at" — a logo cloud.
+ * "Trusted by experts at": a pill label on a faded rule, over a row of logos
+ * that scrolls on a loop.
  *
- * The 4 x 2 stack, its checkerboard of `secondary` cells and the plus marks at
- * the interior corners are taken from the `logo-cloud-2` component. That grid
- * is fixed at eight cells, and there are twenty names to show, so each cell
- * holds its share stacked on top of each other and cross-fades between them.
+ * The loop is CSS (`.ss-home-marquee` in `home.css`): the list renders twice
+ * and the track slides by half its width, so the seam never shows. Every logo
+ * and its `alt` stays in the server-rendered HTML; the second copy is hidden
+ * from assistive technology so the names are read once.
  *
- * The cross-fade is pure CSS: keyframes on stacked `img`s, no timer, no state,
- * no client JavaScript. That matters here because it means every one of the
- * twenty logos — and its `alt` text — is in the server-rendered HTML at once,
- * so a crawler and a screen reader get the whole list regardless of which
- * frame is painted. A `setInterval` swapping ten of them would not.
- *
- * Marks keep their own drawing, desaturated for cohesion, and are inverted so
- * dark artwork stays visible on the dark ground. Logos that are already light
- * opt out (see `home-content`).
+ * Marks are desaturated for cohesion and inverted so dark artwork shows on the
+ * dark ground. Logos that are already light opt out (see `home-content`).
  */
 
-/** Eight cells, twenty logos, dealt round-robin: cell `i` gets logos `i`,
- *  `i + 8` and `i + 16`. Four cells end up with three and four with two, which
- *  is what makes the cells drift out of step with each other instead of
- *  flipping in unison. */
-const CELL_COUNT = 8;
+const FADED_RULE = "h-px bg-linear-to-r from-transparent via-border to-transparent";
 
-const CELLS = Array.from({ length: CELL_COUNT }, (_, cell) =>
-	COMPANIES.filter((_company, index) => index % CELL_COUNT === cell)
-);
-
-/** Card classes, cell by cell, from `logo-cloud-2`. The checkerboard differs
- *  between the two-column and four-column layouts because the cells land in
- *  different places, so several of these swap their tint at `md`. */
-const CARD_CLASSES = [
-	"border-r border-b bg-secondary",
-	"border-b md:border-r",
-	"border-r border-b md:bg-secondary",
-	"border-b bg-secondary md:bg-background",
-	"border-r border-b md:border-b-0 bg-secondary md:bg-background",
-	"border-b md:border-r md:border-b-0 bg-background md:bg-secondary",
-	"border-r",
-	"bg-secondary",
-];
-
-const PLUS_CLASS = "absolute z-10 size-6 text-muted-foreground/60";
-
-/** The registration marks that sit where four cells meet. */
-function CellMarks({ cell }: { cell: number }) {
-	if (cell === 0) {
-		return (
-			<PlusIcon
-				aria-hidden="true"
-				className={cn(PLUS_CLASS, "-right-[12.5px] -bottom-[12.5px]")}
-				strokeWidth={1}
-			/>
-		);
-	}
-	if (cell === 2) {
-		return (
-			<>
-				<PlusIcon
-					aria-hidden="true"
-					className={cn(PLUS_CLASS, "-right-[12.5px] -bottom-[12.5px]")}
-					strokeWidth={1}
-				/>
-				<PlusIcon
-					aria-hidden="true"
-					className={cn(PLUS_CLASS, "-bottom-[12.5px] -left-[12.5px] hidden md:block")}
-					strokeWidth={1}
-				/>
-			</>
-		);
-	}
-	if (cell === 4) {
-		return (
-			<PlusIcon
-				aria-hidden="true"
-				className={cn(PLUS_CLASS, "-right-[12.5px] -bottom-[12.5px] md:-left-[12.5px] md:hidden")}
-				strokeWidth={1}
-			/>
-		);
-	}
-	return null;
+function LogoList({ hidden = false }: { hidden?: boolean }) {
+	return (
+		<ul
+			aria-hidden={hidden || undefined}
+			className="flex shrink-0 items-center gap-16 pr-16 md:gap-40 md:pr-40"
+		>
+			{COMPANIES.map((company) => (
+				<li key={company.title} className="shrink-0">
+					{/* biome-ignore lint/performance/noImgElement: fixed-size local logo marks; next/image adds a loader and layout machinery for no benefit here */}
+					<img
+						src={`/logos/${company.file}`}
+						alt={hidden ? "" : company.title}
+						title={company.title}
+						width={130}
+						height={40}
+						loading="lazy"
+						decoding="async"
+						draggable={false}
+						data-light={company.light === true ? "" : undefined}
+						className="h-8 w-auto max-w-36 object-contain opacity-70 brightness-105 grayscale invert select-none data-light:invert-0"
+					/>
+				</li>
+			))}
+		</ul>
+	);
 }
 
 export function HomeLogos() {
@@ -91,50 +47,25 @@ export function HomeLogos() {
 	// the H1 and the seven H2s that follow it, and an eighth heading here would
 	// sit in the middle of that sequence.
 	return (
-		<section className="border-t border-border" aria-labelledby="home-logos-label">
-			<div className="px-6 pt-12 pb-8 md:px-10">
+		<section className="border-t border-border py-16" aria-labelledby="home-logos-label">
+			<div className="relative flex justify-center px-6 md:px-10">
+				<div aria-hidden="true" className={`absolute inset-x-0 top-1/2 ${FADED_RULE}`} />
 				<p
 					id="home-logos-label"
-					className="text-center text-lg font-medium tracking-tight text-muted-foreground md:text-2xl"
+					className="relative rounded-full border border-border bg-secondary px-5 py-2 text-sm font-medium text-foreground md:text-base"
 				>
-					Trusted by <span className="font-semibold text-primary">experts</span> at
+					Trusted by experts at
 				</p>
 			</div>
 
-			{/* The label no longer sits in a ruled header, so the grid draws its own
-			    top edge — otherwise the first row would open against nothing. */}
-			<div className="relative grid grid-cols-2 border-t border-border md:grid-cols-4">
-				{CELLS.map((companies, cell) => (
-					<div
-						key={CARD_CLASSES[cell]}
-						className={cn(
-							"relative flex min-h-26 items-center justify-center border-border bg-background px-4 py-8 md:min-h-30 md:p-8",
-							CARD_CLASSES[cell]
-						)}
-					>
-						{companies.map((company, slot) => (
-							// biome-ignore lint/performance/noImgElement: fixed-size local logo marks; next/image adds a loader and layout machinery for no benefit here
-							<img
-								key={company.title}
-								src={`/logos/${company.file}`}
-								alt={company.title}
-								title={company.title}
-								width={130}
-								height={40}
-								loading="lazy"
-								decoding="async"
-								className="ss-home-logo"
-								data-light={company.light === true ? "" : undefined}
-								data-first={slot === 0 ? "" : undefined}
-								data-slots={companies.length}
-								style={{ "--slot": slot } as React.CSSProperties}
-							/>
-						))}
-
-						<CellMarks cell={cell} />
-					</div>
-				))}
+			<div className="mt-10 overflow-hidden mask-[linear-gradient(to_right,transparent,black_12%,black_88%,transparent)]">
+				<div className="ss-home-marquee flex w-max">
+					<LogoList />
+					<LogoList hidden />
+				</div>
 			</div>
+
+			<div aria-hidden="true" className={`mt-10 ${FADED_RULE}`} />
 		</section>
 	);
 }
