@@ -93,8 +93,8 @@ export function SiteShell({
 
 			{/* Above every branch, so it is one element in one slot for every route.
 			    React keeps it mounted across navigations and only the content below
-			    changes. The announcement bar renders inside SiteNav's sticky header
-			    rather than here, so the two stick together as one unit. */}
+			    changes. SiteNav also renders the announcement bar, just above its
+			    sticky header. */}
 			<SiteNav starCount={starCount} starsHref={starsHref} />
 
 			{usesSiteDesign ? (

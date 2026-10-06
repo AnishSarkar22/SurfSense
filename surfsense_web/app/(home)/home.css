@@ -976,38 +976,47 @@
 /* ---------------------------------------------------------------------------
  * Navbar
  *
- * Sticky, and visually unchanged by scrolling: the bar is painted with the
- * page background at every scroll position, with no blur and no translucency,
- * so nothing behind it shows through and nothing shifts as the page moves.
+ * A floating bar: inset from the viewport edges, rounded, and pinned to the
+ * top. The header around it is transparent, so the page scrolls behind the
+ * gaps; it ignores pointer events so those gaps never swallow a click meant for
+ * the content underneath.
  * ------------------------------------------------------------------------ */
 
 .ss-home-nav {
 	position: sticky;
 	top: 0;
 	z-index: 50;
-	background-color: var(--background);
+	padding: 0.75rem var(--home-gutter, 1rem);
+	pointer-events: none;
+	/* Shared by the bar, the menu card and the dropdown so the three read as
+	 * one material: a hairline, a translucent rim, and a soft drop. */
+	--nav-surface-shadow:
+		0 0 0 1px var(--border), 0 0 0 3px color-mix(in oklab, var(--foreground) 9%, transparent),
+		0 16px 32px -12px rgb(0 0 0 / 0.55);
+}
+
+.ss-home-nav > * {
+	pointer-events: auto;
 }
 
 /* Equal side columns keep the links on the bar's true center, whatever the
- * wordmark or star count measure. */
+ * wordmark or the actions measure. 68rem caps the pill on wide screens, where a
+ * bar spanning the full-width page would stop reading as floating. */
 .ss-home-nav-bar {
+	position: relative;
+	z-index: 1;
 	margin-inline: auto;
 	width: 100%;
-	max-width: var(--home-max);
+	max-width: 68rem;
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-	height: 3.25rem;
+	height: 3rem;
 	align-items: center;
 	gap: 1rem;
-	padding-inline: 1rem;
-	border-bottom: 1px solid var(--border);
-}
-
-/* Pinned to the last column: below md the links are hidden and would
- * otherwise pull this group into the middle one. */
-.ss-home-nav-actions {
-	grid-column: 3;
-	justify-self: end;
+	padding-inline: 0.75rem 0.375rem;
+	border-radius: 1rem;
+	background-color: var(--card);
+	box-shadow: var(--nav-surface-shadow);
 }
 
 /* Keeps the wordmark's hover and focus box to its content, not the column. */
@@ -1015,17 +1024,55 @@
 	justify-self: start;
 }
 
+/* Hidden with media queries rather than Tailwind's `lg:flex`, because the rules
+ * in this file are unlayered and outrank the layered utility. Below lg the five
+ * links, the stars and the download do not fit on one row, so they wait for
+ * the menu. */
+.ss-home-nav-links {
+	display: none;
+	align-items: center;
+	gap: 0.25rem;
+}
+
+/* Pinned to the last column: below lg the links are hidden and would
+ * otherwise pull this group into the middle one. */
+.ss-home-nav-actions {
+	grid-column: 3;
+	justify-self: end;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+/* Phones keep only the toggle in the bar; the stars and the download move into
+ * the menu card. */
+.ss-home-nav-actions > .ss-home-nav-stars,
+.ss-home-nav-actions > .ss-home-nav-cta {
+	display: none;
+}
+
+@media (min-width: 640px) {
+	.ss-home-nav-actions > .ss-home-nav-stars,
+	.ss-home-nav-actions > .ss-home-nav-cta {
+		display: inline-flex;
+	}
+}
+
+@media (min-width: 1024px) {
+	.ss-home-nav-links {
+		display: flex;
+	}
+}
+
 .ss-home-nav-link {
 	display: flex;
 	align-items: center;
 	gap: 0.25rem;
-	border-radius: 2px;
-	padding: 0.375rem 0.625rem;
-	font-size: 0.8125rem;
-	/* Dimmed at rest so hover has somewhere to go. Previously this was
-	 * `--secondary-foreground` and the hover was `--accent-foreground`, which are
-	 * the same value — the only thing that actually marked hover was the fill, so
-	 * removing the fill would have left no feedback at all. */
+	border-radius: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	font-size: 0.875rem;
+	font-weight: 500;
+	/* Dimmed at rest so hover has somewhere to go. */
 	color: var(--muted-foreground);
 	transition: color 100ms ease-out;
 }
@@ -1046,7 +1093,7 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 0.375rem;
-	border-radius: 2px;
+	border-radius: 0.5rem;
 	padding: 0.375rem 0.5rem;
 	font-size: 0.8125rem;
 	font-weight: 500;
@@ -1074,83 +1121,113 @@
 	min-width: 2rem;
 }
 
-/* ---------------------------------------------------------------------------
- * Mobile drawer
- *
- * Positioned against the sticky bar rather than placed in the flow, so opening
- * the menu lays it over the page instead of pushing every section down and
- * back up again. `.ss-home-nav` is sticky, which makes it the containing block
- * for both of these.
- * ------------------------------------------------------------------------ */
+/* The one action in the bar, inverted against it so it is the first thing the
+ * eye lands on. The arrow sits in its own disc; the right padding is the gap
+ * between that disc and the pill's edge. */
+.ss-home-nav-cta {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.625rem;
+	height: 2.25rem;
+	padding-inline: 1rem 0.3125rem;
+	border-radius: 9999px;
+	background-color: var(--foreground);
+	color: var(--background);
+	font-size: 0.875rem;
+	font-weight: 600;
+	white-space: nowrap;
+	box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.6);
+	transition:
+		background-color 150ms ease-out,
+		translate 150ms ease-out;
+}
 
-.ss-home-nav-drawer {
-	position: absolute;
-	top: 100%;
-	left: 0;
-	right: 0;
-	z-index: 1;
-	margin-inline: auto;
-	width: 100%;
-	max-width: var(--home-max);
-	max-height: calc(100vh - 100%);
-	overflow-y: auto;
-	overscroll-behavior: contain;
+.ss-home-nav-cta:hover {
+	background-color: color-mix(in oklab, var(--foreground) 88%, var(--background));
+}
+
+.ss-home-nav-cta:active {
+	translate: 0 1px;
+}
+
+.ss-home-nav-cta:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+.ss-home-nav-cta-icon {
+	display: grid;
+	place-items: center;
+	width: 1.625rem;
+	height: 1.625rem;
+	border-radius: 9999px;
 	background-color: var(--background);
-	border-bottom: 1px solid var(--border);
+	color: var(--foreground);
 }
 
-.ss-home-nav-scrim {
-	position: absolute;
-	top: 100%;
-	left: 0;
-	right: 0;
-	height: 100vh;
-	width: 100%;
-	border: 0;
-	padding: 0;
-	background-color: color-mix(in oklab, var(--app-shell) 60%, transparent);
-	cursor: default;
+.ss-home-nav-cta-icon svg {
+	transition: translate 150ms ease-out;
 }
 
-@media (min-width: 768px) {
-	.ss-home-nav-drawer,
-	.ss-home-nav-scrim {
-		display: none;
-	}
+.ss-home-nav-cta:hover .ss-home-nav-cta-icon svg {
+	translate: 2px 0;
 }
 
-/* The mobile menu toggle. Hidden with a media query rather than Tailwind's
- * `md:hidden`, because the rules in this file are unlayered and outrank the
- * layered utility — the utility would lose and the toggle would show on every
- * width. */
+/* The mobile menu toggle: a filled disc in the CTA's colours, so on tablets the
+ * two read as a pair. */
 .ss-home-nav-toggle {
-	display: flex;
+	display: grid;
+	place-items: center;
+	width: 2.25rem;
+	height: 2.25rem;
+	border-radius: 9999px;
+	background-color: var(--foreground);
+	color: var(--background);
+	transition: background-color 150ms ease-out;
 }
 
-@media (min-width: 768px) {
+.ss-home-nav-toggle:hover {
+	background-color: color-mix(in oklab, var(--foreground) 88%, var(--background));
+}
+
+.ss-home-nav-toggle:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 2px;
+}
+
+.ss-home-nav-burger {
+	width: 1rem;
+	height: 1rem;
+}
+
+@media (min-width: 1024px) {
 	.ss-home-nav-toggle {
 		display: none;
 	}
 }
 
+/* Centred under the Resources trigger. Radius is the item radius plus the
+ * panel's padding, so the hover fill nests concentrically. */
 .ss-home-nav-panel {
 	position: absolute;
 	top: 100%;
-	right: 0;
-	margin-top: 0.625rem;
+	left: 50%;
+	translate: -50% 0;
+	margin-top: 0.875rem;
 	width: 16rem;
-	overflow: hidden;
-	border-radius: 2px;
-	border: 1px solid var(--border);
+	padding: 0.375rem;
+	border-radius: 0.875rem;
 	background-color: var(--popover);
 	color: var(--popover-foreground);
+	box-shadow: var(--nav-surface-shadow);
 }
 
 .ss-home-nav-item {
 	display: flex;
 	flex-direction: column;
 	gap: 0.125rem;
-	padding: 0.75rem 0.875rem;
+	padding: 0.625rem 0.75rem;
+	border-radius: 0.5rem;
 	transition: background-color 100ms ease-out;
 }
 
@@ -1161,6 +1238,74 @@
 .ss-home-nav-item:focus-visible {
 	outline: 2px solid var(--ring);
 	outline-offset: -2px;
+}
+
+/* ---------------------------------------------------------------------------
+ * Mobile menu
+ *
+ * A second floating card below the bar, laid over the page rather than placed
+ * in the flow, so opening it does not push every section down. The drawer is
+ * positioned against the sticky header; the scrim is fixed to the viewport and
+ * sits under the bar, so the bar stays sharp while the page dims behind it.
+ * ------------------------------------------------------------------------ */
+
+.ss-home-nav-drawer {
+	position: absolute;
+	top: 100%;
+	left: var(--home-gutter, 1rem);
+	right: var(--home-gutter, 1rem);
+	z-index: 1;
+	margin-inline: auto;
+	max-width: 68rem;
+	max-height: calc(100dvh - 5.5rem);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 0.5rem;
+	border-radius: 1rem;
+	background-color: var(--card);
+	box-shadow: var(--nav-surface-shadow);
+}
+
+.ss-home-nav-drawer .ss-home-nav-link {
+	padding: 0.625rem 0.75rem;
+	font-size: 1rem;
+}
+
+.ss-home-nav-drawer-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-top: 0.5rem;
+	padding: 0.75rem 0.25rem 0.25rem;
+	border-top: 1px solid var(--border);
+}
+
+@media (min-width: 640px) {
+	.ss-home-nav-drawer-actions {
+		display: none;
+	}
+}
+
+.ss-home-nav-scrim {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+	padding: 0;
+	background-color: color-mix(in oklab, var(--app-shell, black) 55%, transparent);
+	-webkit-backdrop-filter: blur(6px);
+	backdrop-filter: blur(6px);
+	cursor: default;
+}
+
+@media (min-width: 1024px) {
+	.ss-home-nav-drawer,
+	.ss-home-nav-scrim {
+		display: none;
+	}
 }
 
 /* ---------------------------------------------------------------------------

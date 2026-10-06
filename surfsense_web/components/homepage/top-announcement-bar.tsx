@@ -12,11 +12,8 @@ const DISMISS_KEY = "surfsense:top-announcement-dismissed:v1";
 /**
  * Top banner pointing visitors at the /sunset announcement.
  *
- * Rendered as the first child of `SiteNav`'s `.ss-home-nav` header rather than
- * as its own sticky element: that header is already `position: sticky`, so
- * stacking the banner inside it makes the two scroll and stick together as
- * one unit instead of each being independently sticky at `top: 0` and
- * overlapping.
+ * Rendered by `SiteNav` just above its sticky header, in the normal flow: the
+ * banner scrolls away with the page and only the floating bar stays pinned.
  *
  * Uses `--notice`, the blue defined alongside the rest of the palette in
  * `app/(home)/home.css`, with a literal fallback so it also reads correctly
@@ -60,10 +57,10 @@ export function TopAnnouncementBar() {
 
 	return (
 		<div className="w-full">
-			{/* Same box as `.ss-home-nav-bar` below it: centered, capped at
-			    `--home-max`, bordered on the sides. Filling *this* box with the
-			    notice color (rather than the full-bleed strip around it) is what
-			    keeps the banner reading as the same width as the nav. */}
+			{/* Same box as the page column: centered, capped at `--home-max`,
+			    bordered on the sides. Filling *this* box with the notice color
+			    (rather than the full-bleed strip around it) keeps the banner the
+			    width of the content below it. */}
 			<div className="relative mx-auto flex max-w-(--home-max) items-center justify-center gap-2 border-x border-border bg-(--notice,#3f74c8) px-10 py-2.5 sm:px-4 text-center text-sm font-medium text-white">
 				{/* On mobile the whole bar is the link, so the text stays one line
 				    instead of wrapping around a separate "Read announcement". */}
