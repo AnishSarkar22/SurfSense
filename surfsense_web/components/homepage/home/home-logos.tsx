@@ -45,7 +45,7 @@ const CARD_CLASSES = [
 	"bg-secondary",
 ];
 
-const PLUS_CLASS = "ss-home-logo-plus absolute z-10 size-6";
+const PLUS_CLASS = "absolute z-10 size-6 text-muted-foreground/60";
 
 /** The registration marks that sit where four cells meet. */
 function CellMarks({ cell }: { cell: number }) {
@@ -91,21 +91,24 @@ export function HomeLogos() {
 	// the H1 and the seven H2s that follow it, and an eighth heading here would
 	// sit in the middle of that sequence.
 	return (
-		<section className="ss-home-rule" aria-labelledby="ss-home-logos-label">
-			<div className="ss-home-pad pt-12 pb-8">
-				<p id="ss-home-logos-label" className="ss-home-section-label">
-					Trusted by <span className="ss-home-section-label-accent">experts</span> at
+		<section className="border-t border-border" aria-labelledby="home-logos-label">
+			<div className="px-6 pt-12 pb-8 md:px-10">
+				<p
+					id="home-logos-label"
+					className="text-center text-lg font-medium tracking-tight text-muted-foreground md:text-2xl"
+				>
+					Trusted by <span className="font-semibold text-primary">experts</span> at
 				</p>
 			</div>
 
 			{/* The label no longer sits in a ruled header, so the grid draws its own
 			    top edge — otherwise the first row would open against nothing. */}
-			<div className="relative grid grid-cols-2 border-t border-[color:var(--border)] md:grid-cols-4">
+			<div className="relative grid grid-cols-2 border-t border-border md:grid-cols-4">
 				{CELLS.map((companies, cell) => (
 					<div
 						key={CARD_CLASSES[cell]}
 						className={cn(
-							"ss-home-logo-card relative flex items-center justify-center border-[color:var(--border)] bg-background px-4 py-8 md:p-8",
+							"relative flex min-h-26 items-center justify-center border-border bg-background px-4 py-8 md:min-h-30 md:p-8",
 							CARD_CLASSES[cell]
 						)}
 					>

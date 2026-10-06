@@ -4,15 +4,15 @@ import { format } from "date-fns";
 import FuzzySearch from "fuzzy-search";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { siteText } from "@/components/site/site-text";
+import { cn } from "@/lib/utils";
 import type { BlogEntry } from "./page";
 
 /**
  * The blog index.
  *
- * Built from the same `ss-home-*` primitives as the homepage, pricing, contact
- * and plugins pages, with one addition: `.ss-home-post-card` in
- * `app/(home)/home.css`, because this is the one page on the site with
- * photographs on it. Cards get their own hairline border and a normal grid
+ * Tailwind plus the shared `siteText` styles, like the rest of the site. Post
+ * cards are this page's own, because it is the one page with photographs. Cards get their own hairline border and a normal grid
  * gap instead of the shared-background flush grid the rest of the site uses,
  * since the archive's length is unbounded — there is no item count to make an
  * even row out of.
@@ -54,20 +54,20 @@ function SearchIcon({ className }: { className?: string }) {
 export function BlogWithSearchMagazine({ blogs }: { blogs: BlogEntry[] }) {
 	if (blogs.length === 0) {
 		return (
-			<section className="ss-home-hero ss-home-pad">
-				<h1 className="ss-home-display">Blog</h1>
-				<p className="ss-home-body mt-8">No blog posts yet.</p>
+			<section className="py-20 md:py-28 px-6 md:px-10">
+				<h1 className={siteText.display}>Blog</h1>
+				<p className={cn(siteText.body, "mt-8")}>No blog posts yet.</p>
 			</section>
 		);
 	}
 
 	return (
 		<>
-			<section className="ss-home-hero ss-home-pad pb-8">
-				<h1 className="ss-home-display">Blog</h1>
+			<section className="py-20 md:py-28 px-6 md:px-10 pb-8">
+				<h1 className={siteText.display}>Blog</h1>
 			</section>
 
-			<section className="ss-home-pad pb-14">
+			<section className="px-6 md:px-10 pb-14">
 				<PostSearchGrid blogs={blogs} />
 			</section>
 		</>
@@ -94,8 +94,8 @@ function PostSearchGrid({ blogs: allBlogs }: { blogs: BlogEntry[] }) {
 		<section aria-labelledby="archive-heading">
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 				<div>
-					<p className="ss-home-eyebrow">Archive</p>
-					<h2 id="archive-heading" className="ss-home-h2 mt-2">
+					<p className={siteText.eyebrow}>Archive</p>
+					<h2 id="archive-heading" className={cn(siteText.h2, "mt-2")}>
 						All posts
 					</h2>
 				</div>
@@ -113,7 +113,9 @@ function PostSearchGrid({ blogs: allBlogs }: { blogs: BlogEntry[] }) {
 			</div>
 
 			{gridItems.length === 0 ? (
-				<p className="ss-home-body mt-8 border border-dashed border-border py-16 text-center">
+				<p
+					className={cn(siteText.body, "mt-8 border border-dashed border-border py-16 text-center")}
+				>
 					No articles match that search.
 				</p>
 			) : (
@@ -131,22 +133,31 @@ function PostSearchGrid({ blogs: allBlogs }: { blogs: BlogEntry[] }) {
 
 function PostCard({ blog }: { blog: BlogEntry }) {
 	return (
-		<Link href={blog.url} className="ss-home-post-card group/card">
-			<div className="ss-home-post-card-media">
+		<Link
+			href={blog.url}
+			className="group flex h-full flex-col border border-border bg-background transition-colors hover:border-muted-foreground focus-visible:border-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+		>
+			<div className="relative aspect-[16/10] overflow-hidden bg-muted">
 				{blog.image ? (
-					<img src={blog.image} alt={blog.title} />
+					<img
+						src={blog.image}
+						alt={blog.title}
+						className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+					/>
 				) : (
 					<div className="flex h-full items-center justify-center text-muted-foreground">
 						No image
 					</div>
 				)}
 			</div>
-			<div className="ss-home-post-card-body">
+			<div className="flex flex-1 flex-col px-6 pt-5 pb-6">
 				<time className="text-xs font-medium text-muted-foreground" dateTime={blog.date}>
 					{format(new Date(blog.date), "MMM d, yyyy")}
 				</time>
-				<h3 className="ss-home-h3 mt-2">{blog.title}</h3>
-				<p className="ss-home-body mt-2 flex-1 text-sm">{truncate(blog.description, 110)}</p>
+				<h3 className={cn(siteText.h3, "mt-2")}>{blog.title}</h3>
+				<p className={cn(siteText.body, "mt-2 flex-1 text-sm")}>
+					{truncate(blog.description, 110)}
+				</p>
 				<div className="mt-4 flex items-center gap-2 pt-4">
 					<img
 						src={blog.authorAvatar}

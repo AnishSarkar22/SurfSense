@@ -2,8 +2,10 @@
 
 import { useId, useState } from "react";
 import { HomeButton } from "@/components/homepage/home/home-button";
+import { siteText } from "@/components/site/site-text";
 import { Spinner } from "@/components/ui/spinner";
 import { buildBackendUrl } from "@/lib/env-config";
+import { cn } from "@/lib/utils";
 
 /**
  * The two license forms, now on separate pages. `ResendForm` is the whole of
@@ -12,7 +14,7 @@ import { buildBackendUrl } from "@/lib/env-config";
  * is part of the free plan and a licence file is inert without the app the
  * same page hands you.
  *
- * Built from the same `ss-home-*` primitives as the rest of the site design:
+ * Tailwind plus the shared `siteText` styles, like the rest of the site design:
  * a flush hairline-bordered panel rather than a floating shadcn `Card`, and
  * plain inputs styled like the blog search box, so this page reads as part of
  * the same document as the homepage and pricing rather than an older surface
@@ -117,7 +119,7 @@ function InlineEmailField({
 function FormPanel({ description, children }: { description: string; children: React.ReactNode }) {
 	return (
 		<div className="flex flex-col items-center text-center">
-			<p className="ss-home-body text-sm">{description}</p>
+			<p className={cn(siteText.body, "text-sm")}>{description}</p>
 			<div className="mt-5 flex flex-col items-center">{children}</div>
 		</div>
 	);
@@ -165,7 +167,9 @@ export function ResendForm() {
 				</HomeButton>
 				{outcome ? (
 					<p
-						className={outcome.kind === "ok" ? "ss-home-body text-sm" : "text-sm text-destructive"}
+						className={
+							outcome.kind === "ok" ? cn(siteText.body, "text-sm") : "text-sm text-destructive"
+						}
 					>
 						{outcome.message}
 					</p>
@@ -243,7 +247,7 @@ export function TrialForm({
 					className={
 						outcome?.kind === "error"
 							? "max-w-sm text-sm text-destructive"
-							: "ss-home-body max-w-sm text-sm"
+							: cn(siteText.body, "max-w-sm text-sm")
 					}
 				>
 					{outcome ? outcome.message : note}

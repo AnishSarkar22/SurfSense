@@ -11,6 +11,9 @@ import {
 	SMALL_GROUP_NOTE,
 } from "@/components/pricing/pricing-content";
 import { FAQJsonLd } from "@/components/seo/json-ld";
+import { SiteFaqItem } from "@/components/site/site-faq-item";
+import { siteText } from "@/components/site/site-text";
+import { cn } from "@/lib/utils";
 
 /**
  * Splits a feature string around "9 platforms" so that segment alone can be
@@ -33,10 +36,8 @@ function renderFeature(feature: string) {
 /**
  * Pricing sections.
  *
- * Built entirely from the `ss-home-*` primitives in `app/(home)/home.css` — the
- * same ruled bands, hairline grids and native details/summary the landing page
- * uses — so the two pages read as one document rather than two designs behind a
- * shared navigation.
+ * Tailwind plus the shared `siteText` styles, the same ruled bands and hairline
+ * grids as the landing page, so the two read as one document.
  *
  * All server components. The previous pricing page was a client component
  * carrying `motion`, `canvas-confetti`, `NumberFlow` and a monthly/yearly switch
@@ -51,18 +52,18 @@ function renderFeature(feature: string) {
  */
 export function PricingHero() {
 	return (
-		<section className="ss-home-hero ss-home-pad">
+		<section className="px-6 py-20 md:px-10 md:py-28">
 			<div className="mx-auto max-w-3xl text-center">
-				<h1 className="ss-home-display">Pricing</h1>
-				<p className="ss-home-lede mx-auto mt-8 max-w-2xl">
-					The app and every update are <span className="ss-home-accent">free, forever</span>, with
-					no account, no trial clock and no usage cap. A licence adds the scraper plugins and
-					priority support, and a 30-day one comes with the app.
+				<h1 className={siteText.display}>Pricing</h1>
+				<p className={cn(siteText.lede, "mx-auto mt-8 max-w-2xl")}>
+					The app and every update are <span className="text-primary">free, forever</span>, with no
+					account, no trial clock and no usage cap. A licence adds the scraper plugins and priority
+					support, and a 30-day one comes with the app.
 				</p>
-				<p className="ss-home-body mx-auto mt-5 max-w-2xl text-sm">
+				<p className={cn(siteText.body, "mx-auto mt-5 max-w-2xl text-sm")}>
 					Prefer to build it yourself?{" "}
 					<a
-						className="ss-home-link"
+						className={siteText.link}
 						href={SELF_BUILD_URL}
 						target="_blank"
 						rel="noreferrer noopener"
@@ -78,23 +79,32 @@ export function PricingHero() {
 
 function PlanCell({ plan }: { plan: Plan }) {
 	return (
-		<div className="ss-home-plan" data-featured={plan.featured ? "" : undefined}>
-			<div className="ss-home-plan-head">
+		<div
+			className="ss-home-plan data-featured:bg-secondary"
+			data-featured={plan.featured ? "" : undefined}
+		>
+			<div className="relative flex flex-col px-6 py-8 after:absolute after:inset-x-6 after:bottom-0 after:h-px after:bg-border md:px-10 md:after:inset-x-10">
 				<p className="flex items-center gap-2">
-					<span className="ss-home-eyebrow">{plan.name}</span>
-					{plan.featured ? <span className="ss-home-plan-badge">Most popular</span> : null}
-				</p>
-
-				<p className="mt-3 flex items-baseline gap-1">
-					<span className="ss-home-price">{plan.price}</span>
-					{plan.period ? (
-						<span className="ss-home-body text-sm font-medium">{plan.period}</span>
+					<span className={siteText.eyebrow}>{plan.name}</span>
+					{plan.featured ? (
+						<span className="rounded-xs bg-primary px-1.5 py-0.5 text-[10px] font-semibold tracking-wider whitespace-nowrap text-background uppercase">
+							Most popular
+						</span>
 					) : null}
 				</p>
 
-				{plan.note ? <p className="ss-home-plan-note mt-2">{plan.note}</p> : null}
+				<p className="mt-3 flex items-baseline gap-1">
+					<span className="text-4xl leading-none font-semibold tracking-tight tabular-nums text-foreground md:text-5xl">
+						{plan.price}
+					</span>
+					{plan.period ? (
+						<span className={cn(siteText.body, "text-sm font-medium")}>{plan.period}</span>
+					) : null}
+				</p>
 
-				<p className="ss-home-body mt-2 text-sm">{plan.summary}</p>
+				{plan.note ? <p className="mt-2 text-sm font-medium text-primary">{plan.note}</p> : null}
+
+				<p className={cn(siteText.body, "mt-2 text-sm")}>{plan.summary}</p>
 
 				{/* Pushed to the foot of the head, which subgrid holds to a common
 				    height across the three tiers, so the buttons sit on one line
@@ -122,10 +132,13 @@ function PlanCell({ plan }: { plan: Plan }) {
 			{/* Rows are separated by their own top border rather than by a 1px grid
 			    gap. A gap-drawn grid stretches its rows to fill the column, so a
 			    short tier's rows would grow to match a long one's. */}
-			<ul className="ss-home-plan-features">
+			<ul className="m-0 list-none py-4">
 				{plan.features.map((feature) => (
-					<li key={feature}>
-						<CircleCheck aria-hidden="true" className="ss-home-plan-check" />
+					<li
+						key={feature}
+						className="flex items-start gap-3 px-6 py-2 text-sm leading-relaxed text-muted-foreground md:px-10"
+					>
+						<CircleCheck aria-hidden="true" className="mt-1 size-3.5 flex-none text-primary" />
 						<span>{renderFeature(feature)}</span>
 					</li>
 				))}
@@ -136,18 +149,18 @@ function PlanCell({ plan }: { plan: Plan }) {
 
 export function PricingPlans() {
 	return (
-		<section className="ss-home-rule">
-			<div className="ss-home-plans">
+		<section className="border-t border-border">
+			<div className="ss-home-grid ss-home-plans md:grid-cols-3">
 				{PLANS.map((plan) => (
 					<PlanCell key={plan.name} plan={plan} />
 				))}
 			</div>
 
-			<div className="ss-home-rule ss-home-pad flex flex-col gap-8 py-8">
-				<p className="ss-home-body max-w-4xl text-sm">{PLUGIN_NOTE}</p>
-				<p className="ss-home-body max-w-4xl text-sm">
+			<div className="flex flex-col gap-8 border-t border-border px-6 py-8 md:px-10">
+				<p className={cn(siteText.body, "max-w-4xl text-sm")}>{PLUGIN_NOTE}</p>
+				<p className={cn(siteText.body, "max-w-4xl text-sm")}>
 					{SMALL_GROUP_NOTE}{" "}
-					<Link className="ss-home-link" href="/contact">
+					<Link className={siteText.link} href="/contact">
 						Talk to us
 					</Link>
 					.
@@ -164,25 +177,19 @@ export function PricingPlans() {
  */
 export function PricingQuestions() {
 	return (
-		<section className="ss-home-rule" aria-labelledby="ss-pricing-faq-label">
-			<div className="ss-home-head">
-				<p className="ss-home-eyebrow">FAQ</p>
-				<h2 id="ss-pricing-faq-label" className="ss-home-h2 mt-2">
+		<section className="border-t border-border" aria-labelledby="ss-pricing-faq-label">
+			<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<p className={siteText.eyebrow}>FAQ</p>
+				<h2 id="ss-pricing-faq-label" className={cn(siteText.h2, "mt-2")}>
 					Questions about licences
 				</h2>
 			</div>
 
-			<div className="ss-home-grid border-t border-[color:var(--border)]">
+			<div className="ss-home-grid border-t border-border">
 				{PRICING_FAQ.map((item) => (
-					<details key={item.question} className="ss-home-faq">
-						<summary className="ss-home-faq-summary">
-							<span className="ss-home-h3">{item.question}</span>
-							<span aria-hidden="true" className="ss-home-faq-marker" />
-						</summary>
-						<div className="ss-home-faq-answer">
-							<p className="ss-home-body">{item.answer}</p>
-						</div>
-					</details>
+					<SiteFaqItem key={item.question} question={item.question}>
+						<p className={siteText.body}>{item.answer}</p>
+					</SiteFaqItem>
 				))}
 			</div>
 

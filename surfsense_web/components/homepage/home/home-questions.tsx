@@ -1,10 +1,11 @@
 import { HOME_FAQ } from "@/components/homepage/home/home-content";
 import { FAQJsonLd } from "@/components/seo/json-ld";
+import { SiteFaqItem } from "@/components/site/site-faq-item";
+import { siteText } from "@/components/site/site-text";
+import { cn } from "@/lib/utils";
 
 /**
- * FAQ block. Rendered as native `details`/`summary` so it needs no client
- * JavaScript, stays keyboard operable for free, and is readable by a crawler
- * with the answers in the markup rather than behind a state toggle.
+ * FAQ block, one `SiteFaqItem` per question.
  *
  * Each question is a cell in the reference's ruled grid, so an open answer
  * pushes the rule below it down rather than overlapping anything.
@@ -14,23 +15,17 @@ import { FAQJsonLd } from "@/components/seo/json-ld";
  */
 export function HomeQuestions() {
 	return (
-		<section className="ss-home-rule">
-			<div className="ss-home-head">
-				<p className="ss-home-eyebrow">FAQ</p>
-				<h2 className="ss-home-h2 mt-2">Questions people ask</h2>
+		<section className="border-t border-border">
+			<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<p className={siteText.eyebrow}>FAQ</p>
+				<h2 className={cn(siteText.h2, "mt-2")}>Questions people ask</h2>
 			</div>
 
 			<div className="ss-home-grid">
 				{HOME_FAQ.map((item) => (
-					<details key={item.question} className="ss-home-faq">
-						<summary className="ss-home-faq-summary">
-							<span className="ss-home-h3">{item.question}</span>
-							<span aria-hidden="true" className="ss-home-faq-marker" />
-						</summary>
-						<div className="ss-home-faq-answer">
-							<p className="ss-home-body">{item.answer}</p>
-						</div>
-					</details>
+					<SiteFaqItem key={item.question} question={item.question}>
+						<p className={siteText.body}>{item.answer}</p>
+					</SiteFaqItem>
 				))}
 			</div>
 

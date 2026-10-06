@@ -19,8 +19,9 @@ export function HomeArtifactIllustration({ illustration }: { illustration: Illus
 		<img
 			src={ILLUSTRATION_SRC[illustration]}
 			alt=""
-			className="ss-home-artifact"
+			className="mb-6 block aspect-[4/3] h-auto w-full max-w-72 select-none"
 			aria-hidden="true"
+			draggable={false}
 		/>
 	);
 }

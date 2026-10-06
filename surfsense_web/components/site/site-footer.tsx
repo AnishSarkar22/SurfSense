@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FOOTER_COLUMNS } from "@/components/site/site-content";
 import { SiteFooterGlass } from "@/components/site/site-footer-glass";
 import { SiteSocials } from "@/components/site/site-socials";
+import { cn } from "@/lib/utils";
 
 /**
  * Site footer.
@@ -25,20 +26,23 @@ import { SiteSocials } from "@/components/site/site-socials";
 const LINK_CLASS =
 	"text-sm text-[#e8e3da]/65 transition-colors duration-100 hover:text-[#e8e3da] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#d9aa90] focus-visible:rounded-xs";
 
+const WORDMARK_CLASS =
+	"font-[family-name:var(--font-brand)] font-semibold [font-variation-settings:'SOFT'_75,'WONK'_0]";
+
 export function SiteFooter() {
 	return (
-		<footer className="ss-home-rule relative isolate overflow-hidden bg-[#1a1816]">
+		<footer className="relative isolate overflow-hidden border-t border-border bg-[#1a1816]">
 			{/* Decorative: the shader is texture, not content. */}
 			<div className="pointer-events-none absolute inset-0 -z-10" aria-hidden="true">
 				<SiteFooterGlass />
 			</div>
 
-			<div className="ss-home-pad flex flex-col gap-12 py-16 lg:flex-row lg:justify-between lg:gap-16">
+			<div className="flex flex-col gap-12 px-6 py-16 md:px-10 lg:flex-row lg:justify-between lg:gap-16">
 				<div className="flex max-w-sm shrink-0 flex-col justify-between gap-12">
 					<div>
 						<Link href="/" className="select-none inline-flex items-center gap-1.5">
 							<Image src="/icon-128.svg" alt="" width={28} height={28} className="size-6 invert" />
-							<span className="ss-home-wordmark text-xl text-[#e8e3da]">SurfSense</span>
+							<span className={cn(WORDMARK_CLASS, "text-xl text-[#e8e3da]")}>SurfSense</span>
 						</Link>
 
 						<p className="mt-4 text-lg font-medium leading-snug text-[#e8e3da]/90">

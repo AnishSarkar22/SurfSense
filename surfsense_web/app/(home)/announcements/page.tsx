@@ -3,16 +3,18 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
+import { siteText } from "@/components/site/site-text";
 import { Badge } from "@/components/ui/badge";
 import { LinkSquare02Icon, Notification03Icon } from "@/components/ui/icons";
 import type { AnnouncementCategory } from "@/contracts/types/announcement.types";
 import { type AnnouncementWithState, useAnnouncements } from "@/hooks/use-announcements";
 import { formatRelativeDate } from "@/lib/format-date";
+import { cn } from "@/lib/utils";
 
 /**
  * Rendered in the site design: listed in `SITE_DESIGN_ROUTES` in
  * `components/site/site-shell.tsx`, so the palette, ruled column, navigation
- * and footer all come from `app/(home)/home.css`.
+ * and footer all come from the site shell.
  *
  * The card here is page-local rather than a reuse of
  * `components/announcements/AnnouncementCard.tsx`: that component also backs
@@ -31,9 +33,9 @@ function AnnouncementRow({ announcement }: { announcement: AnnouncementWithState
 	const config = categoryConfig[announcement.category] ?? categoryConfig.info;
 
 	return (
-		<article className="ss-home-cell flex flex-col gap-4 md:flex-row md:gap-8">
+		<article className="px-6 py-8 md:px-10 flex flex-col gap-4 md:flex-row md:gap-8">
 			<div className="flex h-min shrink-0 flex-col items-start gap-3 md:w-48 md:sticky md:top-24">
-				<time className="ss-home-eyebrow">{formatRelativeDate(announcement.date)}</time>
+				<time className={siteText.eyebrow}>{formatRelativeDate(announcement.date)}</time>
 				<Badge variant="secondary" className="rounded-full px-3 py-1">
 					{config.label}
 				</Badge>
@@ -56,13 +58,13 @@ function AnnouncementRow({ announcement }: { announcement: AnnouncementWithState
 						/>
 					</div>
 				)}
-				<h2 className="ss-home-h3 mb-2 text-xl md:text-2xl">{announcement.title}</h2>
-				<p className="ss-home-body">{announcement.description}</p>
+				<h2 className={cn(siteText.h3, "mb-2 text-xl md:text-2xl")}>{announcement.title}</h2>
+				<p className={siteText.body}>{announcement.description}</p>
 				{announcement.link && (
 					<Link
 						href={announcement.link.url}
 						target={announcement.link.url.startsWith("http") ? "_blank" : undefined}
-						className="ss-home-forward mt-4 self-start"
+						className={cn(siteText.forward, "mt-4 self-start")}
 					>
 						{announcement.link.label}
 						<LinkSquare02Icon className="size-3.5" />
@@ -75,10 +77,10 @@ function AnnouncementRow({ announcement }: { announcement: AnnouncementWithState
 
 function EmptyState() {
 	return (
-		<div className="ss-home-pad flex flex-col items-center py-24 text-center">
+		<div className="px-6 md:px-10 flex flex-col items-center py-24 text-center">
 			<Notification03Icon className="mb-4 size-8 text-muted-foreground" />
-			<h3 className="ss-home-h3">Nothing new yet</h3>
-			<p className="ss-home-body mt-2 max-w-xs">
+			<h3 className={siteText.h3}>Nothing new yet</h3>
+			<p className={cn(siteText.body, "mt-2 max-w-xs")}>
 				You're all caught up! New updates will appear here.
 			</p>
 		</div>
@@ -95,21 +97,21 @@ export default function AnnouncementsPage() {
 
 	return (
 		<>
-			<section className="ss-home-hero ss-home-pad">
+			<section className="py-20 md:py-28 px-6 md:px-10">
 				<div className="mx-auto max-w-2xl text-center">
-					<h1 className="ss-home-display">What's New</h1>
-					<p className="ss-home-lede mx-auto mt-6 max-w-xl">
+					<h1 className={siteText.display}>What's New</h1>
+					<p className={cn(siteText.lede, "mx-auto mt-6 max-w-xl")}>
 						Product updates, features and fixes as they ship.
 					</p>
 				</div>
 			</section>
 
-			<section className="ss-home-rule ss-home-rule-plain">
+			<section>
 				{announcements.length === 0 ? (
 					<EmptyState />
 				) : (
 					announcements.map((announcement, index) => (
-						<div key={announcement.id} className={index > 0 ? "ss-home-rule" : undefined}>
+						<div key={announcement.id} className={index > 0 ? "border-t border-border" : undefined}>
 							<AnnouncementRow announcement={announcement} />
 						</div>
 					))

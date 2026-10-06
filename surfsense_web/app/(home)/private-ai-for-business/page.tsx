@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DOWNLOADS_URL } from "@/components/site/site-content";
+import { siteText } from "@/components/site/site-text";
 import { FlowButton } from "@/components/ui/flow-button";
 import { CheckIcon } from "@/components/ui/icons";
+import { cn } from "@/lib/utils";
 
 /**
  * Confidential documents into deliverables — the cross-cutting professional page.
@@ -32,8 +34,8 @@ import { CheckIcon } from "@/components/ui/icons";
  * `ai for professional services`, `ai for consultants` — are deliberately not in
  * body copy. Re-pull them before they earn any.
  *
- * A server component with no client JavaScript; every style resolves from
- * `app/(home)/home.css` and the chrome comes from `app/(home)/layout.tsx`.
+ * A server component with no client JavaScript; styled with Tailwind plus the
+ * shared `siteText` styles, and the chrome comes from `app/(home)/layout.tsx`.
  */
 
 const canonicalUrl = "https://www.surfsense.com/private-ai-for-business";
@@ -146,21 +148,21 @@ const WORKSPACE_PROOF: string[] = [
 export default function PrivateAiForBusinessPage() {
 	return (
 		<>
-			<section className="ss-home-hero ss-home-pad">
+			<section className="px-6 py-20 md:px-10 md:py-28">
 				<div className="mx-auto max-w-4xl text-center">
-					<h1 className="ss-home-display">
+					<h1 className={siteText.display}>
 						Turn confidential documents into decks, reports and briefings,{" "}
-						<span className="ss-home-accent">offline</span>
+						<span className="text-primary">offline</span>
 					</h1>
 					{/* The first paragraph is the whole argument, in the brief's order:
 					    you have the file, the deliverable comes out here, nothing is
 					    uploaded, so there is no copy for anyone to reach. */}
-					<p className="ss-home-lede mx-auto mt-8 max-w-2xl">
+					<p className={cn(siteText.lede, "mx-auto mt-8 max-w-2xl")}>
 						You already have the file. The deliverable comes out on the same machine it went in on:
 						nothing is uploaded, so there is no vendor copy of your client's contract, your
 						patient's notes or your firm's numbers, and nothing for anyone to subpoena from us.
 					</p>
-					<p className="ss-home-body mx-auto mt-5 max-w-2xl text-sm">
+					<p className={cn(siteText.body, "mx-auto mt-5 max-w-2xl text-sm")}>
 						A private AI workspace for lawyers, accountants, consultants and engineers. Free, with
 						no account and no cloud behind it.
 					</p>
@@ -170,60 +172,58 @@ export default function PrivateAiForBusinessPage() {
 				</div>
 			</section>
 
-			<section className="ss-home-rule">
-				<div className="ss-home-head">
-					<p className="ss-home-eyebrow">Who this is for</p>
+			<section className="border-t border-border">
+				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+					<p className={siteText.eyebrow}>Who this is for</p>
 					{/* A `<p>` styled like an H2, so the three real H2s in this section
 					    are the professions themselves rather than a fourth heading above
 					    them — the same convention the landing page's bands use. */}
-					<p className="ss-home-h2 mt-2">The job is the same in every profession</p>
+					<p className={cn(siteText.h2, "mt-2")}>The job is the same in every profession</p>
 				</div>
 
-				<div className="ss-home-grid ss-home-grid-3">
+				<div className="ss-home-grid md:grid-cols-3">
 					{PROFESSIONS.map((profession) => (
-						<div key={profession.heading} className="ss-home-cell">
-							<h2 className="ss-home-h3">{profession.heading}</h2>
-							<p className="ss-home-body mt-2 text-sm">{profession.body}</p>
+						<div key={profession.heading} className="px-6 py-8 md:px-10">
+							<h2 className={siteText.h3}>{profession.heading}</h2>
+							<p className={cn(siteText.body, "mt-2 text-sm")}>{profession.body}</p>
 						</div>
 					))}
 				</div>
 			</section>
 
-			<section className="ss-home-rule">
-				<div className="ss-home-head">
-					<p className="ss-home-eyebrow">What comes out</p>
-					<p className="ss-home-h2 mt-2">One source set, five ways to hand it over</p>
+			<section className="border-t border-border">
+				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+					<p className={siteText.eyebrow}>What comes out</p>
+					<p className={cn(siteText.h2, "mt-2")}>One source set, five ways to hand it over</p>
 				</div>
 
-				<div className="ss-home-grid ss-home-grid-3">
+				<div className="ss-home-grid md:grid-cols-3">
 					{OUTPUTS.map((output, index) => (
 						<div
 							key={output.heading}
 							// The fifth cell spans the empty column so the last row of a
 							// three-column grid does not leave a gap showing the grid's
 							// own border colour.
-							className={
-								index === OUTPUTS.length - 1 ? "ss-home-cell ss-home-grid-span-2" : "ss-home-cell"
-							}
+							className={cn("px-6 py-8 md:px-10", index === OUTPUTS.length - 1 && "md:col-span-2")}
 						>
-							<h2 className="ss-home-h3">{output.heading}</h2>
-							<p className="ss-home-body mt-2 text-sm">{output.body}</p>
+							<h2 className={siteText.h3}>{output.heading}</h2>
+							<p className={cn(siteText.body, "mt-2 text-sm")}>{output.body}</p>
 						</div>
 					))}
 				</div>
 
-				<div className="ss-home-rule ss-home-pad py-8">
-					<p className="ss-home-body max-w-4xl text-sm">
+				<div className="border-t border-border px-6 py-8 md:px-10">
+					<p className={cn(siteText.body, "max-w-4xl text-sm")}>
 						Every one of them also exports to PDF. What goes in is the file you already have: PDF,
 						Word, PowerPoint, Excel, HTML, CSV, Markdown, plain text and images.
 					</p>
 				</div>
 			</section>
 
-			<section className="ss-home-rule ss-home-split">
-				<div className="ss-home-statement">
-					<h2 className="ss-home-h2">One AI workspace, and it is a folder on your disk</h2>
-					<div className="ss-home-body mt-5 flex flex-col gap-4">
+			<section className="ss-home-grid border-t border-border lg:grid-cols-2">
+				<div className="flex flex-col justify-center px-6 py-12 md:px-10 lg:py-16">
+					<h2 className={siteText.h2}>One AI workspace, and it is a folder on your disk</h2>
+					<div className={cn(siteText.body, "mt-5 flex flex-col gap-4")}>
 						<p>
 							Sources, chats and everything generated from them live in one local workspace: a
 							directory in your user folder with a database file in it. Back it up, keep it on an
@@ -235,7 +235,7 @@ export default function PrivateAiForBusinessPage() {
 						</p>
 					</div>
 					<p className="mt-6">
-						<Link className="ss-home-forward" href="/pricing">
+						<Link className={siteText.forward} href="/pricing">
 							What a licence adds
 						</Link>
 					</p>
@@ -243,9 +243,9 @@ export default function PrivateAiForBusinessPage() {
 
 				<ul className="ss-home-grid m-0 list-none p-0">
 					{WORKSPACE_PROOF.map((point) => (
-						<li key={point} className="flex items-center gap-3 px-(--home-gutter) py-3.5">
-							<CheckIcon aria-hidden="true" className="size-3.5 shrink-0 text-(--home-accent)" />
-							<span className="ss-home-body text-sm">{point}</span>
+						<li key={point} className="flex items-center gap-3 px-6 py-3.5 md:px-10">
+							<CheckIcon aria-hidden="true" className="size-3.5 shrink-0 text-primary" />
+							<span className={cn(siteText.body, "text-sm")}>{point}</span>
 						</li>
 					))}
 				</ul>
@@ -254,16 +254,16 @@ export default function PrivateAiForBusinessPage() {
 			{/* The compliance rule from `02-page-briefs.md` applies here verbatim:
 			    state what is architecturally true and let the reader conclude. Nothing
 			    on this page claims a regulation is satisfied. */}
-			<section className="ss-home-rule">
-				<div className="ss-home-head ss-home-head-plain">
-					<p className="ss-home-eyebrow">Compliance</p>
-					<h2 className="ss-home-h2 mt-2">
+			<section className="border-t border-border">
+				<div className="px-6 pt-10 pb-8 md:px-10 md:pt-40">
+					<p className={siteText.eyebrow}>Compliance</p>
+					<h2 className={cn(siteText.h2, "mt-2")}>
 						Compliance depends on your controls, not on our software
 					</h2>
 				</div>
 
-				<div className="ss-home-pad pb-12">
-					<div className="ss-home-body flex max-w-3xl flex-col gap-4">
+				<div className="px-6 pb-12 md:px-10">
+					<div className={cn(siteText.body, "flex max-w-3xl flex-col gap-4")}>
 						<p>
 							Whether a workflow is HIPAA, GDPR or SRA compliant depends on the controls around it,
 							and those are yours to establish. No piece of software carries that property on its
@@ -278,7 +278,7 @@ export default function PrivateAiForBusinessPage() {
 					</div>
 
 					<p className="mt-8">
-						<Link className="ss-home-forward" href={DOWNLOADS_URL}>
+						<Link className={siteText.forward} href={DOWNLOADS_URL}>
 							Download for Windows, macOS or Linux
 						</Link>
 					</p>

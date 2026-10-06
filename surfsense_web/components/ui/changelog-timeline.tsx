@@ -1,11 +1,12 @@
 import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { siteText } from "@/components/site/site-text";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 /**
- * Styled for the site design (`app/(home)/home.css`): rendered only from
+ * Styled for the site design (Tailwind plus `siteText`): rendered only from
  * `app/(home)/changelog/page.tsx`, which is listed in `SITE_DESIGN_ROUTES` in
  * `components/site/site-shell.tsx`.
  */
@@ -41,41 +42,41 @@ export const ChangelogTimeline = ({
 }: ChangelogTimelineProps) => {
 	return (
 		<>
-			<section className="ss-home-hero ss-home-pad">
+			<section className="py-20 md:py-28 px-6 md:px-10">
 				<div className="mx-auto max-w-2xl text-center">
-					<h1 className="ss-home-display">{title}</h1>
-					<p className="ss-home-lede mx-auto mt-6 max-w-xl">{description}</p>
+					<h1 className={siteText.display}>{title}</h1>
+					<p className={cn(siteText.lede, "mx-auto mt-6 max-w-xl")}>{description}</p>
 				</div>
 			</section>
 
-			<section className={cn("ss-home-rule ss-home-rule-plain", className)}>
+			<section className={className}>
 				{entries.length > 0 ? (
 					entries.map((entry, index) => (
 						<article
 							key={`${entry.version}-${entry.date}`}
 							className={cn(
-								"ss-home-pad grid gap-6 py-10 md:grid-cols-[12rem_1fr] md:gap-10 md:py-12",
-								index > 0 && "ss-home-rule"
+								"grid gap-6 px-6 md:px-10 py-10 md:grid-cols-[12rem_1fr] md:gap-10 md:py-12",
+								index > 0 && "border-t border-border"
 							)}
 						>
 							<div className="flex h-min flex-col items-start gap-3 md:sticky md:top-24">
-								<time className="ss-home-eyebrow">{entry.date}</time>
+								<time className={siteText.eyebrow}>{entry.date}</time>
 								<Badge variant="secondary" className="rounded-full px-3 py-1">
 									{entry.version}
 								</Badge>
 							</div>
 							<div className="flex min-w-0 max-w-2xl flex-1 flex-col">
-								<h2 className="ss-home-h3 mb-3 text-xl md:text-2xl">{entry.title}</h2>
-								<p className="ss-home-body">{entry.description}</p>
+								<h2 className={cn(siteText.h3, "mb-3 text-xl md:text-2xl")}>{entry.title}</h2>
+								<p className={siteText.body}>{entry.description}</p>
 								{entry.items && entry.items.length > 0 ? (
-									<ul className="ss-home-body mt-4 ml-4 flex list-disc flex-col gap-1.5">
+									<ul className={cn(siteText.body, "mt-4 ml-4 flex list-disc flex-col gap-1.5")}>
 										{entry.items.map((item) => (
 											<li key={item}>{item}</li>
 										))}
 									</ul>
 								) : null}
 								{entry.content ? (
-									<div className="prose prose-invert mt-8 max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-balance prose-p:tracking-tight prose-p:text-balance prose-a:text-(--home-accent) prose-a:no-underline prose-img:rounded-none prose-img:border prose-img:border-border">
+									<div className="prose prose-invert mt-8 max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-balance prose-p:tracking-tight prose-p:text-balance prose-a:text-primary prose-a:no-underline prose-img:rounded-none prose-img:border prose-img:border-border">
 										{entry.content}
 									</div>
 								) : null}
@@ -95,7 +96,7 @@ export const ChangelogTimeline = ({
 										href={entry.button.url}
 										target="_blank"
 										rel="noreferrer"
-										className="ss-home-forward mt-4 self-start"
+										className={cn(siteText.forward, "mt-4 self-start")}
 									>
 										{entry.button.text} <ArrowUpRight className="size-3.5" />
 									</a>
@@ -104,7 +105,9 @@ export const ChangelogTimeline = ({
 						</article>
 					))
 				) : (
-					<p className="ss-home-pad ss-home-body py-16 text-center">No changelog entries yet.</p>
+					<p className={cn(siteText.body, "px-6 md:px-10 py-16 text-center")}>
+						No changelog entries yet.
+					</p>
 				)}
 			</section>
 		</>

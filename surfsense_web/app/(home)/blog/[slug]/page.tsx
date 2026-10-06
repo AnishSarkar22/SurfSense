@@ -4,6 +4,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { blog } from "@/.source/server";
 import { ArticleJsonLd, FAQJsonLd } from "@/components/seo/json-ld";
+import { siteText } from "@/components/site/site-text";
 import { Badge } from "@/components/ui/badge";
 import { extractFaqFromBlogPost } from "@/lib/blog-faq";
 import { formatDate } from "@/lib/utils";
@@ -87,7 +88,7 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
 	const faqEntries = await extractFaqFromBlogPost(slug);
 
 	return (
-		<div className="ss-home-pad pt-16 pb-20">
+		<div className="px-6 md:px-10 pt-16 pb-20">
 			<ArticleJsonLd
 				title={page.data.title}
 				description={page.data.description}
@@ -113,7 +114,7 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
 				)}
 
 				<div className="mb-10 space-y-4">
-					<h1 className="ss-home-h2">{page.data.title}</h1>
+					<h1 className={siteText.h2}>{page.data.title}</h1>
 
 					{page.data.tags && page.data.tags.length > 0 && (
 						<div className="flex flex-wrap gap-2">

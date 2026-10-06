@@ -1,4 +1,5 @@
 import { FORMATS, type Format } from "@/components/homepage/home/home-content";
+import { siteText } from "@/components/site/site-text";
 import { CardSpotlight } from "@/components/ui/card-spotlight";
 import {
 	AiSearchLinesIcon,
@@ -119,10 +120,9 @@ function placement(index: number, columns: number) {
  *
  * The chrome sits on an outer wrapper and the `CardSpotlight` (components/ui)
  * inside it, because the card is `overflow: hidden` for its spotlight layer
- * and would clip a plus mark hung off its corner. `.ss-home-cell` /
- * `.ss-home-format-cell` are unlayered and outrank the card's own Tailwind
- * defaults (`p-10`, `border-neutral-800`): the card keeps the row's gutter
- * padding and draws no border of its own. It is `h-full` because the grid
+ * and would clip a plus mark hung off its corner. The card's own defaults
+ * (`p-10`, `border-neutral-800`) are overridden through `cn`: it keeps the
+ * row's gutter padding and draws no border of its own. It is `h-full` because the grid
  * stretches every wrapper in a row to the tallest one, and a card sized only
  * to its own text would leave a band at the bottom the spotlight never
  * reaches. The content sits at `z-20`, above the card's `z-0` spotlight
@@ -141,7 +141,7 @@ export function HomeFormatCell({ format, index }: { format: Format; index: numbe
 	return (
 		<div
 			className={cn(
-				"relative border-[color:var(--border)]",
+				"relative border-border",
 				base.tinted ? "bg-secondary" : "bg-background",
 				md.tinted ? "md:bg-secondary" : "md:bg-background",
 				!base.lastCol && "border-r",
@@ -151,13 +151,13 @@ export function HomeFormatCell({ format, index }: { format: Format; index: numbe
 			)}
 		>
 			<CardSpotlight
-				className="ss-home-cell ss-home-format-cell h-full rounded-none bg-transparent"
+				className="h-full overflow-hidden rounded-none border-0 bg-transparent px-6 py-8 md:px-10"
 				dotColors={FORMAT_COLORS[format.key]}
 			>
 				<div className="relative z-20">
-					<FormatIcon aria-hidden="true" className="ss-home-format-icon" />
-					<p className="ss-home-h3 mt-4">{format.label}</p>
-					<p className="ss-home-body mt-1.5 max-w-sm text-sm">{format.body}</p>
+					<FormatIcon aria-hidden="true" className="size-7 stroke-[1.5] text-muted-foreground" />
+					<p className={cn(siteText.h3, "mt-4")}>{format.label}</p>
+					<p className={cn(siteText.body, "mt-1.5 max-w-sm text-sm")}>{format.body}</p>
 				</div>
 			</CardSpotlight>
 
@@ -165,7 +165,7 @@ export function HomeFormatCell({ format, index }: { format: Format; index: numbe
 				<PlusIcon
 					aria-hidden="true"
 					className={cn(
-						"ss-home-logo-plus absolute z-10 size-6 -right-[12.5px] -bottom-[12.5px]",
+						"absolute -right-[12.5px] -bottom-[12.5px] z-10 size-6 text-muted-foreground/60",
 						plusVisibility
 					)}
 					strokeWidth={1}

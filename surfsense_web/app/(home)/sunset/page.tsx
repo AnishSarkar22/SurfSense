@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { type GuideStep, GuideSteps } from "@/components/site/guide-steps";
+import { siteText } from "@/components/site/site-text";
+import { cn } from "@/lib/utils";
 import { SunsetExport } from "./sunset-export";
 
 /**
  * Rendered in the site design: the palette, ruled column, navigation and
- * footer all come from `app/(home)/layout.tsx`, and every style resolves from
- * `app/(home)/home.css`. Listed in `SITE_DESIGN_ROUTES` in
+ * footer all come from `app/(home)/layout.tsx`; the page itself is Tailwind
+ * plus the shared `siteText` styles. Listed in `SITE_DESIGN_ROUTES` in
  * `components/site/site-shell.tsx`.
  */
 
@@ -81,20 +83,20 @@ const STEPS: GuideStep[] = [
 export default function SunsetPage() {
 	return (
 		<>
-			<section className="ss-home-hero ss-home-pad">
+			<section className="py-20 md:py-28 px-6 md:px-10">
 				<div className="mx-auto max-w-2xl text-center">
-					<h1 className="ss-home-display">SurfSense is moving to a local app</h1>
-					<p className="ss-home-lede mx-auto mt-6 max-w-xl">
+					<h1 className={siteText.display}>SurfSense is moving to a local app</h1>
+					<p className={cn(siteText.lede, "mx-auto mt-6 max-w-xl")}>
 						The cloud service is export-only, and everything stored in it is deleted on{" "}
 						<strong className="whitespace-nowrap">{DELETION_DATE}</strong>. Export before then.
 					</p>
 				</div>
 			</section>
 
-			<section className="ss-home-rule" aria-labelledby="ss-sunset-steps">
-				<div className="ss-home-head">
-					<p className="ss-home-eyebrow">Moving your data</p>
-					<h2 id="ss-sunset-steps" className="ss-home-h2 mt-2">
+			<section className="border-t border-border" aria-labelledby="ss-sunset-steps">
+				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+					<p className={siteText.eyebrow}>Moving your data</p>
+					<h2 id="ss-sunset-steps" className={cn(siteText.h2, "mt-2")}>
 						Five steps to the desktop app
 					</h2>
 				</div>
@@ -102,11 +104,11 @@ export default function SunsetPage() {
 				<GuideSteps steps={STEPS} />
 			</section>
 
-			<section className="ss-home-rule ss-home-pad py-12">
-				<p className="ss-home-body mx-auto max-w-2xl text-center text-sm">
+			<section className="border-t border-border px-6 md:px-10 py-12">
+				<p className={cn(siteText.body, "mx-auto max-w-2xl text-center text-sm")}>
 					A fresh install shows the same Upload button on its empty workspace screen, so you can
 					import before you do anything else. If something did not come across,{" "}
-					<Link className="ss-home-link" href="/contact">
+					<Link className={siteText.link} href="/contact">
 						tell us
 					</Link>
 					.

@@ -1,5 +1,7 @@
+import { siteText } from "@/components/site/site-text";
 import { DownloadIcon } from "@/components/ui/icons";
 import { GITHUB_RELEASES_URL, getAssetLabel, type ReleaseAsset } from "@/lib/app-release";
+import { cn } from "@/lib/utils";
 
 /**
  * Server components: the assets are resolved in `page.tsx` and handed down,
@@ -32,9 +34,9 @@ const OS_PANELS: OSPanel[] = [
 
 export function AllReleasesLink() {
 	return (
-		<p className="ss-home-body text-sm">
+		<p className={cn(siteText.body, "text-sm")}>
 			Looking for an older version, checksums or release notes?{" "}
-			<a className="ss-home-link" href={GITHUB_RELEASES_URL}>
+			<a className={siteText.link} href={GITHUB_RELEASES_URL}>
 				Browse all releases on GitHub
 			</a>
 			.
@@ -44,7 +46,7 @@ export function AllReleasesLink() {
 
 export function OSDownloadGrid({ assets }: { assets: ReleaseAsset[] }) {
 	return (
-		<div className="ss-home-grid ss-home-grid-3 ss-home-grid-dashed">
+		<div className="ss-home-grid ss-home-grid-dashed md:grid-cols-3">
 			{OS_PANELS.map((panel) => {
 				const panelAssets = assets
 					.filter((asset) => panel.match(asset.name))
@@ -54,11 +56,11 @@ export function OSDownloadGrid({ assets }: { assets: ReleaseAsset[] }) {
 							panel.suffixes.findIndex((suffix) => b.name.endsWith(suffix))
 					);
 				return (
-					<div key={panel.title} className="ss-home-cell flex flex-col">
-						<h3 className="ss-home-h3">{panel.title}</h3>
+					<div key={panel.title} className="flex flex-col px-6 py-8 md:px-10">
+						<h3 className={siteText.h3}>{panel.title}</h3>
 						<div className="mt-4 flex flex-col items-start gap-2">
 							{panelAssets.map((asset) => (
-								<a key={asset.name} className="ss-home-forward" href={asset.url}>
+								<a key={asset.name} className={siteText.forward} href={asset.url}>
 									{getAssetLabel(asset.name)}
 									<DownloadIcon aria-hidden="true" className="size-3.5" />
 								</a>

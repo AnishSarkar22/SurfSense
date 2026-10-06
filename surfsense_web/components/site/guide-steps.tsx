@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import { siteText } from "@/components/site/site-text";
 import { ArrowRightIcon } from "@/components/ui/icons";
+import { cn } from "@/lib/utils";
 
 /**
- * A numbered walkthrough, built from the site-design primitives in
- * `app/(home)/home.css`: one ruled row per step, prose on the left and that
+ * A numbered walkthrough in the site design (Tailwind plus the shared
+ * `siteText` styles): one ruled row per step, prose on the left and that
  * step's screenshot opposite it.
  *
  * Shared by `/sunset` and `/license/activate` so the two guides stay the same
@@ -31,17 +33,17 @@ export function GuideSteps({ steps }: { steps: GuideStep[] }) {
 	return (
 		<ol className="ss-home-grid m-0 list-none p-0">
 			{steps.map((step, index) => (
-				<li key={step.title} className={step.shot ? "ss-home-split" : undefined}>
-					<div className="ss-home-statement">
-						<span className="ss-home-mono text-xs text-[color:var(--muted-foreground)]">
+				<li key={step.title} className={step.shot ? "ss-home-grid lg:grid-cols-2" : undefined}>
+					<div className="flex flex-col justify-center px-6 py-12 md:px-10 lg:py-16">
+						<span className="font-mono text-xs text-muted-foreground">
 							{String(index + 1).padStart(2, "0")}
 						</span>
-						<h3 className="ss-home-h3 mt-2">{step.title}</h3>
-						<p className="ss-home-body mt-3 max-w-xl">{step.body}</p>
+						<h3 className={cn(siteText.h3, "mt-2")}>{step.title}</h3>
+						<p className={cn(siteText.body, "mt-3 max-w-xl")}>{step.body}</p>
 						{step.control}
 						{step.action ? (
 							<p className="mt-5">
-								<Link className="ss-home-forward" href={step.action.href}>
+								<Link className={siteText.forward} href={step.action.href}>
 									{step.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
 								</Link>
 							</p>
@@ -56,14 +58,15 @@ export function GuideSteps({ steps }: { steps: GuideStep[] }) {
 					    ones (a dialog, a single settings row) would be drawn above
 					    their own resolution and land soft on a retina screen. */}
 					{step.shot ? (
-						<div className="ss-home-cell flex items-center justify-center">
+						<div className="flex items-center justify-center px-6 py-8 md:px-10">
 							<Image
 								src={step.shot.src}
 								alt={step.shot.alt}
 								width={step.shot.width}
 								height={step.shot.height}
 								style={{ maxWidth: step.shot.width / 2 }}
-								className="h-auto w-full border border-[color:var(--border)]"
+								draggable={false}
+								className="h-auto w-full border border-border select-none"
 							/>
 						</div>
 					) : null}

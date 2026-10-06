@@ -12,8 +12,10 @@ import {
 } from "@/components/homepage/home/home-content";
 import { HomeFeaturesTabs } from "@/components/homepage/home/home-features-tabs";
 import { HomeFormatCell } from "@/components/homepage/home/home-format-cell";
+import { siteText } from "@/components/site/site-text";
 import { FlowButton } from "@/components/ui/flow-button";
 import { ArrowRightIcon } from "@/components/ui/icons";
+import { cn } from "@/lib/utils";
 
 /**
  * Homepage sections.
@@ -22,7 +24,8 @@ import { ArrowRightIcon } from "@/components/ui/icons";
  * a ruled band inside one bordered column, splits are two halves separated by a
  * hairline, and cell grids are drawn with a 1px gap over the border colour so
  * no interior rule ever doubles up. Nothing here has a radius or a shadow; only
- * controls keep the palette's `--radius`.
+ * controls keep the palette's `--radius`. Styled with Tailwind plus the shared
+ * `siteText` styles.
  *
  * Mostly server components. Two exceptions live in their own "use client"
  * modules rather than pulling this file across the boundary:
@@ -38,12 +41,12 @@ import { ArrowRightIcon } from "@/components/ui/icons";
 
 export function HomeHero() {
 	return (
-		<section className="ss-home-hero ss-home-pad">
+		<section className="px-6 py-20 md:px-10 md:py-28">
 			<div className="mx-auto max-w-4xl text-center">
-				<h1 className="ss-home-display">
-					Air-gapped, open source <span className="ss-home-accent">NotebookLM alternative</span>
+				<h1 className={siteText.display}>
+					Air-gapped, open source <span className="text-primary">NotebookLM alternative</span>
 				</h1>
-				<p className="ss-home-lede mx-auto mt-8 max-w-2xl">
+				<p className={cn(siteText.lede, "mx-auto mt-8 max-w-2xl")}>
 					A private research notebook that runs entirely on your own machine. Your documents, your
 					model keys, no cloud, no account.
 				</p>
@@ -62,11 +65,11 @@ export function HomeHero() {
  */
 function BentoCell({ title, body, illustration }: Cell & { illustration?: IllustratedCell }) {
 	return (
-		<div className="relative overflow-hidden ss-home-cell">
+		<div className="relative overflow-hidden px-6 py-8 md:px-10">
 			{illustration ? <HomeArtifactIllustration illustration={illustration} /> : null}
 			<div className="relative">
-				<p className="ss-home-h3">{title}</p>
-				<p className="ss-home-body mt-1.5 max-w-sm text-sm">{body}</p>
+				<p className={siteText.h3}>{title}</p>
+				<p className={cn(siteText.body, "mt-1.5 max-w-sm text-sm")}>{body}</p>
 			</div>
 		</div>
 	);
@@ -84,13 +87,13 @@ function BentoCell({ title, body, illustration }: Cell & { illustration?: Illust
  */
 export function HomeOnYourMachine() {
 	return (
-		<section className="ss-home-rule">
-			<div className="ss-home-head ss-home-head-plain">
-				<p className="ss-home-eyebrow">Features</p>
-				<h2 className="ss-home-h2 mt-2">Runs entirely on your machine</h2>
+		<section className="border-t border-border">
+			<div className="px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<p className={siteText.eyebrow}>Features</p>
+				<h2 className={cn(siteText.h2, "mt-2")}>Runs entirely on your machine</h2>
 			</div>
 
-			<div className="ss-home-grid ss-home-grid-3 ss-home-grid-dashed">
+			<div className="ss-home-grid ss-home-grid-dashed md:grid-cols-3">
 				{ON_YOUR_MACHINE.map((cell) => (
 					<BentoCell key={cell.title} {...cell} />
 				))}
@@ -112,21 +115,21 @@ export function HomeOnYourMachine() {
  */
 export function HomePillars() {
 	return (
-		<section className="ss-home-rule">
-			<div className="ss-home-head ss-home-head-plain">
-				<p className="ss-home-eyebrow">Why it is different</p>
-				<p className="ss-home-h2 mt-2">Three things NotebookLM cannot do</p>
+		<section className="border-t border-border">
+			<div className="px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<p className={siteText.eyebrow}>Why it is different</p>
+				<p className={cn(siteText.h2, "mt-2")}>Three things NotebookLM cannot do</p>
 			</div>
 
-			<div className="ss-home-grid ss-home-grid-3 ss-home-grid-dashed">
+			<div className="ss-home-grid ss-home-grid-dashed md:grid-cols-3">
 				{PILLARS.map((pillar) => (
-					<div key={pillar.title} className="ss-home-cell flex flex-col">
-						<h2 className="ss-home-h3">{pillar.title}</h2>
-						<p className="ss-home-body mt-2 text-sm">{pillar.body}</p>
+					<div key={pillar.title} className="flex flex-col px-6 py-8 md:px-10">
+						<h2 className={siteText.h3}>{pillar.title}</h2>
+						<p className={cn(siteText.body, "mt-2 text-sm")}>{pillar.body}</p>
 						<p className="mt-auto pt-6">
 							{pillar.action.external ? (
 								<a
-									className="ss-home-forward"
+									className={siteText.forward}
 									href={pillar.action.href}
 									target="_blank"
 									rel="noreferrer noopener"
@@ -134,7 +137,7 @@ export function HomePillars() {
 									{pillar.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
 								</a>
 							) : (
-								<Link className="ss-home-forward" href={pillar.action.href}>
+								<Link className={siteText.forward} href={pillar.action.href}>
 									{pillar.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
 								</Link>
 							)}
@@ -157,14 +160,14 @@ export function HomePillars() {
  */
 export function HomeCompare() {
 	return (
-		<section className="ss-home-rule">
-			<div className="ss-home-head">
-				<p className="ss-home-eyebrow">How it compares</p>
-				<p className="ss-home-h2 mt-2">Getting started, compared</p>
+		<section className="border-t border-border">
+			<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<p className={siteText.eyebrow}>How it compares</p>
+				<p className={cn(siteText.h2, "mt-2")}>Getting started, compared</p>
 			</div>
 
 			<section
-				className="ss-home-table-scroll"
+				className="overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 				aria-label="Scrollable comparison table"
 				/* biome-ignore lint/a11y/noNoninteractiveTabindex: a region that scrolls horizontally has to be focusable, or a keyboard-only visitor cannot reach the columns past the fold. The labelled landmark is what makes the focus stop meaningful. */
 				tabIndex={0}
@@ -214,10 +217,10 @@ export function HomeCompare() {
  */
 export function HomeFeatures() {
 	return (
-		<section className="ss-home-rule">
-			<div className="ss-home-head">
-				<p className="ss-home-eyebrow">What you get</p>
-				<p className="ss-home-h2 mt-2">Three things worth knowing before you install</p>
+		<section className="border-t border-border">
+			<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<p className={siteText.eyebrow}>What you get</p>
+				<p className={cn(siteText.h2, "mt-2")}>Three things worth knowing before you install</p>
 			</div>
 
 			<HomeFeaturesTabs />
@@ -236,14 +239,14 @@ export function HomeFeatures() {
  */
 export function HomeConfidential() {
 	return (
-		<section className="ss-home-rule">
-			<div className="ss-home-pad py-16 md:py-24">
+		<section className="border-t border-border">
+			<div className="px-6 py-16 md:px-10 md:py-24">
 				<div className="max-w-3xl">
-					<p className="ss-home-eyebrow">{CONFIDENTIAL.eyebrow}</p>
-					<h2 className="ss-home-h2 mt-2">{CONFIDENTIAL.heading}</h2>
-					<p className="ss-home-body mt-5">{CONFIDENTIAL.body}</p>
+					<p className={siteText.eyebrow}>{CONFIDENTIAL.eyebrow}</p>
+					<h2 className={cn(siteText.h2, "mt-2")}>{CONFIDENTIAL.heading}</h2>
+					<p className={cn(siteText.body, "mt-5")}>{CONFIDENTIAL.body}</p>
 					<p className="mt-6">
-						<Link className="ss-home-forward" href={CONFIDENTIAL.action.href}>
+						<Link className={siteText.forward} href={CONFIDENTIAL.action.href}>
 							{CONFIDENTIAL.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
 						</Link>
 					</p>
@@ -261,15 +264,15 @@ export function HomeConfidential() {
  */
 export function HomeFormats() {
 	return (
-		<section className="ss-home-rule">
-			<div className="ss-home-head ss-home-head-plain">
-				<p className="ss-home-eyebrow">Artifacts</p>
-				<p className="ss-home-h2 mt-2">Twelve things one set of sources can become</p>
+		<section className="border-t border-border">
+			<div className="px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<p className={siteText.eyebrow}>Artifacts</p>
+				<p className={cn(siteText.h2, "mt-2")}>Twelve things one set of sources can become</p>
 			</div>
 
 			{/* The same grid as the logo cloud: the head is plain, so the grid draws its
 			    own top edge, and each cell draws its own right and bottom hairlines. */}
-			<div className="relative grid grid-cols-2 border-t border-[color:var(--border)] md:grid-cols-4">
+			<div className="relative grid grid-cols-2 border-t border-border md:grid-cols-4">
 				{FORMATS.map((format, index) => (
 					<HomeFormatCell key={format.key} format={format} index={index} />
 				))}

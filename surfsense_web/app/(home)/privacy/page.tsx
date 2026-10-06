@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { siteText } from "@/components/site/site-text";
 
 /**
  * Privacy Policy. Plain long-form prose, laid out like a blog post: the
- * `ss-home-pad` + `max-w-3xl` + Tailwind `prose` wrapper is copied from
+ * padded `max-w-3xl` + Tailwind `prose` wrapper is copied from
  * `app/(home)/blog/[slug]/page.tsx` so a legal page reads like body text
  * rather than like a landing page. Listed in `SITE_DESIGN_ROUTES` in
  * `components/site/site-shell.tsx`, which is what supplies the dark palette
@@ -70,10 +71,10 @@ const PROSE =
 
 export default function PrivacyPolicy() {
 	return (
-		<div className="ss-home-pad pt-16 pb-20">
+		<div className="px-6 md:px-10 pt-16 pb-20">
 			<div className="mx-auto max-w-3xl">
 				<div className="mb-10 space-y-4">
-					<h1 className="ss-home-h2">Privacy Policy</h1>
+					<h1 className={siteText.h2}>Privacy Policy</h1>
 					<p className="text-muted-foreground text-sm">Last updated: {LAST_UPDATED}</p>
 				</div>
 
