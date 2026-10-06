@@ -19,9 +19,9 @@
  * everyone. Product surfaces remain theme-aware.
  *
  * The structure is a port of the reference design in `homepage-reference/`:
- * one bordered column down the middle of the viewport, sections separated by
- * hairlines rather than gaps, and cell grids drawn with a 1px gap over the
- * border colour so interior rules never double up.
+ * one full-width column, sections separated by hairlines rather than gaps, and
+ * cell grids drawn with a 1px gap over the border colour so interior rules
+ * never double up.
  */
 
 /**
@@ -85,14 +85,9 @@
 	 * clears WCAG AAA for text at any size. */
 	--home-accent: var(--primary);
 
-	/* Layout rhythm. The column is deliberately narrower than the viewport: long
-	 * measures are hard to read, and the ruled side borders only read as a frame
-	 * when there is ground either side of them. */
 	--home-gutter: 1.5rem;
-	/* Narrower than the rest of the site: long measures are hard to read, and
-	 * the ruled side borders only read as a frame when there is ground either
-	 * side of them. */
-	--home-max: 72rem;
+	/* Full width on routes with `.ss-home`; routes without it keep the 88rem from `:root`. */
+	--home-max: none;
 
 	background-color: var(--background);
 	color: var(--foreground);
@@ -118,7 +113,6 @@
 	margin-inline: auto;
 	width: 100%;
 	max-width: var(--home-max);
-	border-inline: 1px solid var(--border);
 }
 
 .ss-home-pad {
@@ -1100,7 +1094,6 @@
 	align-items: center;
 	gap: 1rem;
 	padding-inline: 1rem;
-	border-inline: 1px solid var(--border);
 	border-bottom: 1px solid var(--border);
 }
 
@@ -1197,7 +1190,6 @@
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	background-color: var(--background);
-	border-inline: 1px solid var(--border);
 	border-bottom: 1px solid var(--border);
 }
 
