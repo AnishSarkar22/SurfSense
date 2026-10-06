@@ -21,8 +21,8 @@ import { JsonLd } from "@/components/seo/json-ld";
  * phrases and their order is load-bearing — see `home-content.ts`.
  *
  * A server component. Most sections are static and the FAQ uses native
- * details/summary; the client exceptions are the hero's shader backdrop, the
- * claims tabs and the formats row's hover spotlight (see `home-sections.tsx`).
+ * details/summary; the client exceptions are the claims tabs and the formats
+ * row's hover spotlight (see `home-sections.tsx`).
  */
 
 export const metadata: Metadata = {

@@ -12,7 +12,6 @@ import {
 } from "@/components/homepage/home/home-content";
 import { HomeFeaturesTabs } from "@/components/homepage/home/home-features-tabs";
 import { HomeFormatCell } from "@/components/homepage/home/home-format-cell";
-import { HomeHeroDither } from "@/components/homepage/home/home-hero-dither";
 import { FlowButton } from "@/components/ui/flow-button";
 import { ArrowRightIcon } from "@/components/ui/icons";
 
@@ -25,11 +24,11 @@ import { ArrowRightIcon } from "@/components/ui/icons";
  * no interior rule ever doubles up. Nothing here has a radius or a shadow; only
  * controls keep the palette's `--radius`.
  *
- * Mostly server components. Three exceptions live in their own "use client"
- * modules rather than pulling this file across the boundary: the hero's
- * backdrop (a WebGL shader), `HomeFeaturesTabs` (the claims switcher), and
- * `CardSpotlight` (components/ui), which `HomeFormatCell` wraps each format
- * cell in for its hover spotlight.
+ * Mostly server components. Two exceptions live in their own "use client"
+ * modules rather than pulling this file across the boundary:
+ * `HomeFeaturesTabs` (the claims switcher) and `CardSpotlight`
+ * (components/ui), which `HomeFormatCell` wraps each format cell in for its
+ * hover spotlight.
  *
  * The heading order is not editorial. It is the SEO skeleton from
  * `plans/community-local/seo/02-page-briefs.md`: H1, then eight H2s in a fixed
@@ -40,8 +39,7 @@ import { ArrowRightIcon } from "@/components/ui/icons";
 export function HomeHero() {
 	return (
 		<section className="ss-home-hero ss-home-pad">
-			<HomeHeroDither />
-			<div className="relative mx-auto max-w-4xl text-center">
+			<div className="mx-auto max-w-4xl text-center">
 				<h1 className="ss-home-display">
 					Air-gapped, open source <span className="ss-home-accent">NotebookLM alternative</span>
 				</h1>
