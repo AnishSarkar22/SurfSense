@@ -15,6 +15,7 @@ Every URL is in one file, [`endpoints.py`](../../surfsense_local/backend/modules
 |---|---|
 | Authorize | `https://auth.openai.com/api/accounts/authorize` |
 | Token exchange and refresh | `https://auth.openai.com/api/accounts/oauth/token` |
+| Revocation, on sign-out and delete | `POST https://auth.openai.com/api/accounts/oauth/revoke` |
 | ID-token keys | `https://auth.openai.com/.well-known/jwks.json` |
 | Plan's models | `GET https://api.openai.com/v1/models` |
 | Answers | `POST https://api.openai.com/v1/responses` |
@@ -38,6 +39,7 @@ A ChatGPT connection is a `provider_connections` row with `auth_kind = 'chatgpt'
 - `GET /llm/connections` adds `auth_kind`, `signed_in` and `account_email`; no token leaves the API.
 - `PUT` on a ChatGPT connection renames it and changes nothing else.
 - `DELETE /llm/connections/{id}/sign-in` signs out: the tokens go, the connection and its selection stay. Signing in again registers a new client, since the issued one went with the tokens.
+- Signing out, or deleting the connection, also revokes the refresh token at the issuer's `revocation_endpoint` (`/api/accounts/oauth/revoke`, RFC 7009, as a public client) once the local change has committed ([`revocation.py`](../../surfsense_local/backend/modules/llm/subscriptions/chatgpt/revocation.py)). It is best effort: a failure is logged and the sign-out stands. It is skipped when the sign-in host has been turned off since, and when this install can no longer decrypt the tokens (a keychain reset or a backup restored elsewhere), so a lost key never blocks the sign-out or delete that recovers from it.
 - It serves `text_gen` only. What a connection serves is one rule, [`serves.py`](../../surfsense_local/backend/modules/llm/connections/serves.py), keyed by `auth_kind`: selection refuses any other slot even with `allow_unlisted`, the image and speech tests answer `422`, image and speech resolution refuse it, and `GET /llm/connections` reports it as `serves`.
 
 ## Tokens
@@ -54,12 +56,14 @@ A ChatGPT connection is a `provider_connections` row with `auth_kind = 'chatgpt'
 
 [`ResponsesChatProvider`](../../surfsense_local/backend/modules/llm/providers/openai_responses/chat.py) implements the `Generator` protocol, so chat, titles and Studio call it unchanged.
 
-- The body is `{model, input, store: false, stream: true}` and nothing else. The plan's endpoint refuses `instructions`, `reasoning`, `text.format`, `max_output_tokens` and `tools`, so `max_tokens`, `reasoning`, `temperature` and `json_schema` are accepted and dropped. Studio parses an unconstrained reply as it does for any endpoint that ignores a schema.
+- The body is `{model, input, store: false, stream: true}`, plus `prompt_cache_key` with the conversation's name, which routes its requests to the machine that cached its prompt. A chat names its thread, and Studio the system prompt and sources a job's calls share. OpenAI's [preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations) list the fields the endpoint rejects, `prompt_cache_retention` among them, and not the key. Nothing else is sent. The plan's endpoint refuses `instructions`, `reasoning`, `text.format`, `max_output_tokens` and `tools`, so `max_tokens`, `reasoning`, `temperature` and `json_schema` are accepted and dropped. Studio parses an unconstrained reply as it does for any endpoint that ignores a schema.
 - A `system` turn goes as a `developer` input item. A turn with images sends `input_text` then `input_image` data URLs.
-- `response.output_text.delta` is answer text, and reasoning-summary deltas are reasoning. Only `response.completed` ends a reply: a stream that closes without it, or ends `incomplete`, raises.
+- `response.output_text.delta` is answer text, and reasoning-summary deltas are reasoning. Only `response.completed` ends a reply: a stream that closes without it, or ends `incomplete`, raises. Its `usage` is logged as the input tokens the plan reused from its cache (`input_tokens_details.cached_tokens`).
 - `subscription_sharing_usage_limit_exceeded`, as a `429` or inside `response.failed`, is `PlanLimitError`. `subscription_sharing_invalid_user` is `SignInRequiredError`. Anything else is an `httpx.HTTPStatusError` carrying OpenAI's message.
 - The model list is the plan's `models` array, entries whose `visibility` is `list`, each a `text_gen` model with `capability_source: declared`. The manifest's "only on `/responses`" does not apply here.
 - No context window or token count, so chat keeps its fixed history budget. The same deadlines as the OpenAI-compatible client: 300 seconds to the first token, 30 between.
+
+A `429`, `500`, `502`, `503` or `504` before the reply starts is retried twice, after the wait the response asks for (`retry-after-ms` or `retry-after`, at most a minute) or one then two seconds, and a stop ends the wait at once ([`retry.py`](../../surfsense_local/backend/modules/llm/providers/openai_responses/retry.py)). A used-up plan is never retried. When the retries run out the status stands, so chat sorts it as it would any other.
 
 Chat sorts `SignInRequiredError` into `subscription_sign_in`, which offers Model setup, and `PlanLimitError` into `subscription_limit`, which offers no retry ([`chat.md`](chat.md#the-stream)). The model list answers a signed-out connection with `409` and code `sign_in_required`, and the composer's notice says to sign in again.
 
@@ -69,8 +73,8 @@ Every model list reads `serves` rather than deciding: the Settings sections, the
 
 ## Known gaps
 
+- **Sign in again** on a connection still signed in overwrites its tokens through `save_sign_in()` without revoking the grant they replace.
 - Built against OpenAI's documentation and a fake server; not yet run against a real ChatGPT account.
-- Signing out or deleting the connection does not revoke the refresh token at OpenAI's revocation endpoint.
 - Signing in again never uses the returning-user path (`id_token_hint` with the issued client), because signing out drops the client id with the tokens.
 - When the plan's model list cannot be fetched there is no fallback list; the model group shows the failure.
 - The context window of a plan model is unknown, so long chats are trimmed to the fixed history budget.

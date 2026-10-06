@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from api.dependencies import SessionDep, transact
 from modules.egress import service as egress
+from modules.llm.capability import capability_of
 from modules.llm.catalog.remote.manifest.loader import remote_lookup
 from modules.llm.catalog.remote.reads_images import remote_reads_images
 from modules.llm.catalog.remote.rows import CUSTOM
@@ -43,6 +44,7 @@ from modules.llm.schemas import (
     ModelTestWrite,
 )
 from modules.llm.selectable import selectable_for
+from modules.llm.subscriptions.chatgpt import revocation
 from modules.llm.subscriptions.chatgpt.account import CHATGPT
 from modules.llm.subscriptions.chatgpt.plan_models import plan_generator
 from modules.llm.subscriptions.chatgpt.tokens import read_tokens
@@ -237,9 +239,19 @@ def delete_connection(connection_id: int, session: SessionDep) -> Response:
     connection = session.get(ProviderConnection, connection_id)
     if connection is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "connection not found")
+    forgotten = (
+        revocation.tokens_to_revoke(connection)
+        if connection.auth_kind == CHATGPT
+        else None
+    )
+    revoke = forgotten is not None and revocation.may_revoke(session)
     session.delete(connection)
     session.flush()
     egress.forget_if_unused(session, egress.host_destination(connection.base_url))
+    # Committed first: the delete stands even if OpenAI never answers.
+    session.commit()
+    if revoke:
+        revocation.revoke(forgotten)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -263,14 +275,20 @@ async def list_connection_models(
             name=model.name,
             types=list(model.types),
             capability_source=model.capability_source,
-            selectable_for=[]
-            if model.unusable_reason
-            else selectable_for(model.types, model.capability_known),
+            selectable_for=slots,
             unusable_reason=model.unusable_reason,
             reads_images=not model.unusable_reason
             and remote_reads_images(model.name, connection.catalog_provider),
+            capability_level=capability_of(model.name, connection).level
+            if ModelType.TEXT_GEN in slots
+            else None,
         )
         for model in models
+        for slots in [
+            []
+            if model.unusable_reason
+            else selectable_for(model.types, model.capability_known)
+        ]
     ]
 
 

@@ -115,6 +115,52 @@ afterEach(() => {
 })
 
 describe("studio panel", () => {
+  it("sends the ticked folders as the job's source scope", async () => {
+    const onGenerate = vi.fn(async () => true)
+    const scope = {
+      all: false,
+      folder_ids: [2],
+      excluded_folder_ids: [],
+      document_ids: [],
+      excluded_document_ids: [],
+    }
+    const user = userEvent.setup()
+    render(
+      <TooltipProvider>
+        <StudioPanel
+          workspaceId={1}
+          documents={[readyDocument]}
+          selectedDocumentIds={[4]}
+          sourceScope={scope}
+          onSelectionChange={vi.fn()}
+          onToggleAll={vi.fn()}
+          formats={[
+            {
+              key: "summary",
+              label: "Summary",
+              requires_model_types: ["text_gen"],
+              available: true,
+              unavailable_reason: null,
+            },
+          ]}
+          isCreating={false}
+          error={null}
+          onGenerate={onGenerate}
+          onSetUpVoices={vi.fn()}
+        />
+      </TooltipProvider>
+    )
+
+    await user.click(await screen.findByRole("button", { name: "Summary" }))
+    await user.click(screen.getByRole("button", { name: /Generate/ }))
+
+    expect(onGenerate).toHaveBeenCalledWith({
+      format: "summary",
+      document_ids: [4],
+      source_scope: scope,
+    })
+  })
+
   it("shows the catalog cards before formats load", () => {
     render(
       <TooltipProvider>
@@ -398,6 +444,183 @@ describe("studio panel", () => {
     expect(image.getAttribute("aria-disabled")).toBe("true")
     await user.hover(image)
     expect(await screen.findByText("Needs an image model")).toBeTruthy()
+  })
+
+  it("shows its own text for a reason code, not the backend's English", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input)
+        if (path === "/workspaces/1/studio/formats") {
+          return Response.json([
+            {
+              key: "podcast",
+              label: "Podcast",
+              requires_model_types: ["text_gen", "audio_gen"],
+              available: false,
+              unavailable_reason: "backend prose, never shown",
+              unavailable_code: "needs_chat_audio",
+            },
+          ])
+        }
+        if (path === "/workspaces/1/artifacts") return Response.json([])
+        return Response.json({ detail: "not found" }, { status: 404 })
+      })
+    )
+    const user = userEvent.setup()
+
+    renderStudio()
+
+    await user.hover(await screen.findByRole("button", { name: "Podcast" }))
+    expect(
+      await screen.findByText("Needs a chat model and an audio model.")
+    ).toBeTruthy()
+    expect(screen.queryByText("backend prose, never shown")).toBeNull()
+  })
+
+  it("falls back to the backend's reason for a code it has no text for", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input)
+        if (path === "/workspaces/1/studio/formats") {
+          return Response.json([
+            {
+              key: "podcast",
+              label: "Podcast",
+              requires_model_types: ["text_gen", "audio_gen"],
+              available: false,
+              unavailable_reason: "Needs a newer audio runtime",
+              unavailable_code: "needs_runtime_upgrade",
+            },
+          ])
+        }
+        if (path === "/workspaces/1/artifacts") return Response.json([])
+        return Response.json({ detail: "not found" }, { status: 404 })
+      })
+    )
+    const user = userEvent.setup()
+
+    renderStudio()
+
+    await user.hover(await screen.findByRole("button", { name: "Podcast" }))
+    expect(await screen.findByText("Needs a newer audio runtime")).toBeTruthy()
+  })
+
+  it("shows its own text when a regenerate is refused with a reason code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input)
+        if (path === "/workspaces/1/studio/formats") return Response.json([])
+        if (path === "/workspaces/1/artifacts") {
+          return Response.json([{ ...pendingArtifact, status: "failed" }])
+        }
+        if (path === "/artifacts/9/regenerate" && init?.method === "POST") {
+          return Response.json(
+            {
+              detail: {
+                message: "backend prose, never shown",
+                code: "needs_image",
+              },
+            },
+            { status: 409 }
+          )
+        }
+        return Response.json({ detail: "not found" }, { status: 404 })
+      })
+    )
+    const user = userEvent.setup()
+
+    renderStudio()
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Generation failed. Retry Summary",
+      })
+    )
+    const alert = await screen.findByRole("alert")
+    expect(within(alert).getByText("Needs an image model.")).toBeTruthy()
+    expect(screen.queryByText("backend prose, never shown")).toBeNull()
+  })
+
+  it("shows the backend's message for a refusal code it has no text for", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input)
+        if (path === "/workspaces/1/studio/formats") return Response.json([])
+        if (path === "/workspaces/1/artifacts") {
+          return Response.json([{ ...pendingArtifact, status: "failed" }])
+        }
+        if (path === "/artifacts/9/regenerate" && init?.method === "POST") {
+          return Response.json(
+            {
+              detail: {
+                message: "Needs a newer audio runtime",
+                code: "needs_runtime_upgrade",
+              },
+            },
+            { status: 409 }
+          )
+        }
+        return Response.json({ detail: "not found" }, { status: 404 })
+      })
+    )
+    const user = userEvent.setup()
+
+    renderStudio()
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Generation failed. Retry Summary",
+      })
+    )
+    const alert = await screen.findByRole("alert")
+    expect(within(alert).getByText("Needs a newer audio runtime")).toBeTruthy()
+  })
+
+  it("shows its own text when the podcast brief is refused with a reason code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input)
+        if (path === "/workspaces/1/studio/formats") {
+          return Response.json([
+            {
+              key: "podcast",
+              label: "Podcast",
+              requires_model_types: ["text_gen", "audio_gen"],
+              available: true,
+              unavailable_reason: null,
+            },
+          ])
+        }
+        if (path === "/workspaces/1/studio/podcast/brief") {
+          return Response.json(
+            {
+              detail: {
+                message: "backend prose, never shown",
+                code: "needs_audio",
+              },
+            },
+            { status: 409 }
+          )
+        }
+        if (path === "/workspaces/1/artifacts") return Response.json([])
+        return Response.json({ detail: "not found" }, { status: 404 })
+      })
+    )
+    const user = userEvent.setup()
+
+    renderStudio()
+
+    await user.click(await screen.findByRole("button", { name: "Podcast" }))
+    const dialog = await screen.findByRole("dialog", { name: "Podcast" })
+    expect(
+      await within(dialog).findByText("Needs an audio model.")
+    ).toBeTruthy()
+    expect(screen.queryByText("backend prose, never shown")).toBeNull()
   })
 
   it("uses complete messages for both model fallback shapes", async () => {

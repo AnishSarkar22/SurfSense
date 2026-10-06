@@ -91,7 +91,7 @@ describe("dashboard chat", () => {
         }
         if (
           path ===
-          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
         ) {
           return Response.json([])
         }
@@ -183,7 +183,7 @@ describe("dashboard chat", () => {
         }
         if (
           path ===
-          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
         ) {
           return Response.json([])
         }
@@ -247,6 +247,194 @@ describe("dashboard chat", () => {
     })
   })
 
+  it("keeps the composer focused on a keyboard switch and names the conversation to it", async () => {
+    const thread = {
+      id: 10,
+      workspace_id: 1,
+      title: "Original title",
+      created_at: "2026-09-05T00:00:00Z",
+      updated_at: "2026-09-05T00:00:00Z",
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input)
+        if (path === "/llm/providers") {
+          return Response.json([
+            { name: "llamacpp", healthy: true, can_download: true },
+          ])
+        }
+        if (
+          path ===
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+        ) {
+          return Response.json([])
+        }
+        if (path === "/workspaces/1/chat/threads") {
+          return Response.json([thread])
+        }
+        if (path === "/chat/threads/10/messages") {
+          return Response.json([])
+        }
+        return Response.json({ detail: "not found" }, { status: 404 })
+      })
+    )
+    const user = userEvent.setup()
+    rememberOpenThread(1, 10)
+
+    render(
+      <ThemeProvider>
+        <TooltipProvider>
+          <DashboardPage
+            initialProviderAvailable={true}
+            selection={{
+              model_type: "text_gen",
+              provider: "llamacpp",
+              connection_id: null,
+              name: "llama3.2:1b",
+              updated_at: "2026-09-05T00:00:00Z",
+            }}
+            initialWorkspaces={[workspace]}
+            onModelSelected={vi.fn()}
+          />
+        </TooltipProvider>
+      </ThemeProvider>
+    )
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole("textbox", { name: "Message" })
+      )
+    })
+    await user.click(screen.getByRole("button", { name: "New chat" }))
+
+    // A keyboard user is told where they landed; a click keeps the composer.
+    await user.click(screen.getByRole("button", { name: "Chats" }))
+    ;(await screen.findByRole("button", { name: "Original title" })).focus()
+    await user.keyboard("{Enter}")
+
+    // Focus stays where someone can type; the composer is described by the
+    // conversation's heading, so a screen reader still says where it landed.
+    const composer = screen.getByRole("textbox", { name: "Message" })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(composer)
+      const describedBy = composer.getAttribute("aria-describedby")
+      expect(
+        describedBy && document.getElementById(describedBy)?.textContent
+      ).toBe("Original title")
+    })
+  })
+
+  it("never announces a reply finished for one left mid-stream in another chat", async () => {
+    const encoder = new TextEncoder()
+    const cached = {
+      id: 11,
+      workspace_id: 1,
+      title: "Cached chat",
+      created_at: "2026-09-05T00:00:00Z",
+      updated_at: "2026-09-05T00:00:00Z",
+    }
+    const streaming = { ...cached, id: 10, title: "Streaming chat" }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input)
+        if (path === "/llm/providers") {
+          return Response.json([
+            { name: "llamacpp", healthy: true, can_download: true },
+          ])
+        }
+        if (
+          path ===
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+        ) {
+          return Response.json([])
+        }
+        if (path === "/workspaces/1/chat/threads") {
+          return Response.json([cached, streaming])
+        }
+        if (path === "/chat/threads/11/messages") {
+          return Response.json([
+            {
+              id: 1,
+              role: "user",
+              content: { text: "Earlier question" },
+              created_at: "2026-09-05T00:00:00Z",
+              completed_at: null,
+            },
+            {
+              id: 2,
+              role: "assistant",
+              content: { text: "Earlier answer", citations: [] },
+              created_at: "2026-09-05T00:00:01Z",
+              completed_at: "2026-09-05T00:00:01Z",
+            },
+          ])
+        }
+        if (path === "/chat/threads/10/messages" && init?.method === "POST") {
+          // Answers, then never finishes, as a model still generating.
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(
+                  encoder.encode(
+                    'data: {"type":"accepted","user_message_id":100,"assistant_message_id":101,"user_created_at":"2026-09-05T00:00:00Z"}\n\ndata: {"type":"delta","text":"Partial answer"}\n\n'
+                  )
+                )
+              },
+            }),
+            { headers: { "Content-Type": "text/event-stream" } }
+          )
+        }
+        if (path === "/chat/threads/10/messages") return Response.json([])
+        return Response.json({ detail: "not found" }, { status: 404 })
+      })
+    )
+    const user = userEvent.setup()
+    rememberOpenThread(1, 11)
+
+    render(
+      <ThemeProvider>
+        <TooltipProvider>
+          <DashboardPage
+            initialProviderAvailable={true}
+            selection={{
+              model_type: "text_gen",
+              provider: "llamacpp",
+              connection_id: null,
+              name: "llama3.2:1b",
+              updated_at: "2026-09-05T00:00:00Z",
+            }}
+            initialWorkspaces={[workspace]}
+            onModelSelected={vi.fn()}
+          />
+        </TooltipProvider>
+      </ThemeProvider>
+    )
+
+    expect(await screen.findByText("Earlier answer")).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Chats" }))
+    await user.click(
+      await screen.findByRole("button", { name: "Streaming chat" })
+    )
+    await user.type(
+      await screen.findByRole("textbox", { name: "Message" }),
+      "Still going?"
+    )
+    await user.click(screen.getByRole("button", { name: "Send message" }))
+    expect(await screen.findByText("Partial answer")).toBeTruthy()
+
+    await user.click(screen.getByRole("button", { name: "Chats" }))
+    await user.click(await screen.findByRole("button", { name: "Cached chat" }))
+    expect(await screen.findByText("Earlier answer")).toBeTruthy()
+
+    expect(
+      screen
+        .queryAllByRole("status")
+        .some((status) => status.textContent === "Reply finished")
+    ).toBe(false)
+  })
+
   it("keeps composer placement aligned with the conversation lifecycle", async () => {
     let resolveThreads!: (response: Response) => void
     let resolveCreate!: (response: Response) => void
@@ -266,7 +454,7 @@ describe("dashboard chat", () => {
         }
         if (
           path ===
-          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
         ) {
           return Response.json([])
         }
@@ -425,7 +613,8 @@ describe("dashboard chat", () => {
         ])
       }
       if (
-        path === "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+        path ===
+        "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
       ) {
         return Response.json([])
       }
@@ -509,7 +698,7 @@ describe("dashboard chat", () => {
         }
         if (
           path ===
-          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
         ) {
           return Response.json([])
         }
@@ -579,7 +768,7 @@ describe("dashboard chat", () => {
         }
         if (
           path ===
-          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
         ) {
           return Response.json([
             {
@@ -753,6 +942,13 @@ describe("dashboard chat", () => {
     expect(JSON.parse(String(send?.[1]?.body))).toEqual({
       text: "What is indexed?",
       document_ids: [20],
+      source_scope: {
+        all: true,
+        folder_ids: [],
+        excluded_folder_ids: [],
+        document_ids: [],
+        excluded_document_ids: [],
+      },
     })
   })
 
@@ -803,7 +999,7 @@ describe("dashboard chat", () => {
         expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
       expect(fetchMock).toHaveBeenCalledWith(
-        "/workspaces/2/documents?document_type=FILE&document_type=NOTE",
+        "/workspaces/2/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0",
         expect.objectContaining({ signal: expect.any(AbortSignal) })
       )
     })
@@ -828,7 +1024,8 @@ describe("dashboard chat", () => {
         ])
       }
       if (
-        path === "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+        path ===
+        "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
       ) {
         return Response.json([pdf])
       }
@@ -986,7 +1183,11 @@ describe("dashboard chat", () => {
             recommended_id: null,
           })
         }
-        if (path.endsWith("/documents?document_type=FILE&document_type=NOTE")) {
+        if (
+          path.endsWith(
+            "/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
+          )
+        ) {
           return Response.json([])
         }
         if (path === "/workspaces/1/chat/threads" && !init?.method) {
@@ -1132,6 +1333,114 @@ describe("dashboard chat", () => {
     )
   })
 
+  it("sends a ticked folder as the turn's source scope", async () => {
+    const filed = (id: number, title: string, folderId: number) => ({
+      id,
+      title,
+      document_type: "FILE",
+      mime_type: null,
+      status: "ready",
+      error_message: null,
+      created_at: "2026-09-05T00:00:00Z",
+      updated_at: "2026-09-05T00:00:00Z",
+      folder_id: folderId,
+    })
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input)
+        if (path === "/llm/providers") {
+          return Response.json([
+            { name: "llamacpp", healthy: true, can_download: true },
+          ])
+        }
+        if (path === "/llm/catalog/local") {
+          return Response.json({ rows: [], recommended_id: null })
+        }
+        if (path === "/license/status") {
+          return Response.json({ state: "none" })
+        }
+        if (
+          path ===
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
+        ) {
+          return Response.json([
+            filed(20, "Guide.txt", 1),
+            filed(21, "Paper.txt", 2),
+          ])
+        }
+        if (path === "/workspaces/1/folders") {
+          return Response.json([
+            { id: 1, parent_id: null, name: "Library" },
+            { id: 2, parent_id: 1, name: "Research" },
+          ])
+        }
+        if (path === "/workspaces/1/chat/threads" && init?.method === "POST") {
+          return Response.json(
+            {
+              id: 10,
+              workspace_id: 1,
+              title: "Scoped",
+              created_at: "2026-09-05T00:00:00Z",
+              updated_at: "2026-09-05T00:00:00Z",
+            },
+            { status: 201 }
+          )
+        }
+        if (path === "/chat/threads/10/messages" && init?.method === "POST") {
+          return new Response(
+            'data: {"type":"accepted","user_message_id":100,"assistant_message_id":101,"user_created_at":"2026-09-05T00:00:00Z"}\n\ndata: {"type":"delta","text":"From the folder"}\n\ndata: {"type":"completed","assistant_completed_at":"2026-09-05T00:00:01Z","text":"From the folder"}\n\ndata: [DONE]\n\n',
+            { headers: { "Content-Type": "text/event-stream" } }
+          )
+        }
+        return Response.json([])
+      }
+    )
+    vi.stubGlobal("fetch", fetchMock)
+    const user = userEvent.setup()
+
+    render(
+      <TooltipProvider>
+        <DashboardPage
+          initialProviderAvailable={true}
+          selection={{
+            model_type: "text_gen",
+            provider: "llamacpp",
+            connection_id: null,
+            name: "Qwen3-1.7B-Q4_K_M",
+            updated_at: "2026-09-05T00:00:00Z",
+          }}
+          initialWorkspaces={[workspace]}
+          onModelSelected={vi.fn()}
+        />
+      </TooltipProvider>
+    )
+
+    await screen.findByRole("treeitem", { name: "Research" })
+    await user.click(screen.getByRole("button", { name: "Deselect all" }))
+    await user.click(
+      screen.getByRole("checkbox", { name: "Select folder Research" })
+    )
+    await user.type(screen.getByRole("textbox", { name: "Message" }), "Scoped")
+    await user.click(screen.getByRole("button", { name: "Send message" }))
+
+    expect(await screen.findByText("From the folder")).toBeTruthy()
+    const send = fetchMock.mock.calls.find(
+      ([path, init]) =>
+        path === "/chat/threads/10/messages" && init?.method === "POST"
+    )
+    expect(JSON.parse(String(send?.[1]?.body))).toEqual({
+      text: "Scoped",
+      document_ids: [21],
+      source_scope: {
+        all: false,
+        folder_ids: [2],
+        excluded_folder_ids: [],
+        document_ids: [],
+        excluded_document_ids: [],
+      },
+    })
+  })
+
   it("sends a turn with thinking off once the composer switch is off", async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -1210,6 +1519,13 @@ describe("dashboard chat", () => {
     expect(JSON.parse(String(send?.[1]?.body))).toEqual({
       text: "Quick one",
       document_ids: [],
+      source_scope: {
+        all: true,
+        folder_ids: [],
+        excluded_folder_ids: [],
+        document_ids: [],
+        excluded_document_ids: [],
+      },
       thinking: false,
     })
   })
@@ -1225,7 +1541,7 @@ describe("dashboard chat", () => {
         }
         if (
           path ===
-          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
         ) {
           return Response.json([])
         }
@@ -1294,8 +1610,13 @@ describe("dashboard chat", () => {
     expect(retryButton, "context_too_long must not offer Retry").toBeNull()
   })
 
-  it("aborts the active stream when stop is pressed", async () => {
-    const captured: { signal: AbortSignal | null } = { signal: null }
+  it("asks the API to stop the reply when stop is pressed", async () => {
+    const captured: {
+      signal: AbortSignal | null
+      stream: ReadableStreamDefaultController<Uint8Array> | null
+      stopped: boolean
+      hungUpBeforeStop: boolean | null
+    } = { signal: null, stream: null, stopped: false, hungUpBeforeStop: null }
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = String(input)
@@ -1304,7 +1625,11 @@ describe("dashboard chat", () => {
             { name: "llamacpp", healthy: true, can_download: true },
           ])
         }
-        if (path.endsWith("/documents?document_type=FILE&document_type=NOTE")) {
+        if (
+          path.endsWith(
+            "/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
+          )
+        ) {
           return Response.json([])
         }
         if (path === "/workspaces/1/chat/threads" && !init?.method) {
@@ -1324,18 +1649,55 @@ describe("dashboard chat", () => {
         }
         if (path === "/chat/threads/10/messages" && init?.method === "POST") {
           captured.signal = init.signal ?? null
+          // Text has arrived when the person stops it.
           return new Response(
             new ReadableStream({
               start(controller) {
-                captured.signal?.addEventListener("abort", () =>
-                  controller.error(new DOMException("Aborted", "AbortError"))
+                captured.stream = controller
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    'data: {"type":"accepted","user_message_id":100,"assistant_message_id":101,"user_created_at":"2026-09-05T00:00:00Z"}\n\ndata: {"type":"delta","text":"Partial answer"}\n\n'
+                  )
                 )
               },
-            })
+            }),
+            { headers: { "Content-Type": "text/event-stream" } }
           )
         }
+        if (path === "/chat/threads/10/run/stop") {
+          // The API stores what the reply has, then ends the run's stream.
+          captured.stopped = true
+          captured.hungUpBeforeStop = captured.signal?.aborted ?? null
+          captured.stream?.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
+          captured.stream?.close()
+          return new Response(null, { status: 204 })
+        }
         if (path === "/chat/threads/10/messages") {
-          return Response.json([])
+          // The stopped turn as the backend keeps it: the text so far.
+          return Response.json(
+            !captured.stopped
+              ? []
+              : [
+                  {
+                    id: 100,
+                    role: "user",
+                    content: { text: "Stop this" },
+                    created_at: "2026-09-05T00:00:00Z",
+                    completed_at: null,
+                  },
+                  {
+                    id: 101,
+                    role: "assistant",
+                    content: {
+                      text: "Partial answer",
+                      citations: [],
+                      ending: { type: "stopped" },
+                    },
+                    created_at: "2026-09-05T00:00:00Z",
+                    completed_at: "2026-09-05T00:00:01Z",
+                  },
+                ]
+          )
         }
         return Response.json({ detail: "not found" }, { status: 404 })
       }
@@ -1366,14 +1728,24 @@ describe("dashboard chat", () => {
       "Stop this"
     )
     await user.click(screen.getByRole("button", { name: "Send message" }))
+    await screen.findByText("Partial answer")
     await user.click(
       await screen.findByRole("button", { name: "Stop generating" })
     )
 
-    expect(captured.signal?.aborted).toBe(true)
+    // A stop is asked of the API, which owns the reply; hanging up would not end it.
+    await waitFor(() => expect(captured.stopped).toBe(true))
+    expect(captured.hungUpBeforeStop).toBe(false)
     expect(
       await screen.findByRole("button", { name: "Send message" })
     ).toBeTruthy()
+    await screen.findByText("Partial answer")
+    // Stopped, not finished: the person chose to end it, so nothing is announced.
+    expect(
+      screen
+        .queryAllByRole("status")
+        .some((region) => region.textContent === "Reply finished")
+    ).toBe(false)
   })
 
   it("collapses the right rail from the toolbar outside the card", async () => {
@@ -1388,7 +1760,7 @@ describe("dashboard chat", () => {
         }
         if (
           path ===
-          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
         ) {
           return Response.json([])
         }
@@ -1458,7 +1830,7 @@ describe("dashboard chat", () => {
         }
         if (
           path ===
-          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
         ) {
           return Response.json([
             {
@@ -1535,7 +1907,7 @@ describe("dashboard chat", () => {
         }
         if (
           path ===
-          "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+          "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
         ) {
           return Response.json([])
         }
@@ -1616,7 +1988,9 @@ describe("dashboard chat", () => {
       sourcesScroll?.contains(screen.getByRole("heading", { name: "Sources" }))
     ).toBe(false)
     expect(
-      sourcesScroll?.contains(screen.getByRole("button", { name: "Add" }))
+      sourcesScroll?.contains(
+        screen.getByRole("button", { name: "Add sources" })
+      )
     ).toBe(false)
     expect(sourcesScroll).toBeTruthy()
 
@@ -1660,7 +2034,8 @@ describe("dashboard chat", () => {
         ])
       }
       if (
-        path === "/workspaces/1/documents?document_type=FILE&document_type=NOTE"
+        path ===
+        "/workspaces/1/documents?document_type=FILE&document_type=NOTE&limit=200&offset=0"
       ) {
         return Response.json([])
       }

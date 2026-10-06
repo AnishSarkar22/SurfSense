@@ -25,12 +25,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import type { WorkspaceDocument } from "@/features/sources/api"
+import type { SourceScope } from "@/features/sources/tree/scope-state"
 import { intl } from "@/i18n/intl"
 import { cn } from "@/lib/utils"
 
 import type { StudioFormat, StudioJobCreate } from "./api"
 import { PodcastBriefForm } from "./podcast-brief-form"
 import { FORMAT_ICONS, formatLabel, studioCatalog } from "./studio-formats"
+import { translatedUnavailable } from "./studio-unavailable-text"
 import { usePodcastBrief } from "./use-podcast-brief"
 
 const FORMAT_HINTS: Record<string, () => string> = {
@@ -102,16 +104,15 @@ function catalogFormats(formats: StudioFormat[]) {
 }
 
 function unavailableReason(entry: StudioFormat) {
+  const translated = translatedUnavailable(entry.unavailable_code)
+  if (translated != null) return translated
   if (entry.unavailable_reason != null) return entry.unavailable_reason
-  return entry.requires_model_types.includes("image_gen")
-    ? intl.formatMessage({
-        id: "studio_format_unavailable_chat_image_tooltip",
-        defaultMessage: "Needs a chat model and an image model.",
-      })
-    : intl.formatMessage({
-        id: "studio_format_unavailable_chat_tooltip",
-        defaultMessage: "Needs a chat model.",
-      })
+  // The built-in catalog, shown before the server's has loaded.
+  return translatedUnavailable(
+    entry.requires_model_types.includes("image_gen")
+      ? "needs_chat_image"
+      : "needs_chat"
+  )
 }
 
 function formatHint(entry: StudioFormat) {
@@ -137,6 +138,7 @@ function Composer({
   format,
   documents,
   selectedDocumentIds,
+  sourceScope,
   onSelectionChange,
   onToggleAll,
   isCreating,
@@ -147,6 +149,7 @@ function Composer({
   format: string
   documents: WorkspaceDocument[]
   selectedDocumentIds: number[]
+  sourceScope?: SourceScope
   onSelectionChange: (documentId: number, included: boolean) => void
   onToggleAll: () => void
   isCreating: boolean
@@ -271,6 +274,7 @@ function Composer({
               onGenerate({
                 format,
                 document_ids: [...selected],
+                ...(sourceScope ? { source_scope: sourceScope } : {}),
                 prompt: prompt.trim() || undefined,
                 options: podcast.brief ?? undefined,
               })
@@ -409,6 +413,7 @@ export function StudioPanel({
   workspaceId,
   documents,
   selectedDocumentIds,
+  sourceScope,
   onSelectionChange,
   onToggleAll,
   formats,
@@ -420,6 +425,8 @@ export function StudioPanel({
   workspaceId: number
   documents: WorkspaceDocument[]
   selectedDocumentIds: number[]
+  // Sent with each job, so the server reads every ticked source.
+  sourceScope?: SourceScope
   onSelectionChange: (documentId: number, included: boolean) => void
   onToggleAll: () => void
   formats: StudioFormat[]
@@ -492,6 +499,7 @@ export function StudioPanel({
                 format={selectedFormat.key}
                 documents={documents}
                 selectedDocumentIds={selectedDocumentIds}
+                sourceScope={sourceScope}
                 onSelectionChange={onSelectionChange}
                 onToggleAll={onToggleAll}
                 isCreating={isCreating}
