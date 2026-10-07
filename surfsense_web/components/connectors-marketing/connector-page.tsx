@@ -81,7 +81,7 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 		<>
 			{/* Hero */}
 			<section className="px-6 py-20 md:px-10 md:py-28">
-				<div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
+				<div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
 					<div>
 						<BreadcrumbNav
 							className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground"
@@ -183,13 +183,14 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 
 				<h3 className={cn(siteText.h3, "mt-10")}>Request parameters</h3>
 				<p className={cn(siteText.body, "mt-2 max-w-2xl text-sm")}>{content.schema.requestNote}</p>
-				<div className="mt-4">
+				{/* Bleeds to the section edges: the table pads its first column by the gutter. */}
+				<div className="-mx-6 mt-4 md:-mx-10">
 					<SchemaTable caption="Request parameters" fields={content.schema.request} />
 				</div>
 
 				<h3 className={cn(siteText.h3, "mt-10")}>Response fields</h3>
 				<p className={cn(siteText.body, "mt-2 max-w-2xl text-sm")}>{content.schema.responseNote}</p>
-				<div className="mt-4">
+				<div className="-mx-6 mt-4 md:-mx-10">
 					<SchemaTable caption="Response fields" fields={content.schema.response} />
 				</div>
 			</section>
@@ -199,7 +200,7 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 				<h2 className={cn(siteText.h2, "max-w-2xl")}>{content.comparison.heading}</h2>
 				<p className={cn(siteText.body, "mt-3 max-w-2xl")}>{content.comparison.intro}</p>
 				<section
-					className="mt-8 overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+					className="-mx-6 mt-8 overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring md:-mx-10"
 					aria-label={content.comparison.heading}
 					/* biome-ignore lint/a11y/noNoninteractiveTabindex: a region that scrolls horizontally has to be focusable, or a keyboard-only visitor cannot reach the columns past the fold. The labelled landmark is what makes the focus stop meaningful. */
 					tabIndex={0}

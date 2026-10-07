@@ -42,7 +42,12 @@ export function SiteFooter() {
 				<div className="absolute inset-x-0 top-0 h-[62%] bg-linear-to-b from-background via-background/85 to-transparent" />
 			</div>
 
-			<div className={cn("px-6 pb-16 text-center md:px-10 md:pb-20", sectionSpacing.head)}>
+			<div
+				className={cn(
+					"mx-auto max-w-(--home-max) px-6 pb-16 text-center md:px-10 md:pb-20",
+					sectionSpacing.head
+				)}
+			>
 				<p className={cn(siteText.h2, "md:text-5xl")}>Your notebook, on your own machine</p>
 				<p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-pretty text-muted-foreground md:text-lg">
 					Download SurfSense and keep every document, model key and answer on your own disk. Free,
@@ -53,8 +58,10 @@ export function SiteFooter() {
 				</div>
 			</div>
 
-			<div className="px-4 pb-16 md:px-10 md:pb-24">
-				<div className="mx-auto max-w-6xl rounded-3xl bg-card px-6 py-10 shadow-xl md:px-14 md:py-14">
+			{/* The content column and the sections' gutters, so the card's edges line up
+			    with every section's content while the image behind runs full width. */}
+			<div className="mx-auto max-w-(--home-max) px-6 pb-16 md:px-10 md:pb-24">
+				<div className="rounded-3xl bg-card px-6 py-10 shadow-xl md:px-14 md:py-14">
 					<div className="grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] lg:gap-8">
 						<div>
 							<Link href="/" className="inline-flex items-center gap-1.5 select-none">

@@ -97,7 +97,7 @@ export function ContactChannels() {
 export function ContactBugReports() {
 	return (
 		<section className="border-t border-border px-6 md:px-10">
-			<div className="flex flex-col justify-center px-6 py-12 md:px-10 lg:py-16">
+			<div className="flex flex-col justify-center py-12 lg:py-16">
 				<h2 className={siteText.h2}>Reporting something broken</h2>
 				<p className={cn(siteText.body, "mt-6")}>
 					SurfSense runs on your machine, which means we cannot look at your logs, your index or

@@ -10,7 +10,6 @@ import {
 	HomeOnYourMachine,
 	HomePillars,
 } from "@/components/homepage/home/home-sections";
-import { HomeSmoothScroll } from "@/components/homepage/home/home-smooth-scroll";
 import { JsonLd } from "@/components/seo/json-ld";
 
 /**
@@ -72,7 +71,6 @@ export default function HomePage() {
 		// from app/(home)/layout.tsx, which renders them for every site-design route.
 		<>
 			<JsonLd data={APPLICATION_SCHEMA} />
-			<HomeSmoothScroll />
 			<HomeHero />
 			<HomeLogos />
 			<HomeOnYourMachine />

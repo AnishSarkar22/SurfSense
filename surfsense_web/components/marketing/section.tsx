@@ -2,9 +2,8 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared marketing-page section container. Mirrors the navbar/hero grid exactly
- * (max-w-7xl with px-2 md:px-8 xl:px-0 gutters) so every section edge aligns
- * across the homepage, connector pages, and the connectors hub.
+ * Shared marketing-page section container: the site's gutters (px-6 md:px-10)
+ * and no width cap, so every section edge aligns across the marketing site.
  */
 export function MarketingSection({
 	children,
@@ -15,7 +14,7 @@ export function MarketingSection({
 }) {
 	return (
 		<section className={cn("py-12 sm:py-16", className)}>
-			<div className="mx-auto w-full max-w-7xl px-2 md:px-8 xl:px-0">{children}</div>
+			<div className="w-full px-6 md:px-10">{children}</div>
 		</section>
 	);
 }

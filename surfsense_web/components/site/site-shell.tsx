@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { GlobalAnnouncement } from "@/components/homepage/global-announcement";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteNav } from "@/components/site/site-nav";
+import { SiteSmoothScroll } from "@/components/site/site-smooth-scroll";
 import { getAllConnectorSlugs } from "@/lib/connectors-marketing";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,8 @@ const SITE_DESIGN_ROUTES = new Set([
 	"/announcements",
 	"/login",
 	"/sunset",
+	"/external-mcp-connectors",
+	"/mcp-server",
 	"/privacy",
 	"/terms",
 	...getAllConnectorSlugs().map((slug) => `/${slug}`),
@@ -96,12 +99,12 @@ export function SiteShell({
 			    changes. SiteNav also renders the announcement bar, just above its
 			    sticky header. */}
 			<SiteNav starCount={starCount} starsHref={starsHref} />
+			{!isAuthPage ? <SiteSmoothScroll /> : null}
 
 			{usesSiteDesign ? (
-				// The footer is part of the page, not chrome around it: it sits inside
-				// the same ruled column as every section above, so the side borders run
-				// unbroken from the top of the page to the footer panel.
-				<div className="mx-auto w-full max-w-(--home-max)">
+				// Full width, so backgrounds can bleed; `.ss-home-page` (home.css) holds
+				// each section to the column instead, and the footer caps its own content.
+				<div className="ss-home-page">
 					{children}
 					{!isAuthPage ? <SiteFooter /> : null}
 				</div>
@@ -114,14 +117,8 @@ export function SiteShell({
 					    the viewport. */}
 					<div className="overflow-x-hidden">{children}</div>
 
-					{/* The same footer, held to the same column width. It is not wrapped
-					    in the site-design column, so it sits under content that has no
-					    ruled frame without one of its own. */}
-					{!isAuthPage ? (
-						<div className="mx-auto w-full max-w-(--home-max)">
-							<SiteFooter />
-						</div>
-					) : null}
+					{/* The footer caps its own content, so its image can run full width. */}
+					{!isAuthPage ? <SiteFooter /> : null}
 				</>
 			)}
 		</main>

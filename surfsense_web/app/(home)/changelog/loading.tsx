@@ -1,56 +1,36 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
+/** Mirrors `ChangelogTimeline`: a centred hero, then gutter-to-gutter entry rows. */
 export default function ChangelogLoading() {
 	return (
 		<div className="min-h-screen relative pt-20">
-			{/* Header */}
-			<div className="border-b border-border/50">
-				<div className="max-w-5xl mx-auto relative">
-					<div className="p-6 flex items-center justify-between">
-						<div>
-							<Skeleton className="h-10 w-48 mb-2" />
-							<Skeleton className="h-4 w-80" />
-						</div>
-					</div>
+			<div className="px-6 py-20 md:px-10 md:py-28">
+				<div className="mx-auto flex max-w-2xl flex-col items-center gap-4">
+					<Skeleton className="h-12 w-64" />
+					<Skeleton className="h-5 w-full max-w-xl" />
 				</div>
 			</div>
 
-			{/* Timeline */}
-			<div className="max-w-5xl mx-auto px-6 lg:px-10 pt-10 pb-20">
-				<div className="relative">
-					{Array.from({ length: 3 }).map((_, i) => (
-						<div key={i} className="relative flex flex-col md:flex-row gap-y-6 mb-10">
-							{/* Left: date + version */}
-							<div className="md:w-48 flex-shrink-0">
-								<Skeleton className="h-4 w-24 mb-3" />
-								<Skeleton className="h-12 w-12 rounded-xl" />
-							</div>
-
-							{/* Right: content */}
-							<div className="flex-1 md:pl-8 relative pb-10">
-								<div className="space-y-4">
-									{/* Title */}
-									<Skeleton className="h-7 w-2/3" />
-									{/* Tags */}
-									<div className="flex gap-2">
-										<Skeleton className="h-6 w-16 rounded-full" />
-										<Skeleton className="h-6 w-20 rounded-full" />
-									</div>
-									{/* Body paragraphs */}
-									<div className="space-y-2">
-										<Skeleton className="h-4 w-full" />
-										<Skeleton className="h-4 w-full" />
-										<Skeleton className="h-4 w-3/4" />
-									</div>
-									<div className="space-y-2">
-										<Skeleton className="h-4 w-full" />
-										<Skeleton className="h-4 w-5/6" />
-									</div>
-								</div>
+			<div className="pt-12">
+				{Array.from({ length: 3 }).map((_, i) => (
+					<div
+						key={i}
+						className={`grid gap-6 px-6 py-10 md:grid-cols-[12rem_1fr] md:gap-10 md:px-10 md:py-12${i > 0 ? " border-t border-border" : ""}`}
+					>
+						<div className="flex flex-col gap-3">
+							<Skeleton className="h-4 w-24" />
+							<Skeleton className="h-6 w-16 rounded-full" />
+						</div>
+						<div className="flex max-w-2xl flex-col gap-4">
+							<Skeleton className="h-7 w-2/3" />
+							<div className="space-y-2">
+								<Skeleton className="h-4 w-full" />
+								<Skeleton className="h-4 w-full" />
+								<Skeleton className="h-4 w-3/4" />
 							</div>
 						</div>
-					))}
-				</div>
+					</div>
+				))}
 			</div>
 		</div>
 	);

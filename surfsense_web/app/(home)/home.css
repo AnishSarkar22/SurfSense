@@ -18,10 +18,10 @@
  * rules below sit in `components`, under the utilities meant to override them. */
 @layer theme, base, components, utilities;
 
-/* The column width. At the root because the nav and footer also render on
- * routes not yet on this design, where they keep the 88rem they always had. */
+/* The content column every marketing section and the footer's content sit in,
+ * centred. Backgrounds stay full width; see `.ss-home-page`. */
 :root {
-	--home-max: 88rem;
+	--home-max: 80rem;
 }
 
 .ss-home {
@@ -59,7 +59,6 @@
 
 	/* Matches `px-6 md:px-10` on the markup; the table's first column reads it. */
 	--home-gutter: 1.5rem;
-	--home-max: none;
 }
 
 @media (min-width: 768px) {
@@ -85,6 +84,16 @@
 }
 
 @layer components {
+	/* Every top-level section of a page is held to the content column, centred,
+	 * so text, cards, grids and rules line up on every page. A section marked
+	 * `data-bleed` (a full-width image) and the footer, which caps its own
+	 * content, run edge to edge. `:where` keeps it below any utility. */
+	.ss-home-page > :where(:not(footer, [data-bleed])) {
+		width: 100%;
+		max-width: var(--home-max);
+		margin-inline: auto;
+	}
+
 	/* -------------------------------------------------------------------------
 	 * Ruled grids
 	 *

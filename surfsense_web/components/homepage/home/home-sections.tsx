@@ -45,8 +45,8 @@ export function HomeHero() {
 		// Full bleed, and pulled up under the sticky nav (`-mt-20` is the nav's
 		// height) so the scene starts at the top edge of the page. Copy sits in
 		// the sky, where the wash keeps white text readable.
-		<section className="-mt-20">
-			<div className="relative flex min-h-[calc(100svh+4rem)] flex-col items-center justify-center overflow-hidden px-6 pt-32 pb-40 text-center">
+		<section className="-mt-20" data-bleed>
+			<div className="relative flex min-h-[calc(100svh+4rem)] flex-col items-center justify-center overflow-hidden px-6 pt-32 pb-40 text-center md:px-10">
 				{/* Twice the hero's height, the cover width on portrait screens. */}
 				<HomeScene priority sizes="max(100vw, calc(200vh + 8rem))" />
 				<div

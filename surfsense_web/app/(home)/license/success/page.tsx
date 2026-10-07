@@ -63,7 +63,7 @@ export default function LicenseSuccessPage() {
 			</section>
 
 			<section className="border-t border-border px-6 md:px-10 py-16">
-				<div className="mx-auto max-w-xl">
+				<div className="max-w-xl">
 					<Suspense fallback={null}>
 						<LicenseDownload />
 					</Suspense>

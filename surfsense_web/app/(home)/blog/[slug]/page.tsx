@@ -99,7 +99,7 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
 				image={page.data.image ? `https://www.surfsense.com${page.data.image}` : undefined}
 			/>
 			{faqEntries.length > 0 && <FAQJsonLd questions={faqEntries} />}
-			<div className="mx-auto max-w-3xl">
+			<div className="max-w-3xl">
 				{page.data.image && (
 					<div className="relative mb-8 aspect-2/1 overflow-hidden border border-border">
 						<Image

@@ -81,7 +81,7 @@ const PROSE =
 export default function TermsOfService() {
 	return (
 		<div className="px-6 md:px-10 pt-16 pb-20">
-			<div className="mx-auto max-w-3xl">
+			<div className="max-w-3xl">
 				<div className="mb-10 space-y-4">
 					<h1 className={siteText.h2}>Terms of Service</h1>
 					<p className="text-muted-foreground text-sm">Last updated: {LAST_UPDATED}</p>

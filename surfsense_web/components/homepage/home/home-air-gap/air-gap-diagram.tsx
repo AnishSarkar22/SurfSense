@@ -17,7 +17,7 @@ export function AirGapDiagram({ className }: { className?: string }) {
 					<li
 						key={claim.title}
 						data-claim={claim.node}
-						className="ss-airgap-claim max-w-[30rem] border-t border-border py-6 first:border-t-0 lg:first:pt-0"
+						className="ss-airgap-claim border-t border-border py-6 first:border-t-0 lg:first:pt-0"
 					>
 						<div className="flex items-baseline gap-3">
 							<span className="ss-airgap-step grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold tabular-nums">
@@ -25,7 +25,7 @@ export function AirGapDiagram({ className }: { className?: string }) {
 							</span>
 							<div>
 								<p className={siteText.h3}>{claim.title}</p>
-								<p className={cn(siteText.body, "mt-1.5 max-w-md text-sm")}>{claim.body}</p>
+								<p className={cn(siteText.body, "mt-1.5 text-sm")}>{claim.body}</p>
 							</div>
 						</div>
 					</li>
