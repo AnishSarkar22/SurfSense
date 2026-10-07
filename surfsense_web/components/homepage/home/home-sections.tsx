@@ -87,7 +87,7 @@ function BentoCell({ title, body, illustration }: Cell & { illustration?: Illust
  */
 export function HomeOnYourMachine() {
 	return (
-		<section className="border-t border-border">
+		<section>
 			<div className="px-6 pt-10 pb-8 md:px-10 md:pt-40">
 				<p className={siteText.eyebrow}>Features</p>
 				<h2 className={cn(siteText.h2, "mt-2")}>Runs entirely on your machine</h2>

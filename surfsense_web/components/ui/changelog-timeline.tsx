@@ -76,7 +76,7 @@ export const ChangelogTimeline = ({
 									</ul>
 								) : null}
 								{entry.content ? (
-									<div className="prose prose-invert mt-8 max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-balance prose-p:tracking-tight prose-p:text-balance prose-a:text-primary prose-a:no-underline prose-img:rounded-none prose-img:border prose-img:border-border">
+									<div className="prose mt-8 max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-balance prose-p:tracking-tight prose-p:text-balance prose-a:text-primary prose-a:no-underline prose-img:rounded-none prose-img:border prose-img:border-border">
 										{entry.content}
 									</div>
 								) : null}

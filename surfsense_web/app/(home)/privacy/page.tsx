@@ -7,8 +7,8 @@ import { siteText } from "@/components/site/site-text";
  * padded `max-w-3xl` + Tailwind `prose` wrapper is copied from
  * `app/(home)/blog/[slug]/page.tsx` so a legal page reads like body text
  * rather than like a landing page. Listed in `SITE_DESIGN_ROUTES` in
- * `components/site/site-shell.tsx`, which is what supplies the dark palette
- * that `prose-invert` assumes, plus the navigation and footer.
+ * `components/site/site-shell.tsx`, which supplies the light palette, the
+ * navigation and the footer.
  *
  * Every factual claim here was checked against the code, not against the
  * previous policy or the marketing copy. The version this replaced described
@@ -67,7 +67,7 @@ const LAST_UPDATED = "September 18, 2026";
 
 /** Matches the `prose` treatment used for blog posts. */
 const PROSE =
-	"prose prose-invert max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-headings:tracking-tight prose-a:no-underline";
+	"prose max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-headings:tracking-tight prose-a:no-underline";
 
 export default function PrivacyPolicy() {
 	return (

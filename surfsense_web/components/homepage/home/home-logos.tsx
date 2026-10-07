@@ -9,8 +9,8 @@ import { COMPANIES } from "@/components/homepage/home/home-content";
  * and its `alt` stays in the server-rendered HTML; the second copy is hidden
  * from assistive technology so the names are read once.
  *
- * Marks are desaturated for cohesion and inverted so dark artwork shows on the
- * dark ground. Logos that are already light opt out (see `home-content`).
+ * Marks are desaturated for cohesion. Logos drawn light are inverted so they
+ * show on the light ground (see `home-content`).
  */
 
 const FADED_RULE = "h-px bg-linear-to-r from-transparent via-border to-transparent";
@@ -34,7 +34,7 @@ function LogoList({ hidden = false }: { hidden?: boolean }) {
 						decoding="async"
 						draggable={false}
 						data-light={company.light === true ? "" : undefined}
-						className="h-8 w-auto max-w-36 object-contain opacity-70 brightness-105 grayscale invert select-none data-light:invert-0"
+						className="h-8 w-auto max-w-36 object-contain opacity-80 grayscale select-none data-light:invert"
 					/>
 				</li>
 			))}
@@ -47,7 +47,7 @@ export function HomeLogos() {
 	// the H1 and the seven H2s that follow it, and an eighth heading here would
 	// sit in the middle of that sequence.
 	return (
-		<section className="border-t border-border py-16" aria-labelledby="home-logos-label">
+		<section className="py-16" aria-labelledby="home-logos-label">
 			<div className="relative flex justify-center px-6 md:px-10">
 				<div aria-hidden="true" className={`absolute inset-x-0 top-1/2 ${FADED_RULE}`} />
 				<p

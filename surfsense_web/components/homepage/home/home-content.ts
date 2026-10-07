@@ -38,15 +38,9 @@ export { BUSINESS_URL, DOWNLOADS_URL, REPO_URL };
  * Logos live in `public/logos/`.
  */
 /**
- * `light: true` marks a logo that must not be inverted: a white-on-transparent
- * crest, or a favicon drawn on its own coloured disc. Everything else is
- * inverted.
- *
- * Inverting is the default because most of these third-party SVGs draw in a
- * single dark colour, and several have paths with no `fill` at all, which the
- * renderer defaults to black; unfiltered they would be invisible here. The
- * alternative, a blanket `brightness(0) invert(1)`, does guarantee visibility
- * but fills every interior counter and reduces a detailed crest to a disc.
+ * `light: true` marks a logo drawn light (a white-on-transparent crest, or a
+ * favicon on its own coloured disc). Those are inverted so they show on the
+ * light ground; everything else is drawn dark and reads as-is.
  */
 export const COMPANIES: { title: string; file: string; light?: boolean }[] = [
 	{ title: "UC Berkeley", file: "berkeley.svg", light: true },

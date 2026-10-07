@@ -58,10 +58,10 @@ export function TopAnnouncementBar() {
 	return (
 		<div className="w-full">
 			{/* Same box as the page column: centered, capped at `--home-max`,
-			    bordered on the sides. Filling *this* box with the notice color
+			    no side rules. Filling *this* box with the notice color
 			    (rather than the full-bleed strip around it) keeps the banner the
 			    width of the content below it. */}
-			<div className="relative mx-auto flex max-w-(--home-max) items-center justify-center gap-2 border-x border-border bg-(--notice,#3f74c8) px-10 py-2.5 sm:px-4 text-center text-sm font-medium text-white">
+			<div className="relative mx-auto flex max-w-(--home-max) items-center justify-center gap-2 bg-(--notice,#3f74c8) px-10 py-2.5 sm:px-4 text-center text-sm font-medium text-white">
 				{/* On mobile the whole bar is the link, so the text stays one line
 				    instead of wrapping around a separate "Read announcement". */}
 				<Link

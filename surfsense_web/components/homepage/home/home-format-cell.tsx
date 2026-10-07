@@ -152,6 +152,7 @@ export function HomeFormatCell({ format, index }: { format: Format; index: numbe
 		>
 			<CardSpotlight
 				className="h-full overflow-hidden rounded-none border-0 bg-transparent px-6 py-8 md:px-10"
+				color="var(--muted)"
 				dotColors={FORMAT_COLORS[format.key]}
 			>
 				<div className="relative z-20">

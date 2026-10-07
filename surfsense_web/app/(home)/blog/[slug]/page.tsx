@@ -144,7 +144,7 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
 					</div>
 				</div>
 
-				<div className="prose prose-invert max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-a:no-underline prose-headings:tracking-tight prose-headings:text-balance prose-p:tracking-tight prose-p:text-balance prose-img:rounded-none prose-img:border prose-img:border-border prose-img:shadow-none">
+				<div className="prose max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-a:no-underline prose-headings:tracking-tight prose-headings:text-balance prose-p:tracking-tight prose-p:text-balance prose-img:rounded-none prose-img:border prose-img:border-border prose-img:shadow-none">
 					<MDX components={getMDXComponents()} />
 				</div>
 			</div>

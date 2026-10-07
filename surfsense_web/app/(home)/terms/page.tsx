@@ -6,8 +6,8 @@ import { siteText } from "@/components/site/site-text";
  * Terms of Service. Plain long-form prose, laid out like a blog post: the
  * padded `max-w-3xl` + Tailwind `prose` wrapper is copied from
  * `app/(home)/blog/[slug]/page.tsx`. Listed in `SITE_DESIGN_ROUTES` in
- * `components/site/site-shell.tsx`, which supplies the dark palette that
- * `prose-invert` assumes, plus the navigation and footer.
+ * `components/site/site-shell.tsx`, which supplies the light palette, the
+ * navigation and the footer.
  *
  * Substantive changes from the version this replaces, all because the product
  * changed shape:
@@ -76,7 +76,7 @@ const forum = GOVERNING_LAW ?? "the jurisdiction in which SurfSense is establish
 
 /** Matches the `prose` treatment used for blog posts. */
 const PROSE =
-	"prose prose-invert max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-headings:tracking-tight prose-a:no-underline";
+	"prose max-w-none prose-headings:scroll-mt-8 prose-headings:font-semibold prose-headings:tracking-tight prose-a:no-underline";
 
 export default function TermsOfService() {
 	return (
