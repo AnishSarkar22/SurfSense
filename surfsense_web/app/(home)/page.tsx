@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { HomeCta } from "@/components/homepage/home/home-cta";
 import { HomeLogos } from "@/components/homepage/home/home-logos";
 import { HomeQuestions } from "@/components/homepage/home/home-questions";
 import {
@@ -83,7 +82,6 @@ export default function HomePage() {
 			<HomeConfidential />
 			<HomeFormats />
 			<HomeQuestions />
-			<HomeCta />
 		</>
 	);
 }

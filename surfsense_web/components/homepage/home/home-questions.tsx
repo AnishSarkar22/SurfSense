@@ -1,4 +1,5 @@
 import { HOME_FAQ } from "@/components/homepage/home/home-content";
+import { sectionSpacing } from "@/components/homepage/home/home-section-spacing";
 import { FAQJsonLd } from "@/components/seo/json-ld";
 import { SiteFaqItem } from "@/components/site/site-faq-item";
 import { siteText } from "@/components/site/site-text";
@@ -15,8 +16,8 @@ import { cn } from "@/lib/utils";
  */
 export function HomeQuestions() {
 	return (
-		<section className="border-t border-border">
-			<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+		<section className={cn("border-t border-border", sectionSpacing.foot)}>
+			<div className={cn("border-b border-border px-6 pb-8 md:px-10", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>FAQ</p>
 				<h2 className={cn(siteText.h2, "mt-2")}>Questions people ask</h2>
 			</div>

@@ -2,7 +2,7 @@ import Image from "next/image";
 import heroScene from "@/components/homepage/home/home-hero-scene.webp";
 
 /**
- * The dithered landscape behind the homepage hero and closing CTA, filling its
+ * The dithered landscape behind the homepage hero, filling its
  * positioned parent.
  *
  * `next/image` serves AVIF or WebP at the width each screen needs, from the

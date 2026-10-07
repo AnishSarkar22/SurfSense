@@ -13,6 +13,7 @@ import { HomeDownloadButton } from "@/components/homepage/home/home-download-but
 import { HomeFeaturesTabs } from "@/components/homepage/home/home-features-tabs";
 import { HomeFormatCell } from "@/components/homepage/home/home-format-cell";
 import { HomeScene } from "@/components/homepage/home/home-scene";
+import { sectionSpacing } from "@/components/homepage/home/home-section-spacing";
 import { siteText } from "@/components/site/site-text";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
@@ -117,8 +118,8 @@ export function HomeOnYourMachine() {
  */
 export function HomePillars() {
 	return (
-		<section className="border-t border-border">
-			<div className="px-6 pt-10 pb-8 md:px-10 md:pt-40">
+		<section className={cn("border-t border-border", sectionSpacing.foot)}>
+			<div className={cn("px-6 pb-8 md:px-10", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>Why it is different</p>
 				<p className={cn(siteText.h2, "mt-2")}>Three things NotebookLM cannot do</p>
 			</div>
@@ -162,8 +163,8 @@ export function HomePillars() {
  */
 export function HomeCompare() {
 	return (
-		<section className="border-t border-border">
-			<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+		<section className={cn("border-t border-border", sectionSpacing.foot)}>
+			<div className={cn("border-b border-border px-6 pb-8 md:px-10", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>How it compares</p>
 				<p className={cn(siteText.h2, "mt-2")}>Getting started, compared</p>
 			</div>
@@ -219,8 +220,8 @@ export function HomeCompare() {
  */
 export function HomeFeatures() {
 	return (
-		<section className="border-t border-border">
-			<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+		<section className={cn("border-t border-border", sectionSpacing.foot)}>
+			<div className={cn("border-b border-border px-6 pb-8 md:px-10", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>What you get</p>
 				<p className={cn(siteText.h2, "mt-2")}>Three things worth knowing before you install</p>
 			</div>
@@ -241,8 +242,8 @@ export function HomeFeatures() {
  */
 export function HomeConfidential() {
 	return (
-		<section className="border-t border-border">
-			<div className="px-6 py-16 md:px-10 md:py-24">
+		<section className={cn("border-t border-border", sectionSpacing.foot)}>
+			<div className={cn("px-6 md:px-10", sectionSpacing.head)}>
 				<div className="max-w-3xl">
 					<p className={siteText.eyebrow}>{CONFIDENTIAL.eyebrow}</p>
 					<h2 className={cn(siteText.h2, "mt-2")}>{CONFIDENTIAL.heading}</h2>
@@ -266,8 +267,8 @@ export function HomeConfidential() {
  */
 export function HomeFormats() {
 	return (
-		<section className="border-t border-border">
-			<div className="px-6 pt-10 pb-8 md:px-10 md:pt-40">
+		<section className={cn("border-t border-border", sectionSpacing.foot)}>
+			<div className={cn("px-6 pb-8 md:px-10", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>Artifacts</p>
 				<p className={cn(siteText.h2, "mt-2")}>Twelve things one set of sources can become</p>
 			</div>
