@@ -10,7 +10,7 @@ export function AirGapDiorama() {
 	return (
 		<div
 			aria-hidden="true"
-			className="w-full select-none [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:overflow-visible"
+			className="mx-auto w-full select-none lg:mx-0 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:overflow-visible"
 		>
 			<AirGapDioramaSvg />
 		</div>

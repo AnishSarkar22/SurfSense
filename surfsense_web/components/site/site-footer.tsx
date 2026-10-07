@@ -61,7 +61,7 @@ export function SiteFooter() {
 			{/* The content column and the sections' gutters, so the card's edges line up
 			    with every section's content while the image behind runs full width. */}
 			<div className="mx-auto max-w-(--home-max) px-6 pb-16 md:px-10 md:pb-24">
-				<div className="rounded-3xl bg-card px-6 py-10 shadow-xl md:px-14 md:py-14">
+				<div className="rounded-3xl bg-card px-6 py-11 shadow-xl md:px-14 md:py-16">
 					<div className="grid gap-10 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] lg:gap-8">
 						<div>
 							<Link href="/" className="inline-flex items-center gap-1.5 select-none">
@@ -108,7 +108,7 @@ export function SiteFooter() {
 						</div>
 					</div>
 
-					<div className="mt-12 flex flex-col-reverse gap-6 border-t border-border pt-8 sm:flex-row sm:items-center sm:justify-between">
+					<div className="mt-14 flex flex-col-reverse gap-6 border-t border-border pt-9 sm:flex-row sm:items-center sm:justify-between">
 						<p className="text-sm text-muted-foreground">
 							&copy; SurfSense {new Date().getFullYear()}. Free and open source.
 						</p>

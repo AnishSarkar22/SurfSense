@@ -24,6 +24,14 @@
 	--home-max: 80rem;
 }
 
+/* Big monitors: the marketing site scales up as one piece. Nearly every size
+ * here is in rem (column, gutters, nav, type, spacing), so growing the root
+ * grows them together. Exactly 100% up to 1920px, so no screen at or below it
+ * changes; then +4px of root per 640px of width, capped at 125% (2560px). */
+html:has(.ss-home) {
+	font-size: clamp(100%, calc(100% + (100vw - 120rem) * 0.00625), 125%);
+}
+
 .ss-home {
 	--app-shell: #f3f2ee;
 	--background: #f7f6f2;
