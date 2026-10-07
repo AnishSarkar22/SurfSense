@@ -5,16 +5,16 @@ import {
 	type Cell,
 	COMPARE_ROWS,
 	CONFIDENTIAL,
-	DOWNLOADS_URL,
 	FORMATS,
 	type IllustratedCell,
 	ON_YOUR_MACHINE,
 	PILLARS,
 } from "@/components/homepage/home/home-content";
+import { HomeDownloadButton } from "@/components/homepage/home/home-download-button";
 import { HomeFeaturesTabs } from "@/components/homepage/home/home-features-tabs";
 import { HomeFormatCell } from "@/components/homepage/home/home-format-cell";
+import { HomeScene } from "@/components/homepage/home/home-scene";
 import { siteText } from "@/components/site/site-text";
-import { FlowButton } from "@/components/ui/flow-button";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
@@ -42,18 +42,29 @@ import { cn } from "@/lib/utils";
 
 export function HomeHero() {
 	return (
-		<section className="px-6 py-20 md:px-10 md:py-28">
-			<div className="mx-auto max-w-4xl text-center">
-				<HomeAnnouncement />
-				<h1 className={siteText.display}>
-					Air-gapped, open source <span className="text-primary">NotebookLM alternative</span>
-				</h1>
-				<p className={cn(siteText.lede, "mx-auto mt-8 max-w-2xl")}>
-					A private research notebook that runs entirely on your own machine. Your documents, your
-					model keys, no cloud, no account.
-				</p>
-				<div className="mt-10 flex justify-center">
-					<FlowButton href={DOWNLOADS_URL} text="Download for desktop" />
+		// Full bleed, and pulled up under the sticky nav (`-mt-18` is the nav's
+		// height) so the scene starts at the top edge of the page. Copy sits in
+		// the sky, where the wash keeps white text readable.
+		<section className="-mt-18">
+			<div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-6 pt-32 pb-24 text-center">
+				<HomeScene priority />
+				<div
+					aria-hidden="true"
+					className="absolute inset-0 bg-linear-to-b from-black/45 via-black/20 to-transparent"
+				/>
+
+				<div className="relative mx-auto max-w-4xl">
+					<HomeAnnouncement />
+					<h1 className={cn(siteText.display, "text-white")}>
+						Air-gapped, open source NotebookLM alternative
+					</h1>
+					<p className="mx-auto mt-8 max-w-2xl text-base leading-relaxed text-pretty text-white/85 md:text-lg lg:text-xl">
+						A private research notebook that runs entirely on your own machine. Your documents, your
+						model keys, no cloud, no account.
+					</p>
+					<div className="mt-10 flex justify-center">
+						<HomeDownloadButton />
+					</div>
 				</div>
 			</div>
 		</section>

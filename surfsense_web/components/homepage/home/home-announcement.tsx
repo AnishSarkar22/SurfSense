@@ -22,9 +22,9 @@ export function HomeAnnouncement() {
 		<div className="mb-8 flex justify-center">
 			<Link
 				href={ANNOUNCEMENT.href}
-				className="group inline-flex items-center gap-2 rounded-full border border-(--notice)/20 bg-(--notice)/5 py-1 pr-3 pl-1 shadow-xs transition-colors duration-150 hover:border-(--notice)/40 hover:bg-(--notice)/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+				className="group inline-flex items-center gap-2 rounded-full border border-white/40 bg-card/90 backdrop-blur-sm py-0.75 pr-3.5 pl-0.75 shadow-xs transition-colors duration-150 hover:bg-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 			>
-				<span className="rounded-full bg-(--notice) px-2.5 py-1 text-[11px] leading-none font-semibold text-primary-foreground">
+				<span className="rounded-full bg-(--notice) px-3 py-2 text-xs leading-none font-semibold text-primary-foreground">
 					{ANNOUNCEMENT.tag}
 				</span>
 				<span className="text-xs font-medium text-foreground/80">{ANNOUNCEMENT.text}</span>
