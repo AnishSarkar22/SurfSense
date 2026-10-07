@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HomeAnnouncement } from "@/components/homepage/home/home-announcement";
 import { HomeArtifactIllustration } from "@/components/homepage/home/home-artifact-illustration";
 import {
 	type Cell,
@@ -43,6 +44,7 @@ export function HomeHero() {
 	return (
 		<section className="px-6 py-20 md:px-10 md:py-28">
 			<div className="mx-auto max-w-4xl text-center">
+				<HomeAnnouncement />
 				<h1 className={siteText.display}>
 					Air-gapped, open source <span className="text-primary">NotebookLM alternative</span>
 				</h1>

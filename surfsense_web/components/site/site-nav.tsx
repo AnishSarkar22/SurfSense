@@ -4,7 +4,6 @@ import { IconChevronDown } from "@tabler/icons-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { TopAnnouncementBar } from "@/components/homepage/top-announcement-bar";
 import { DOWNLOADS_URL, NAV_LINKS, NAV_RESOURCES } from "@/components/site/site-content";
 import { SiteStars } from "@/components/site/site-stars";
 import { siteText } from "@/components/site/site-text";
@@ -123,10 +122,6 @@ export function SiteNav({ starCount, starsHref }: { starCount: number | null; st
 
 	return (
 		<>
-			{/* Outside the sticky header, so it scrolls away and only the floating
-			    bar stays pinned. */}
-			<TopAnnouncementBar />
-
 			<header ref={headerRef} className="ss-home-nav sticky top-0 z-50 px-6 py-3 md:px-10">
 				{/* Equal side columns keep the links on the bar's true center. */}
 				<div className="relative z-1 mx-auto grid h-12 w-full max-w-5xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 rounded-2xl bg-card pr-1.5 pl-3 shadow-(--nav-surface)">
