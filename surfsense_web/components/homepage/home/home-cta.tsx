@@ -15,7 +15,8 @@ export function HomeCta() {
 	return (
 		<section className="px-6 py-16 md:px-10 md:py-24">
 			<div className="relative mx-auto flex min-h-[28rem] max-w-6xl flex-col items-center overflow-hidden rounded-3xl px-6 pt-16 text-center md:min-h-[34rem] md:pt-20">
-				<HomeScene />
+				{/* Twice the box's 34rem max height, the cover width on narrow screens. */}
+				<HomeScene sizes="max(100vw, 68rem)" />
 				{/* The sky is light behind the copy; a wash from the top keeps white
 				    text above 4.5:1 without darkening the meadow below. */}
 				<div

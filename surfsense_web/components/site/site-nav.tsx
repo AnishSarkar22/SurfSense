@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { DOWNLOADS_URL, NAV_LINKS, NAV_RESOURCES } from "@/components/site/site-content";
 import { SiteStars } from "@/components/site/site-stars";
 import { siteText } from "@/components/site/site-text";
-import { ArrowRightIcon } from "@/components/ui/icons";
+import { ArrowRightIcon, MenuTwoLineIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -123,8 +123,15 @@ export function SiteNav({ starCount, starsHref }: { starCount: number | null; st
 	return (
 		<>
 			<header ref={headerRef} className="ss-home-nav sticky top-0 z-50 px-6 py-3 md:px-10">
+				<div aria-hidden="true" className="ss-home-nav-blur">
+					<span />
+					<span />
+					<span />
+					<span />
+				</div>
+
 				{/* Equal side columns keep the links on the bar's true center. */}
-				<div className="relative z-1 mx-auto grid h-12 w-full max-w-5xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 rounded-2xl bg-card pr-1.5 pl-3 shadow-(--nav-surface)">
+				<div className="relative z-1 mx-auto grid h-14 w-full max-w-5xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-4 rounded-2xl bg-card pr-4 pl-3 shadow-(--nav-surface)">
 					<Wordmark />
 
 					<nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
@@ -151,7 +158,7 @@ export function SiteNav({ starCount, starsHref }: { starCount: number | null; st
 							</button>
 
 							{resourcesOpen ? (
-								<div className="absolute top-full left-1/2 mt-5 w-64 -translate-x-1/2 rounded-xl bg-popover p-1.5 text-popover-foreground shadow-(--nav-surface)">
+								<div className="absolute top-full left-1/2 mt-7 w-64 -translate-x-1/2 rounded-xl bg-popover p-1.5 text-popover-foreground shadow-(--nav-surface)">
 									{NAV_RESOURCES.map((item) => (
 										<Link
 											key={item.href}
@@ -187,19 +194,7 @@ export function SiteNav({ starCount, starsHref }: { starCount: number | null; st
 						>
 							{/* One icon whose bars morph between menu and close, rather than
 							    two icons swapped in a single frame. */}
-							<svg
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth={2}
-								strokeLinecap="round"
-								aria-hidden="true"
-								className="ss-home-nav-burger size-4"
-							>
-								<line x1="4" y1="6" x2="20" y2="6" />
-								<line x1="4" y1="12" x2="20" y2="12" />
-								<line x1="4" y1="18" x2="20" y2="18" />
-							</svg>
+							<MenuTwoLineIcon aria-hidden="true" className="ss-home-nav-burger size-4" />
 						</button>
 					</div>
 				</div>
@@ -225,7 +220,7 @@ export function SiteNav({ starCount, starsHref }: { starCount: number | null; st
 					data-state={menuOpen ? "open" : "closed"}
 					inert={!menuOpen}
 					data-lenis-prevent
-					className="ss-home-nav-drawer absolute inset-x-6 top-full z-1 mx-auto max-h-[calc(100dvh-5.5rem)] max-w-5xl overflow-y-auto overscroll-contain rounded-2xl bg-card p-2 shadow-(--nav-surface) md:inset-x-10 lg:hidden"
+					className="ss-home-nav-drawer absolute inset-x-6 top-full z-1 mx-auto max-h-[calc(100dvh-6rem)] max-w-5xl overflow-y-auto overscroll-contain rounded-2xl bg-card p-2 shadow-(--nav-surface) md:inset-x-10 lg:hidden"
 				>
 					<div className="flex flex-col gap-0.5">
 						{NAV_LINKS.map((link) => (

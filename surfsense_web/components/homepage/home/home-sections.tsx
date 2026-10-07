@@ -42,15 +42,23 @@ import { cn } from "@/lib/utils";
 
 export function HomeHero() {
 	return (
-		// Full bleed, and pulled up under the sticky nav (`-mt-18` is the nav's
+		// Full bleed, and pulled up under the sticky nav (`-mt-20` is the nav's
 		// height) so the scene starts at the top edge of the page. Copy sits in
 		// the sky, where the wash keeps white text readable.
-		<section className="-mt-18">
-			<div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-6 pt-32 pb-24 text-center">
-				<HomeScene priority />
+		<section className="-mt-20">
+			<div className="relative flex min-h-[calc(100svh+4rem)] flex-col items-center justify-center overflow-hidden px-6 pt-32 pb-40 text-center">
+				{/* Twice the hero's height, the cover width on portrait screens. */}
+				<HomeScene priority sizes="max(100vw, calc(200vh + 8rem))" />
 				<div
 					aria-hidden="true"
 					className="absolute inset-0 bg-linear-to-b from-black/45 via-black/20 to-transparent"
+				/>
+				{/* Dissolves the scene into the page. It sits in the 4rem the hero runs
+				    past the fold (pb-40 offsets it so the copy stays centred), so the
+				    first screen shows no fade. */}
+				<div
+					aria-hidden="true"
+					className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-b from-transparent to-background"
 				/>
 
 				<div className="relative mx-auto max-w-4xl">

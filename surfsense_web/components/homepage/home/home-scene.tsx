@@ -8,15 +8,18 @@ import heroScene from "@/components/homepage/home/home-hero-scene.webp";
  * `next/image` serves AVIF or WebP at the width each screen needs, from the
  * 3104px master, and inlines a tiny blurred preview so the scene shows before
  * the image arrives. Quality 85: at 75 the dither dots start to smudge.
+ *
+ * `sizes` is the width the scene is drawn at, not the box width: the 2:1 image
+ * covers its box, so in a tall box it renders twice the box height wide.
  */
-export function HomeScene({ priority = false }: { priority?: boolean }) {
+export function HomeScene({ sizes, priority = false }: { sizes: string; priority?: boolean }) {
 	return (
 		<Image
 			src={heroScene}
 			alt=""
 			fill
 			priority={priority}
-			sizes="100vw"
+			sizes={sizes}
 			quality={85}
 			placeholder="blur"
 			draggable={false}

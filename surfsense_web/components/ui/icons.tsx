@@ -17,6 +17,7 @@ import {
 	Key01Icon as Key01IconData,
 	LinkSquare02Icon as LinkSquare02IconData,
 	Megaphone01Icon as Megaphone01IconData,
+	MenuTwoLineIcon as MenuTwoLineIconData,
 	NetworkIcon as NetworkIconData,
 	Notification03Icon as Notification03IconData,
 	Pdf01Icon as Pdf01IconData,
@@ -88,6 +89,7 @@ export const Image01Icon = createIcon(Image01IconData);
 export const Key01Icon = createIcon(Key01IconData);
 export const LinkSquare02Icon = createIcon(LinkSquare02IconData);
 export const Megaphone01Icon = createIcon(Megaphone01IconData);
+export const MenuTwoLineIcon = createIcon(MenuTwoLineIconData);
 export const NetworkIcon = createIcon(NetworkIconData);
 export const Notification03Icon = createIcon(Notification03IconData);
 export const Pdf01Icon = createIcon(Pdf01IconData);
