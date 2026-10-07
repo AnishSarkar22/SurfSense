@@ -440,38 +440,32 @@
 	 * The current claim (`data-active`, set from scroll) lights its objects in
 	 * the diorama: they turn blue, lift a few pixels off their shadows and a
 	 * glow comes up under them, while the other steps' objects step back. The laptop and the
-	 * slab belong to no step and never dim.
+	 * slab belong to no step and never dim. Hooks are `data-dio` attributes,
+	 * not classes: SVGR's SVGO prefixes class names inside the SVG.
 	 * ---------------------------------------------------------------------- */
 
-	.ss-dio {
-		display: block;
-		width: 100%;
-		height: auto;
-		overflow: visible;
-	}
-
-	.ss-dio-obj {
+	[data-dio="obj"] {
 		opacity: 0.6;
 		transition:
 			opacity 300ms ease-out,
 			transform 300ms cubic-bezier(0.2, 0, 0, 1);
 	}
 
-	.ss-dio-glow {
+	[data-dio="glow"] {
 		opacity: 0;
 		transition: opacity 400ms ease-out;
 	}
 
 	/* Each step's objects also carry a blue copy over the stone one; the
 	 * active step fades it in, matching its claim's blue badge. */
-	.ss-dio-accent {
+	[data-dio="accent"] {
 		opacity: 0;
 		transition: opacity 300ms ease-out;
 	}
 
-	.ss-airgap-root[data-active="index"] [data-group="index"] .ss-dio-accent,
-	.ss-airgap-root[data-active="model"] [data-group="model"] .ss-dio-accent,
-	.ss-airgap-root[data-active="outputs"] [data-group="outputs"] .ss-dio-accent {
+	.ss-airgap-root[data-active="index"] [data-group="index"] [data-dio="accent"],
+	.ss-airgap-root[data-active="model"] [data-group="model"] [data-dio="accent"],
+	.ss-airgap-root[data-active="outputs"] [data-group="outputs"] [data-dio="accent"] {
 		opacity: 1;
 	}
 
