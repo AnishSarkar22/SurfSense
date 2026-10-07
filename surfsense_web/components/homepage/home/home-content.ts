@@ -70,8 +70,8 @@ export type Cell = {
 	body: string;
 };
 
-/** Which bento cells in `ON_YOUR_MACHINE` carry a designed SVG illustration. */
-export type IllustratedCell = "no-cloud" | "local-key" | "artifacts";
+/** The node in the air-gap diagram that each `ON_YOUR_MACHINE` claim annotates. */
+export type AirGapNode = "index" | "model" | "outputs";
 
 export type Action = {
 	label: string;
@@ -88,21 +88,21 @@ export type Action = {
  * more often someone handling a client's material than a student
  * (`plans/community-local/seo/07-what-users-do.md`).
  */
-export const ON_YOUR_MACHINE: (Cell & { illustration?: IllustratedCell })[] = [
+export const ON_YOUR_MACHINE: (Cell & { node: AirGapNode })[] = [
 	{
 		title: "No cloud in the loop",
 		body: "The index is a file on your disk, not a row in someone else's database. Pull the network cable and it keeps answering questions about the sources you already added. That matters most when the source is a case file or a client's ledger.",
-		illustration: "no-cloud",
+		node: "index",
 	},
 	{
 		title: "Local model or your own key",
 		body: "Use SurfSense with a local model, or paste a key for a provider you already pay for. The key stays on the machine that uses it.",
-		illustration: "local-key",
+		node: "model",
 	},
 	{
 		title: "Sources become deliverables",
 		body: "Turn what you have indexed into a deck, a report, a briefing or a study guide, generated and stored in the same local database as everything else.",
-		illustration: "artifacts",
+		node: "outputs",
 	},
 ];
 

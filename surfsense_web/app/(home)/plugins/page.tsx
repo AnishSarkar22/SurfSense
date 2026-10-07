@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HomeBadge } from "@/components/homepage/home/home-badge";
 import { AmazonLogo } from "@/components/homepage/icons/amazon-logo";
 import { GoogleMapsLogo } from "@/components/homepage/icons/google-maps-logo";
 import { GoogleSearchLogo } from "@/components/homepage/icons/google-search-logo";
@@ -11,7 +12,6 @@ import { WalmartLogo } from "@/components/homepage/icons/walmart-logo";
 import { WebCrawlLogo } from "@/components/homepage/icons/web-crawl-logo";
 import { YoutubeLogo } from "@/components/homepage/icons/youtube-logo";
 import { siteText } from "@/components/site/site-text";
-import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight01Icon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
@@ -87,9 +87,7 @@ export default function PluginsPage() {
 		<>
 			<section className="px-6 py-20 md:px-10 md:py-28">
 				<div className="mx-auto max-w-3xl text-center">
-					<Badge variant="secondary" className="rounded-full px-3 py-1">
-						Coming soon
-					</Badge>
+					<HomeBadge>Coming soon</HomeBadge>
 					<h1 className={cn(siteText.display, "mt-4")}>
 						Plugins for the platforms your <span className="text-primary">answers live on</span>
 					</h1>

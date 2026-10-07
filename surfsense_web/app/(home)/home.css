@@ -43,6 +43,8 @@
 	--destructive: #dc2626;
 	--destructive-foreground: #ffffff;
 	--notice: #3f74c8;
+	/* `HomeBadge` fill: cool grey that still reads on the warm ground. */
+	--home-badge: #e8eaed;
 	--border: #dedede;
 	/* Dividers inside one group, as opposed to `--border` between sections. */
 	--home-divider: color-mix(in oklab, var(--border) 90%, black);
@@ -430,6 +432,84 @@
 
 	.ss-home-marquee:hover {
 		animation-play-state: paused;
+	}
+
+	/* -------------------------------------------------------------------------
+	 * Air-gap diorama (`AirGapDiagram`)
+	 *
+	 * The current claim (`data-active`, set from scroll) lights its objects in
+	 * the diorama: they turn blue, lift a few pixels off their shadows and a
+	 * glow comes up under them, while the other steps' objects step back. The laptop and the
+	 * slab belong to no step and never dim.
+	 * ---------------------------------------------------------------------- */
+
+	.ss-dio {
+		display: block;
+		width: 100%;
+		height: auto;
+		overflow: visible;
+	}
+
+	.ss-dio-obj {
+		opacity: 0.6;
+		transition:
+			opacity 300ms ease-out,
+			transform 300ms cubic-bezier(0.2, 0, 0, 1);
+	}
+
+	.ss-dio-glow {
+		opacity: 0;
+		transition: opacity 400ms ease-out;
+	}
+
+	/* Each step's objects also carry a blue copy over the stone one; the
+	 * active step fades it in, matching its claim's blue badge. */
+	.ss-dio-accent {
+		opacity: 0;
+		transition: opacity 300ms ease-out;
+	}
+
+	.ss-airgap-root[data-active="index"] [data-group="index"] .ss-dio-accent,
+	.ss-airgap-root[data-active="model"] [data-group="model"] .ss-dio-accent,
+	.ss-airgap-root[data-active="outputs"] [data-group="outputs"] .ss-dio-accent {
+		opacity: 1;
+	}
+
+	.ss-airgap-root[data-active="index"] [data-group="index"],
+	.ss-airgap-root[data-active="model"] [data-group="model"],
+	.ss-airgap-root[data-active="outputs"] [data-group="outputs"] {
+		opacity: 1;
+		transform: translateY(-4px);
+	}
+
+	.ss-airgap-root[data-active="index"] [data-glow="index"],
+	.ss-airgap-root[data-active="model"] [data-glow="model"],
+	.ss-airgap-root[data-active="outputs"] [data-glow="outputs"] {
+		opacity: 0.7;
+	}
+
+	.ss-airgap-step {
+		background-color: var(--foreground);
+		color: var(--background);
+		transition: background-color 200ms ease-out;
+	}
+
+	/* The other two claims step back while one is current. */
+	.ss-airgap-claim {
+		opacity: 0.45;
+		transition: opacity 300ms ease-out;
+	}
+
+	.ss-airgap-root[data-active="index"] [data-claim="index"],
+	.ss-airgap-root[data-active="model"] [data-claim="model"],
+	.ss-airgap-root[data-active="outputs"] [data-claim="outputs"] {
+		opacity: 1;
+	}
+
+	.ss-airgap-root[data-active="index"] [data-claim="index"] .ss-airgap-step,
+	.ss-airgap-root[data-active="model"] [data-claim="model"] .ss-airgap-step,
+	.ss-airgap-root[data-active="outputs"] [data-claim="outputs"] .ss-airgap-step {
+		background-color: var(--notice);
 	}
 }
 

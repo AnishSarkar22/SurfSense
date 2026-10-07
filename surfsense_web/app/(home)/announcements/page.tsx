@@ -3,8 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
+import { HomeBadge } from "@/components/homepage/home/home-badge";
 import { siteText } from "@/components/site/site-text";
-import { Badge } from "@/components/ui/badge";
 import { LinkSquare02Icon, Notification03Icon } from "@/components/ui/icons";
 import type { AnnouncementCategory } from "@/contracts/types/announcement.types";
 import { type AnnouncementWithState, useAnnouncements } from "@/hooks/use-announcements";
@@ -36,14 +36,8 @@ function AnnouncementRow({ announcement }: { announcement: AnnouncementWithState
 		<article className="px-6 py-8 md:px-10 flex flex-col gap-4 md:flex-row md:gap-8">
 			<div className="flex h-min shrink-0 flex-col items-start gap-3 md:w-48 md:sticky md:top-24">
 				<time className={siteText.eyebrow}>{formatRelativeDate(announcement.date)}</time>
-				<Badge variant="secondary" className="rounded-full px-3 py-1">
-					{config.label}
-				</Badge>
-				{announcement.isImportant && (
-					<Badge variant="secondary" className="rounded-full px-3 py-1">
-						Important
-					</Badge>
-				)}
+				<HomeBadge>{config.label}</HomeBadge>
+				{announcement.isImportant && <HomeBadge>Important</HomeBadge>}
 			</div>
 
 			<div className="flex min-w-0 max-w-2xl flex-1 flex-col">

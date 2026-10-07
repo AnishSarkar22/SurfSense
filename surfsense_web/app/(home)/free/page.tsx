@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HomeBadge } from "@/components/homepage/home/home-badge";
 import { HomeButton } from "@/components/homepage/home/home-button";
 import { FAQJsonLd, JsonLd } from "@/components/seo/json-ld";
 import { SiteFaqItem } from "@/components/site/site-faq-item";
 import { siteText } from "@/components/site/site-text";
-import { Badge } from "@/components/ui/badge";
 import { LinkSquare02Icon } from "@/components/ui/icons";
 import { ACCESS_LABEL, FREE_MODELS } from "@/lib/free-models";
 import { cn } from "@/lib/utils";
@@ -184,18 +184,10 @@ export default function FreeHubPage() {
 						model and start chatting instantly.
 					</p>
 					<div className="mt-10 flex flex-wrap items-center justify-center gap-2">
-						<Badge variant="secondary" className="rounded-full px-3 py-1">
-							No login required
-						</Badge>
-						<Badge variant="secondary" className="rounded-full px-3 py-1">
-							500K free tokens
-						</Badge>
-						<Badge variant="secondary" className="rounded-full px-3 py-1">
-							{FREE_MODELS.length} AI models
-						</Badge>
-						<Badge variant="secondary" className="rounded-full px-3 py-1">
-							Open source
-						</Badge>
+						<HomeBadge>No login required</HomeBadge>
+						<HomeBadge>500K free tokens</HomeBadge>
+						<HomeBadge>{FREE_MODELS.length} AI models</HomeBadge>
+						<HomeBadge>Open source</HomeBadge>
 					</div>
 				</div>
 			</section>

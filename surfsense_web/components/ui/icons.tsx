@@ -9,12 +9,15 @@ import {
 	CheckIcon as CheckIconData,
 	ChevronDownIcon as ChevronDownIconData,
 	ChevronRightIcon as ChevronRightIconData,
+	ChipIcon as ChipIconData,
+	CloudIcon as CloudIconData,
 	ComputerTerminal01Icon as ComputerTerminal01IconData,
 	Database01Icon as Database01IconData,
 	DownloadIcon as DownloadIconData,
 	File02Icon as File02IconData,
 	Image01Icon as Image01IconData,
 	Key01Icon as Key01IconData,
+	LaptopIcon as LaptopIconData,
 	LinkSquare02Icon as LinkSquare02IconData,
 	Megaphone01Icon as Megaphone01IconData,
 	MenuTwoLineIcon as MenuTwoLineIconData,
@@ -32,6 +35,7 @@ import {
 	ViewIcon as ViewIconData,
 	ViewOffSlashIcon as ViewOffSlashIconData,
 	WebDesign01Icon as WebDesign01IconData,
+	WifiOffIcon as WifiOffIconData,
 	Wrench01Icon as Wrench01IconData,
 	Xls01Icon as Xls01IconData,
 } from "@hugeicons/core-free-icons";
@@ -81,12 +85,15 @@ export const ChartHistogramIcon = createIcon(ChartHistogramIconData);
 export const CheckIcon = createIcon(CheckIconData);
 export const ChevronDownIcon = createIcon(ChevronDownIconData);
 export const ChevronRightIcon = createIcon(ChevronRightIconData);
+export const ChipIcon = createIcon(ChipIconData);
+export const CloudIcon = createIcon(CloudIconData);
 export const ComputerTerminal01Icon = createIcon(ComputerTerminal01IconData);
 export const Database01Icon = createIcon(Database01IconData);
 export const DownloadIcon = createIcon(DownloadIconData);
 export const File02Icon = createIcon(File02IconData);
 export const Image01Icon = createIcon(Image01IconData);
 export const Key01Icon = createIcon(Key01IconData);
+export const LaptopIcon = createIcon(LaptopIconData);
 export const LinkSquare02Icon = createIcon(LinkSquare02IconData);
 export const Megaphone01Icon = createIcon(Megaphone01IconData);
 export const MenuTwoLineIcon = createIcon(MenuTwoLineIconData);
@@ -104,5 +111,6 @@ export const SourceCodeIcon = createIcon(SourceCodeIconData);
 export const ViewIcon = createIcon(ViewIconData);
 export const ViewOffSlashIcon = createIcon(ViewOffSlashIconData);
 export const WebDesign01Icon = createIcon(WebDesign01IconData);
+export const WifiOffIcon = createIcon(WifiOffIconData);
 export const Wrench01Icon = createIcon(Wrench01IconData);
 export const Xls01Icon = createIcon(Xls01IconData);

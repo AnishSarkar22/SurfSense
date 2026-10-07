@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { blog } from "@/.source/server";
+import { HomeBadge } from "@/components/homepage/home/home-badge";
 import { ArticleJsonLd, FAQJsonLd } from "@/components/seo/json-ld";
 import { siteText } from "@/components/site/site-text";
-import { Badge } from "@/components/ui/badge";
 import { extractFaqFromBlogPost } from "@/lib/blog-faq";
 import { formatDate } from "@/lib/utils";
 import { getMDXComponents } from "@/mdx-components";
@@ -119,9 +119,7 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
 					{page.data.tags && page.data.tags.length > 0 && (
 						<div className="flex flex-wrap gap-2">
 							{page.data.tags.map((tag: string) => (
-								<Badge key={tag} variant="secondary" className="rounded-full px-3 py-1">
-									{tag}
-								</Badge>
+								<HomeBadge key={tag}>{tag}</HomeBadge>
 							))}
 						</div>
 					)}

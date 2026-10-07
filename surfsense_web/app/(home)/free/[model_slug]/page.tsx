@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { HomeBadge } from "@/components/homepage/home/home-badge";
 import { HomeButton } from "@/components/homepage/home/home-button";
 import { BreadcrumbNav } from "@/components/seo/breadcrumb-nav";
 import { FAQJsonLd, JsonLd } from "@/components/seo/json-ld";
 import { DOWNLOADS_URL } from "@/components/site/site-content";
 import { SiteFaqItem } from "@/components/site/site-faq-item";
 import { siteText } from "@/components/site/site-text";
-import { Badge } from "@/components/ui/badge";
 import { FlowButton } from "@/components/ui/flow-button";
 import { CheckIcon } from "@/components/ui/icons";
 import { FREE_MODELS, type FreeModel, freeModelLabel, isPublishedSlug } from "@/lib/free-models";
@@ -223,9 +223,7 @@ export default async function FreeModelPage({ params }: PageProps) {
 						/>
 					</div>
 
-					<Badge variant="secondary" className="mt-6 rounded-full px-3 py-1">
-						Hosted chat closed
-					</Badge>
+					<HomeBadge className="mt-6">Hosted chat closed</HomeBadge>
 
 					<h1 className={cn(siteText.display, "mt-4")}>
 						{label} free chat has moved to <span className="text-primary">a free desktop app</span>

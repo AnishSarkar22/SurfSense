@@ -1,13 +1,12 @@
 import Link from "next/link";
+import { AirGapDiagram } from "@/components/homepage/home/home-air-gap/air-gap-diagram";
+import { AirGapScrollSteps } from "@/components/homepage/home/home-air-gap/air-gap-scroll-steps";
 import { HomeAnnouncement } from "@/components/homepage/home/home-announcement";
-import { HomeArtifactIllustration } from "@/components/homepage/home/home-artifact-illustration";
+import { HomeBadge } from "@/components/homepage/home/home-badge";
 import {
-	type Cell,
 	COMPARE_ROWS,
 	CONFIDENTIAL,
 	FORMATS,
-	type IllustratedCell,
-	ON_YOUR_MACHINE,
 	PILLARS,
 } from "@/components/homepage/home/home-content";
 import { HomeDownloadButton } from "@/components/homepage/home/home-download-button";
@@ -80,45 +79,27 @@ export function HomeHero() {
 }
 
 /**
- * A bento cell. `illustration` renders a designed SVG in place of the usual
- * figure — some cells in this grid have something to show rather than only
- * say.
- */
-function BentoCell({ title, body, illustration }: Cell & { illustration?: IllustratedCell }) {
-	return (
-		<div className="relative overflow-hidden px-6 py-8 md:px-10">
-			{illustration ? <HomeArtifactIllustration illustration={illustration} /> : null}
-			<div className="relative">
-				<p className={siteText.h3}>{title}</p>
-				<p className={cn(siteText.body, "mt-1.5 max-w-sm text-sm")}>{body}</p>
-			</div>
-		</div>
-	);
-}
-
-/**
  * H2 #1 — the offline / local / air-gapped claim.
  *
- * A plain heading band, not a fourth cell: the eyebrow-plus-headline pair
- * introduces the row of three bento cells below it rather than sitting beside
- * them as an equal-weight panel, the way `HomePillars` introduces its own row.
+ * Drawn as one system diagram, not a row of cells: `HomePillars` directly
+ * below is already a three-column row, and the diagram shows the air gap
+ * rather than asserting it.
  *
- * The headline is the brief's exact H2 #1 text; `Features` moved up to become
- * the small kicker above it instead of replacing it.
+ * The headline is the brief's exact H2 #1 text; `Features` is the pill above
+ * it instead of replacing it.
  */
 export function HomeOnYourMachine() {
 	return (
 		<section>
-			<div className="px-6 pt-10 pb-8 md:px-10 md:pt-40">
-				<p className={siteText.eyebrow}>Features</p>
-				<h2 className={cn(siteText.h2, "mt-2")}>Runs entirely on your machine</h2>
-			</div>
-
-			<div className="ss-home-grid ss-home-grid-dashed md:grid-cols-3">
-				{ON_YOUR_MACHINE.map((cell) => (
-					<BentoCell key={cell.title} {...cell} />
-				))}
-			</div>
+			{/* On lg the whole frame pins for one screen (pt-20 clears the nav) and
+			    only the diagram changes as you scroll; below lg it flows normally. */}
+			<AirGapScrollSteps className="px-6 pt-10 pb-16 md:px-10 md:pt-24 lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col lg:justify-center lg:pt-20 lg:pb-0">
+				<div className="text-center">
+					<HomeBadge>Features</HomeBadge>
+					<h2 className={cn(siteText.h2, "mt-4")}>Runs entirely on your machine</h2>
+				</div>
+				<AirGapDiagram className="mt-10 lg:mt-14" />
+			</AirGapScrollSteps>
 		</section>
 	);
 }
