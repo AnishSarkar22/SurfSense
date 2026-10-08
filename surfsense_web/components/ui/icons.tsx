@@ -3,6 +3,7 @@ import {
 	ArrowRightIcon as ArrowRightIconData,
 	ArrowUp02Icon as ArrowUp02IconData,
 	ArrowUpRight01Icon as ArrowUpRight01IconData,
+	Calendar03Icon as Calendar03IconData,
 	Cancel01Icon as Cancel01IconData,
 	Cards01Icon as Cards01IconData,
 	ChartHistogramIcon as ChartHistogramIconData,
@@ -20,6 +21,7 @@ import {
 	Key01Icon as Key01IconData,
 	LaptopIcon as LaptopIconData,
 	LinkSquare02Icon as LinkSquare02IconData,
+	Mail01Icon as Mail01IconData,
 	Megaphone01Icon as Megaphone01IconData,
 	MenuTwoLineIcon as MenuTwoLineIconData,
 	MinusSignIcon as MinusSignIconData,
@@ -82,6 +84,7 @@ export const AiSearchLinesIcon = createIcon(AiSearchLinesIconData);
 export const ArrowRightIcon = createIcon(ArrowRightIconData);
 export const ArrowUp02Icon = createIcon(ArrowUp02IconData);
 export const ArrowUpRight01Icon = createIcon(ArrowUpRight01IconData);
+export const Calendar03Icon = createIcon(Calendar03IconData);
 export const Cancel01Icon = createIcon(Cancel01IconData);
 export const Cards01Icon = createIcon(Cards01IconData);
 export const ChartHistogramIcon = createIcon(ChartHistogramIconData);
@@ -99,6 +102,7 @@ export const Image01Icon = createIcon(Image01IconData);
 export const Key01Icon = createIcon(Key01IconData);
 export const LaptopIcon = createIcon(LaptopIconData);
 export const LinkSquare02Icon = createIcon(LinkSquare02IconData);
+export const Mail01Icon = createIcon(Mail01IconData);
 export const Megaphone01Icon = createIcon(Megaphone01IconData);
 export const MenuTwoLineIcon = createIcon(MenuTwoLineIconData);
 export const MinusSignIcon = createIcon(MinusSignIconData);
