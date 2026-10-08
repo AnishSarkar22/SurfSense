@@ -5,7 +5,6 @@ import { HomeAnnouncement } from "@/components/homepage/home/home-announcement";
 import { HomeBadge } from "@/components/homepage/home/home-badge";
 import { PILLARS } from "@/components/homepage/home/home-content";
 import { HomeDownloadButton } from "@/components/homepage/home/home-download-button";
-import { HomeFeaturesTabs } from "@/components/homepage/home/home-features-tabs";
 import { HomeScene } from "@/components/homepage/home/home-scene";
 import { sectionSpacing } from "@/components/homepage/home/home-section-spacing";
 import { siteText } from "@/components/site/site-text";
@@ -23,8 +22,7 @@ import { cn } from "@/lib/utils";
  * exception: rounded cards with miniatures, in the painted scenes' language.
  * Styled with Tailwind plus the shared `siteText` styles.
  *
- * Mostly server components. `HomeFeaturesTabs` (the claims switcher) lives in
- * its own "use client" module rather than pulling this file across the boundary.
+ * Server components only; sections with client parts live in their own folders.
  *
  * The heading order is not editorial. It is the SEO skeleton from
  * `plans/community-local/seo/02-page-briefs.md`: H1, then eight H2s in a fixed
@@ -141,28 +139,6 @@ export function HomePillars() {
 					</div>
 				))}
 			</div>
-		</section>
-	);
-}
-
-/**
- * H2 #5, #6, #7 — the reference's `Pricing` block: a header, then cells that
- * pair a claim with the concrete things that back it, each ruled off from the
- * next.
- *
- * The band's own headline is a `<p>` styled like an H2, not a real one — the
- * three real H2s the brief wants are each story's own heading, rendered by
- * `HomeFeaturesTabs` below.
- */
-export function HomeFeatures() {
-	return (
-		<section className={sectionSpacing.foot}>
-			<div className={cn("border-b border-border pb-8", sectionSpacing.head)}>
-				<p className={siteText.eyebrow}>What you get</p>
-				<p className={cn(siteText.h2, "mt-2")}>Three things worth knowing before you install</p>
-			</div>
-
-			<HomeFeaturesTabs />
 		</section>
 	);
 }

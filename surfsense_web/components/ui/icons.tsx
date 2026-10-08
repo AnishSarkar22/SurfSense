@@ -33,6 +33,7 @@ import {
 	SecurityCheckIcon as SecurityCheckIconData,
 	ServerStack01Icon as ServerStack01IconData,
 	SourceCodeIcon as SourceCodeIconData,
+	UserCircleIcon as UserCircleIconData,
 	ViewIcon as ViewIconData,
 	ViewOffSlashIcon as ViewOffSlashIconData,
 	WebDesign01Icon as WebDesign01IconData,
@@ -110,6 +111,7 @@ export const Quiz02Icon = createIcon(Quiz02IconData);
 export const SecurityCheckIcon = createIcon(SecurityCheckIconData);
 export const ServerStack01Icon = createIcon(ServerStack01IconData);
 export const SourceCodeIcon = createIcon(SourceCodeIconData);
+export const UserCircleIcon = createIcon(UserCircleIconData);
 export const ViewIcon = createIcon(ViewIconData);
 export const ViewOffSlashIcon = createIcon(ViewOffSlashIconData);
 export const WebDesign01Icon = createIcon(WebDesign01IconData);

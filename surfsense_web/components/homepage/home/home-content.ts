@@ -166,77 +166,71 @@ export const PILLARS: (Cell & { action: Action })[] = [
 ];
 
 /**
- * H2 #5, #6, #7 — each claim paired with the concrete things that back it.
+ * H2 #5, #6, #7 — one row per claim, each held to a line and two points.
  *
- * The proof points are deliberately short and checkable: the reference design
- * runs a claim alongside a ruled list, and a list of adjectives would waste
- * that structure.
+ * The plugins row replaced *Open source, audit it yourself*; its heading keeps
+ * "open source" so the brief's phrase still has an H2. Plugins are not out
+ * yet, so the row says so, as `/plugins` does.
  */
-export const STORIES: {
-	key: "artifacts" | "open" | "private";
+export type FeaturePoint = { title: string; body: string };
+
+export const FEATURES: {
+	key: "artifacts" | "plugins" | "private";
 	heading: string;
-	body: string[];
+	body: string;
+	points: [FeaturePoint, FeaturePoint];
 	action: Action;
 }[] = [
 	{
 		key: "artifacts",
 		heading: "Artifacts: decks, reports, briefings, podcasts",
-		body: [
-			"Every source can become more than an answer: a slide deck, a written report, a two-voice briefing podcast or an infographic. The same builders make a study guide, a flashcard deck and a practice quiz when that is the job instead.",
-			"Every format is generated and stored in the same local database as everything else. No cloud model in the loop, no per-minute fee, no second pass over your data to make them.",
+		body: "Every source can become more than an answer.",
+		points: [
+			{
+				title: "Twelve formats",
+				body: "Slides, reports, podcasts, quizzes and more from one set of sources.",
+			},
+			{
+				title: "Made offline",
+				body: "Generated and stored on your machine, with no per-minute fee.",
+			},
 		],
-		// Not the deliverables page: the "For confidential work" band lower down
-		// already links it, and two links to one page from one screen read as a
-		// mistake. The twelve-format row sits directly below this tab, so the
-		// useful next step here is the installer.
+		// Not the deliverables page: the "For confidential work" band below links it.
 		action: { label: "Download and try them", href: DOWNLOADS_URL },
 	},
 	{
-		key: "open",
-		heading: "Open source, audit it yourself",
-		body: [
-			"Every claim on this page is checkable, because the code that would have to betray it is public. There is no minified bundle phoning home, no closed sync daemon, and no build you cannot reproduce.",
-			"If you want to know what leaves your machine, read the network layer. That is a shorter file than you would expect.",
+		key: "plugins",
+		heading: "Open source, extended by plugins",
+		body: "Each plugin pulls public data from one platform into your notebook. Coming soon.",
+		points: [
+			{
+				title: "More places to search",
+				body: "Reddit, YouTube, Google Maps, Amazon and the open web come first.",
+			},
+			{
+				title: "Open by pull request",
+				body: "Every plugin is code in the public repo, checked like the rest of it.",
+			},
 		],
-		action: { label: "Read the source on GitHub", href: REPO_URL, external: true },
+		action: { label: "See the plugins", href: "/plugins" },
 	},
 	{
 		key: "private",
 		heading: "Private by construction",
-		body: [
-			"Most tools promise privacy as a policy: a commitment about what a company will choose not to do with data it nonetheless holds. A policy can change, and it can be compelled.",
-			"Data that never left your machine cannot be handed over, subpoenaed, breached at a vendor, or repriced. That is a structural guarantee rather than a promise, and it is the only kind that survives a change of owner.",
+		body: "Privacy as a structure, not a policy that can change.",
+		points: [
+			{
+				title: "Nothing to hand over",
+				body: "Data that never left your machine cannot be subpoenaed, breached or repriced.",
+			},
+			{
+				title: "No account, ever",
+				body: "Your index lives in your user folder. Delete the folder and it is gone.",
+			},
 		],
 		action: { label: "Read the compliance notes", href: "/privacy" },
 	},
 ];
-
-export const PROOF_POINTS: Record<(typeof STORIES)[number]["key"], string[]> = {
-	artifacts: [
-		"Editable decks and reports",
-		"Two-voice briefings, synthesised offline",
-		"Infographics and one-page summaries",
-		"Study guides and flashcard decks",
-		"Practice quizzes with citations",
-		"No per-minute generation fee",
-	],
-	open: [
-		"Source public on GitHub",
-		"Reproducible desktop builds",
-		"No telemetry in the binary",
-		"Auditable network layer",
-		"Community issues and PRs",
-		"Apache-licensed",
-	],
-	private: [
-		"No account, ever",
-		"Index stored in your user directory",
-		"Model keys never leave the device",
-		"Works with the network unplugged",
-		"Nothing to subpoena from us",
-		"Delete it by deleting a folder",
-	],
-};
 
 /**
  * H2 #8 — *For confidential work*, added to the brief on 17 Sep 2026.
@@ -252,7 +246,7 @@ export const PROOF_POINTS: Record<(typeof STORIES)[number]["key"], string[]> = {
  */
 export const CONFIDENTIAL: { eyebrow: string; heading: string; body: string; action: Action } = {
 	eyebrow: "For confidential work",
-	heading: "Private AI for business, because the file never moves",
+	heading: "Private AI for business with no vendor in the middle",
 	body: "Lawyers, accountants, consultants and engineers all do the same job with this: a file they are not allowed to upload goes in, and a deck, a report or a briefing comes out. The deliverable is built on the same machine the source sits on, so no vendor ever holds a copy of the contract, the ledger or the inspection report.",
 	action: { label: "Learn more", href: BUSINESS_URL },
 };

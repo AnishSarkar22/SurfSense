@@ -1,15 +1,11 @@
 import type { Metadata } from "next";
 import { HomeCompare } from "@/components/homepage/home/home-compare/home-compare";
 import { HomeConfidential } from "@/components/homepage/home/home-confidential/home-confidential";
+import { HomeFeatures } from "@/components/homepage/home/home-features/home-features";
 import { HomeFormats } from "@/components/homepage/home/home-formats/home-formats";
 import { HomeLogos } from "@/components/homepage/home/home-logos";
 import { HomeQuestions } from "@/components/homepage/home/home-questions";
-import {
-	HomeFeatures,
-	HomeHero,
-	HomeOnYourMachine,
-	HomePillars,
-} from "@/components/homepage/home/home-sections";
+import { HomeHero, HomeOnYourMachine, HomePillars } from "@/components/homepage/home/home-sections";
 import { JsonLd } from "@/components/seo/json-ld";
 
 /**
