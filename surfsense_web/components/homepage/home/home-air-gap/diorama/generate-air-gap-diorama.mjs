@@ -284,52 +284,39 @@ function laptop() {
 	box(-30, 30, -19, -16, 4, 44, M.mid);
 	const S = onLeft(-16);
 	both(quad(S, -27, 7, 27, 41), DARK, OUT, 0.55);
-	const code = [
-		[-24, 37, 10, TONE1],
-		[-24, 33.6, 22, TONE2],
-		[-20, 30.2, 16, TONE3],
-		[-20, 26.8, 26, TONE1],
-		[-16, 23.4, 12, TONE2],
-		[-20, 20, 20, TONE3],
-		[-24, 16.6, 8, TONE1],
-		[-24, 13.2, 18, TONE2],
-	];
-	for (const [u, w, len, c] of code)
+	// A chat, not code: the product is asking questions of your own sources.
+	const bubble = (u0, w0, u1, w1, r, fill) =>
+		both(
+			path(
+				rrect((u0 + u1) / 2, (w0 + w1) / 2, (u1 - u0) / 2, (w1 - w0) / 2, r).map(([u, w]) =>
+					S(u, w)
+				)
+			),
+			fill,
+			fill,
+			0.3
+		);
+	const line = (u0, u1, w, color) =>
 		stroke(
 			seg(S, [
-				[u, w],
-				[u + len, w],
+				[u0, w],
+				[u1, w],
 			]),
-			c,
-			1.1
+			color,
+			1
 		);
-	// </> glyph, lower right of the screen.
-	stroke(
-		seg(S, [
-			[12, 14],
-			[9, 11.5],
-			[12, 9],
-		]),
-		TONE1,
-		0.9
-	);
-	stroke(
-		seg(S, [
-			[19, 14],
-			[22, 11.5],
-			[19, 9],
-		]),
-		TONE1,
-		0.9
-	);
-	stroke(
-		seg(S, [
-			[16.5, 14.5],
-			[14.5, 8.5],
-		]),
-		TONE1,
-		0.9
-	);
+	// Question, right-aligned.
+	bubble(2, 33, 24, 39, 2.2, TONE2);
+	line(5, 20, 36, DARK);
+	// Answer, left-aligned, citing a source.
+	bubble(-24, 16.5, 12, 30.5, 2.2, TONE4);
+	line(-21, 7, 27.5, TONE1);
+	line(-21, 3, 24, TONE1);
+	line(-21, -8, 20, TONE1);
+	bubble(-6, 18.6, 3, 21.4, 1.4, ACCENT.TONE4);
+	// Input bar with its send button.
+	both(path(rrect(0, 11, 24, 2.6, 2.4).map(([u, w]) => S(u, w))), "none", TONE3, 0.5);
+	bubble(19, 9.2, 22.6, 12.8, 1.6, TONE1);
 	emit(`<path d="${quad(S, -27, 7, 27, 41)}" fill="${TONE3}" fill-opacity="0.18"/>`);
 }
 
