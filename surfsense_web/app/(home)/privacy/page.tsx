@@ -145,9 +145,9 @@ export default function PrivacyPolicy() {
 							you enable it, and you can check manually instead.
 						</li>
 						<li>
-							<strong>Model downloads, to registry.ollama.ai and huggingface.co.</strong> Sends the
-							name of the model you asked to download, along with your IP address as any download
-							does. No document content and no prompts are involved.
+							<strong>Model downloads, to huggingface.co.</strong> Sends the name of the model you
+							asked to download, along with your IP address as any download does. No document
+							content and no prompts are involved.
 						</li>
 						<li>
 							<strong>A model provider you configure.</strong> Sends your prompts, excerpts of the

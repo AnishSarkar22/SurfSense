@@ -300,7 +300,7 @@ export default async function FreeModelPage({ params }: PageProps) {
 						<p className={cn(siteText.body, "mt-2 text-sm")}>
 							{runsOffline
 								? "If you want a frontier model for the hard questions, add an OpenAI-compatible connection with your own key and switch between the two per chat."
-								: "The app ships a local catalog it downloads through Ollama, so a Qwen3 model runs on your own hardware for nothing. No key, no account, and it works with the network unplugged."}
+								: "The app ships a local catalog run by the built-in llama.cpp, so a Qwen3 model runs on your own hardware for nothing. No key, no account, and it works with the network unplugged."}
 						</p>
 					</div>
 					<div className="px-6 py-8 md:px-10">

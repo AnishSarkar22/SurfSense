@@ -155,12 +155,12 @@ export const PILLARS: (Cell & { action: Action })[] = [
 	},
 	{
 		title: "Bring your own model",
-		body: "NotebookLM gives you Gemini and nothing else. Here the model is a setting: a local Qwen or Llama through Ollama, or OpenAI, Anthropic and anything OpenAI-compatible.",
+		body: "NotebookLM gives you Gemini and nothing else. Here the model is a setting: a local Qwen or Gemma run by the built-in llama.cpp, or OpenAI, Anthropic and anything OpenAI-compatible.",
 		action: { label: "Supported models", href: "/docs" },
 	},
 	{
 		title: "Install and go: no Docker, no terminal, no GPU",
-		body: "A normal desktop installer for Windows, macOS and Linux. No compose file, no environment variables, no CUDA. Ollama ships in the box; pick a model on first launch and it runs on a laptop CPU.",
+		body: "A normal desktop installer for Windows, macOS and Linux. No compose file, no environment variables, no CUDA. llama.cpp ships in the box; pick a model on first launch and it runs on a laptop CPU.",
 		action: { label: "Download the installer", href: DOWNLOADS_URL },
 	},
 ];
@@ -324,7 +324,7 @@ export const HOME_FAQ = [
 	{
 		question: "Is there an AI I can use without internet?",
 		answer:
-			"Yes. SurfSense installs with Ollama built in, and its one-time setup screen has you pick a small language model that runs on the CPU. Once that one download finishes, you can add documents and ask questions with no network connection. An internet connection is only needed for that initial model download, if you choose a hosted model such as GPT or Claude, or when you download an update.",
+			"Yes. SurfSense installs with llama.cpp built in, and its one-time setup screen has you pick a small language model that runs on the CPU. Once that one download finishes, you can add documents and ask questions with no network connection. An internet connection is only needed for that initial model download, if you choose a hosted model such as GPT or Claude, or when you download an update.",
 	},
 	{
 		question: "Can I run NotebookLM locally?",
