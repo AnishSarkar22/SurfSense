@@ -4,8 +4,9 @@ import { HomeConfidential } from "@/components/homepage/home/home-confidential/h
 import { HomeFeatures } from "@/components/homepage/home/home-features/home-features";
 import { HomeFormats } from "@/components/homepage/home/home-formats/home-formats";
 import { HomeLogos } from "@/components/homepage/home/home-logos";
+import { HomePillars } from "@/components/homepage/home/home-pillars/home-pillars";
 import { HomeQuestions } from "@/components/homepage/home/home-questions";
-import { HomeHero, HomeOnYourMachine, HomePillars } from "@/components/homepage/home/home-sections";
+import { HomeHero, HomeOnYourMachine } from "@/components/homepage/home/home-sections";
 import { JsonLd } from "@/components/seo/json-ld";
 
 /**

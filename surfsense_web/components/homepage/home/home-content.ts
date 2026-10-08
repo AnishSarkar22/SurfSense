@@ -150,17 +150,17 @@ export const FORMATS: Format[] = [
 export const PILLARS: (Cell & { action: Action })[] = [
 	{
 		title: "Self-hosted, no account required",
-		body: "There is no sign-up, no email, no workspace to be invited to. Install it and start; the only identity involved is your operating system user.",
+		body: "No sign-up, no email, no workspace invite. The only identity involved is your computer's own user.",
 		action: { label: "How installation works", href: "/docs" },
 	},
 	{
 		title: "Bring your own model",
-		body: "NotebookLM gives you Gemini and nothing else. Here the model is a setting: a local Qwen or Gemma run by the built-in llama.cpp, or OpenAI, Anthropic and anything OpenAI-compatible.",
+		body: "NotebookLM gives you Gemini only. Here the model is a setting: a local Qwen or Gemma, or OpenAI, Anthropic and anything OpenAI-compatible.",
 		action: { label: "Supported models", href: "/docs" },
 	},
 	{
-		title: "Install and go: no Docker, no terminal, no GPU",
-		body: "A normal desktop installer for Windows, macOS and Linux. No compose file, no environment variables, no CUDA. llama.cpp ships in the box; pick a model on first launch and it runs on a laptop CPU.",
+		title: "Install and start: no Docker, no terminal",
+		body: "A normal installer for Windows, macOS and Linux, with llama.cpp built in. Pick a model on first launch and it runs on your computer.",
 		action: { label: "Download the installer", href: DOWNLOADS_URL },
 	},
 ];

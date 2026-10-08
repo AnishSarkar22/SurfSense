@@ -1,14 +1,10 @@
-import Link from "next/link";
 import { AirGapDiagram } from "@/components/homepage/home/home-air-gap/air-gap-diagram";
 import { AirGapScrollSteps } from "@/components/homepage/home/home-air-gap/air-gap-scroll-steps";
 import { HomeAnnouncement } from "@/components/homepage/home/home-announcement";
 import { HomeBadge } from "@/components/homepage/home/home-badge";
-import { PILLARS } from "@/components/homepage/home/home-content";
 import { HomeDownloadButton } from "@/components/homepage/home/home-download-button";
 import { HomeScene } from "@/components/homepage/home/home-scene";
-import { sectionSpacing } from "@/components/homepage/home/home-section-spacing";
 import { siteText } from "@/components/site/site-text";
-import { ArrowRightIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -92,53 +88,6 @@ export function HomeOnYourMachine() {
 				</div>
 				<AirGapDiagram className="mt-10 lg:mt-14" />
 			</AirGapScrollSteps>
-		</section>
-	);
-}
-
-/**
- * H2 #2, #3, #4 — one ruled row, three arguments.
- *
- * The reference's `Services` cards: a headline, a short body, and a forward
- * link pinned to the bottom of the cell so the three links line up regardless
- * of how long each body runs.
- *
- * The band's own headline is a `<p>` styled like an H2, not a real one — the
- * three real H2s the brief wants are the pillar titles below it, and adding a
- * fourth here would leave the section carrying two.
- */
-export function HomePillars() {
-	return (
-		<section className={cn("border-t border-border", sectionSpacing.foot)}>
-			<div className={cn("pb-8", sectionSpacing.head)}>
-				<p className={siteText.eyebrow}>Why it is different</p>
-				<p className={cn(siteText.h2, "mt-2")}>Three things NotebookLM cannot do</p>
-			</div>
-
-			<div className="ss-home-grid ss-home-grid-dashed md:grid-cols-3">
-				{PILLARS.map((pillar) => (
-					<div key={pillar.title} className="flex flex-col px-6 py-8 md:px-10">
-						<h2 className={siteText.h3}>{pillar.title}</h2>
-						<p className={cn(siteText.body, "mt-2 text-sm")}>{pillar.body}</p>
-						<p className="mt-auto pt-6">
-							{pillar.action.external ? (
-								<a
-									className={siteText.forward}
-									href={pillar.action.href}
-									target="_blank"
-									rel="noreferrer noopener"
-								>
-									{pillar.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
-								</a>
-							) : (
-								<Link className={siteText.forward} href={pillar.action.href}>
-									{pillar.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
-								</Link>
-							)}
-						</p>
-					</div>
-				))}
-			</div>
 		</section>
 	);
 }
