@@ -65,7 +65,8 @@ html:has(.ss-home) {
 	--chart-5: #c9c9c9;
 	--radius: 0.5rem;
 
-	/* Matches `px-6 md:px-10` on the markup; the table's first column reads it. */
+	/* Space between the screen edge and the content column, matching `px-6
+	 * md:px-10` on full-bleed content such as the footer. */
 	--home-gutter: 1.5rem;
 }
 
@@ -95,10 +96,14 @@ html:has(.ss-home) {
 	/* Every top-level section of a page is held to the content column, centred,
 	 * so text, cards, grids and rules line up on every page. A section marked
 	 * `data-bleed` (a full-width image) and the footer, which caps its own
-	 * content, run edge to edge. `:where` keeps it below any utility. */
+	 * content, run edge to edge. `:where` keeps it below any utility.
+	 *
+	 * The gutter sits outside the column, so text, rules, grids and tables all
+	 * share one edge: a section adds no side padding of its own, and only a
+	 * filled or boxed cell pads its text inside it. */
 	.ss-home-page > :where(:not(footer, [data-bleed])) {
-		width: 100%;
-		max-width: var(--home-max);
+		width: calc(100% - 2 * var(--home-gutter));
+		max-width: calc(var(--home-max) - 2 * var(--home-gutter));
 		margin-inline: auto;
 	}
 
@@ -200,8 +205,13 @@ html:has(.ss-home) {
 
 	.ss-home-table th:first-child,
 	.ss-home-table td:first-child {
-		padding-inline-start: var(--home-gutter);
+		padding-inline-start: 0;
 		width: 11rem;
+	}
+
+	.ss-home-table th:last-child,
+	.ss-home-table td:last-child {
+		padding-inline-end: 0;
 	}
 
 	.ss-home-table thead tr,

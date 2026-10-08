@@ -28,13 +28,13 @@ function LogoList({ hidden = false }: { hidden?: boolean }) {
 						src={`/logos/${company.file}`}
 						alt={hidden ? "" : company.title}
 						title={company.title}
-						width={130}
-						height={40}
+						width={200}
+						height={60}
 						loading="lazy"
 						decoding="async"
 						draggable={false}
 						data-light={company.light === true ? "" : undefined}
-						className="h-8 w-auto max-w-36 object-contain opacity-80 grayscale select-none data-light:invert"
+						className="h-9 w-auto max-w-40 object-contain md:h-12 md:max-w-52 opacity-80 grayscale select-none data-light:invert"
 					/>
 				</li>
 			))}
@@ -48,7 +48,7 @@ export function HomeLogos() {
 	// sit in the middle of that sequence.
 	return (
 		<section className="py-16" aria-labelledby="home-logos-label">
-			<div className="relative flex justify-center px-6 md:px-10">
+			<div className="relative flex justify-center">
 				<div aria-hidden="true" className={`absolute inset-x-0 top-1/2 ${FADED_RULE}`} />
 				<p
 					id="home-logos-label"

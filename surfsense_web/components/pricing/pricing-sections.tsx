@@ -52,7 +52,7 @@ function renderFeature(feature: string) {
  */
 export function PricingHero() {
 	return (
-		<section className="px-6 py-20 md:px-10 md:py-28">
+		<section className="py-20 md:py-28">
 			<div className="mx-auto max-w-3xl text-center">
 				<h1 className={siteText.display}>Pricing</h1>
 				<p className={cn(siteText.lede, "mx-auto mt-8 max-w-2xl")}>
@@ -156,7 +156,7 @@ export function PricingPlans() {
 				))}
 			</div>
 
-			<div className="flex flex-col gap-8 border-t border-border px-6 py-8 md:px-10">
+			<div className="flex flex-col gap-8 border-t border-border py-8">
 				<p className={cn(siteText.body, "max-w-4xl text-sm")}>{PLUGIN_NOTE}</p>
 				<p className={cn(siteText.body, "max-w-4xl text-sm")}>
 					{SMALL_GROUP_NOTE}{" "}
@@ -178,14 +178,14 @@ export function PricingPlans() {
 export function PricingQuestions() {
 	return (
 		<section className="border-t border-border" aria-labelledby="ss-pricing-faq-label">
-			<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+			<div className="border-b border-border pt-10 pb-8 md:pt-40">
 				<p className={siteText.eyebrow}>FAQ</p>
 				<h2 id="ss-pricing-faq-label" className={cn(siteText.h2, "mt-2")}>
 					Questions about licences
 				</h2>
 			</div>
 
-			<div className="ss-home-grid border-t border-border">
+			<div className="ss-home-grid">
 				{PRICING_FAQ.map((item) => (
 					<SiteFaqItem key={item.question} question={item.question}>
 						<p className={siteText.body}>{item.answer}</p>

@@ -42,7 +42,7 @@ export const ChangelogTimeline = ({
 }: ChangelogTimelineProps) => {
 	return (
 		<>
-			<section className="py-20 md:py-28 px-6 md:px-10">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-2xl text-center">
 					<h1 className={siteText.display}>{title}</h1>
 					<p className={cn(siteText.lede, "mx-auto mt-6 max-w-xl")}>{description}</p>
@@ -55,7 +55,7 @@ export const ChangelogTimeline = ({
 						<article
 							key={`${entry.version}-${entry.date}`}
 							className={cn(
-								"grid gap-6 px-6 md:px-10 py-10 md:grid-cols-[12rem_1fr] md:gap-10 md:py-12",
+								"grid gap-6 py-10 md:grid-cols-[12rem_1fr] md:gap-10 md:py-12",
 								index > 0 && "border-t border-border"
 							)}
 						>
@@ -105,9 +105,7 @@ export const ChangelogTimeline = ({
 						</article>
 					))
 				) : (
-					<p className={cn(siteText.body, "px-6 md:px-10 py-16 text-center")}>
-						No changelog entries yet.
-					</p>
+					<p className={cn(siteText.body, "py-16 text-center")}>No changelog entries yet.</p>
 				)}
 			</section>
 		</>

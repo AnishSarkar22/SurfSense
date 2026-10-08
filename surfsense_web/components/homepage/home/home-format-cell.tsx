@@ -121,8 +121,8 @@ function placement(index: number, columns: number) {
  * The chrome sits on an outer wrapper and the `CardSpotlight` (components/ui)
  * inside it, because the card is `overflow: hidden` for its spotlight layer
  * and would clip a plus mark hung off its corner. The card's own defaults
- * (`p-10`, `border-neutral-800`) are overridden through `cn`: it keeps the
- * row's gutter padding and draws no border of its own. It is `h-full` because the grid
+ * (`p-10`, `border-neutral-800`) are overridden through `cn`: it keeps its own
+ * inner padding, as a bento cell, and draws no border of its own. It is `h-full` because the grid
  * stretches every wrapper in a row to the tallest one, and a card sized only
  * to its own text would leave a band at the bottom the spotlight never
  * reaches. The content sits at `z-20`, above the card's `z-0` spotlight

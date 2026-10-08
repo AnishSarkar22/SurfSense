@@ -34,7 +34,7 @@ export function GuideSteps({ steps }: { steps: GuideStep[] }) {
 		<ol className="ss-home-grid m-0 list-none p-0">
 			{steps.map((step, index) => (
 				<li key={step.title} className={step.shot ? "ss-home-grid lg:grid-cols-2" : undefined}>
-					<div className="flex flex-col justify-center px-6 py-12 md:px-10 lg:py-16">
+					<div className="flex flex-col justify-center py-12 lg:py-16 lg:pr-10">
 						<span className="font-mono text-xs text-muted-foreground">
 							{String(index + 1).padStart(2, "0")}
 						</span>

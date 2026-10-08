@@ -175,7 +175,7 @@ export default function FreeHubPage() {
 			<FAQJsonLd questions={FAQ_ITEMS} />
 
 			{/* Hero */}
-			<section className="px-6 py-20 md:px-10 md:py-28">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-4xl text-center">
 					<h1 className={siteText.display}>ChatGPT Free Online Without Login</h1>
 					<p className={cn(siteText.lede, "mx-auto mt-8 max-w-2xl")}>
@@ -194,7 +194,7 @@ export default function FreeHubPage() {
 
 			{/* Model Table */}
 			<section className="border-t border-border">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<h2 className={siteText.h2}>Free AI Models Available Without Login</h2>
 					<p className={cn(siteText.body, "mt-3 max-w-2xl text-sm")}>
 						All models below work without login or sign-up. Click any model to start a free AI chat
@@ -251,7 +251,7 @@ export default function FreeHubPage() {
 
 			{/* Why SurfSense */}
 			<section className="border-t border-border">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<h2 className={siteText.h2}>Why Use SurfSense as Your Free ChatGPT Alternative</h2>
 				</div>
 
@@ -284,7 +284,7 @@ export default function FreeHubPage() {
 			</section>
 
 			{/* CTA */}
-			<section className="border-t border-border px-6 py-16 md:px-10">
+			<section className="border-t border-border py-16">
 				<div className="mx-auto max-w-2xl text-center">
 					<h2 className={siteText.h2}>Want More Features?</h2>
 					<p className={cn(siteText.body, "mt-3")}>
@@ -302,7 +302,7 @@ export default function FreeHubPage() {
 
 			{/* FAQ */}
 			<section className="border-t border-border" aria-labelledby="ss-free-faq-label">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<h2 id="ss-free-faq-label" className={siteText.h2}>
 						Frequently Asked Questions
 					</h2>
@@ -318,7 +318,7 @@ export default function FreeHubPage() {
 			</section>
 
 			{/* Internal links */}
-			<nav aria-label="Related pages" className="border-t border-border px-6 py-12 md:px-10">
+			<nav aria-label="Related pages" className="border-t border-border py-12">
 				<h2 className={siteText.h3}>Explore SurfSense</h2>
 				<ul className="mt-4 flex list-none flex-wrap gap-2 p-0">
 					<li>

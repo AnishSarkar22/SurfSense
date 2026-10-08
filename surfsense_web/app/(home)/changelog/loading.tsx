@@ -1,10 +1,10 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** Mirrors `ChangelogTimeline`: a centred hero, then gutter-to-gutter entry rows. */
+/** Mirrors `ChangelogTimeline`: a centred hero, then entry rows on the text edge. */
 export default function ChangelogLoading() {
 	return (
 		<div className="min-h-screen relative pt-20">
-			<div className="px-6 py-20 md:px-10 md:py-28">
+			<div className="py-20 md:py-28">
 				<div className="mx-auto flex max-w-2xl flex-col items-center gap-4">
 					<Skeleton className="h-12 w-64" />
 					<Skeleton className="h-5 w-full max-w-xl" />
@@ -15,7 +15,7 @@ export default function ChangelogLoading() {
 				{Array.from({ length: 3 }).map((_, i) => (
 					<div
 						key={i}
-						className={`grid gap-6 px-6 py-10 md:grid-cols-[12rem_1fr] md:gap-10 md:px-10 md:py-12${i > 0 ? " border-t border-border" : ""}`}
+						className={`grid gap-6 py-10 md:grid-cols-[12rem_1fr] md:gap-10 md:py-12${i > 0 ? " border-t border-border" : ""}`}
 					>
 						<div className="flex flex-col gap-3">
 							<Skeleton className="h-4 w-24" />

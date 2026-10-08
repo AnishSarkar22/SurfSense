@@ -80,7 +80,7 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 	return (
 		<>
 			{/* Hero */}
-			<section className="px-6 py-20 md:px-10 md:py-28">
+			<section className="py-20 md:py-28">
 				<div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
 					<div>
 						<BreadcrumbNav
@@ -111,7 +111,7 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 
 			{/* What you can extract */}
 			<section className="border-t border-border">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<h2 className={siteText.h2}>What you can extract from {content.name}</h2>
 					<p className={cn(siteText.body, "mt-3 max-w-2xl")}>{content.extractIntro}</p>
 				</div>
@@ -130,7 +130,7 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 
 			{/* Use cases */}
 			<section className="border-t border-border">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<h2 className={siteText.h2}>{content.useCasesHeading}</h2>
 				</div>
 				<div className="ss-home-grid sm:grid-cols-2">
@@ -150,7 +150,7 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 			</section>
 
 			{/* API / MCP */}
-			<section className="border-t border-border px-6 py-16 md:px-10">
+			<section className="border-t border-border py-16">
 				<h2 className={cn(siteText.h2, "max-w-2xl")}>Call it from your code or your agent</h2>
 				<p className={cn(siteText.body, "mt-3 max-w-2xl")}>
 					One typed endpoint, one API key. Or add the SurfSense MCP server and let your agent call{" "}
@@ -165,7 +165,7 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 			</section>
 
 			{/* Request / response schema */}
-			<section className="border-t border-border px-6 py-16 md:px-10">
+			<section className="border-t border-border py-16">
 				<h2 className={cn(siteText.h2, "max-w-2xl")}>
 					{content.name} API request and response schema
 				</h2>
@@ -183,24 +183,23 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 
 				<h3 className={cn(siteText.h3, "mt-10")}>Request parameters</h3>
 				<p className={cn(siteText.body, "mt-2 max-w-2xl text-sm")}>{content.schema.requestNote}</p>
-				{/* Bleeds to the section edges: the table pads its first column by the gutter. */}
-				<div className="-mx-6 mt-4 md:-mx-10">
+				<div className="mt-4">
 					<SchemaTable caption="Request parameters" fields={content.schema.request} />
 				</div>
 
 				<h3 className={cn(siteText.h3, "mt-10")}>Response fields</h3>
 				<p className={cn(siteText.body, "mt-2 max-w-2xl text-sm")}>{content.schema.responseNote}</p>
-				<div className="-mx-6 mt-4 md:-mx-10">
+				<div className="mt-4">
 					<SchemaTable caption="Response fields" fields={content.schema.response} />
 				</div>
 			</section>
 
 			{/* Comparison */}
-			<section className="border-t border-border px-6 py-16 md:px-10">
+			<section className="border-t border-border py-16">
 				<h2 className={cn(siteText.h2, "max-w-2xl")}>{content.comparison.heading}</h2>
 				<p className={cn(siteText.body, "mt-3 max-w-2xl")}>{content.comparison.intro}</p>
 				<section
-					className="-mx-6 mt-8 overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring md:-mx-10"
+					className="mt-8 overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
 					aria-label={content.comparison.heading}
 					/* biome-ignore lint/a11y/noNoninteractiveTabindex: a region that scrolls horizontally has to be focusable, or a keyboard-only visitor cannot reach the columns past the fold. The labelled landmark is what makes the focus stop meaningful. */
 					tabIndex={0}
@@ -232,7 +231,7 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 
 			{/* FAQ */}
 			<section className="border-t border-border" aria-labelledby="ss-connector-faq-label">
-				<div className="px-6 pt-12 pb-8 md:px-10">
+				<div className="pt-12 pb-8">
 					<h2
 						id="ss-connector-faq-label"
 						className="text-center text-lg font-medium tracking-tight text-muted-foreground md:text-2xl"
@@ -250,7 +249,7 @@ export function ConnectorPage({ content }: { content: ConnectorPageContent }) {
 			</section>
 
 			{/* Closing CTA + related */}
-			<section className="border-t border-border px-6 py-16 md:px-10">
+			<section className="border-t border-border py-16">
 				<div className="mx-auto max-w-2xl text-center">
 					<h2 className={siteText.h2}>Point your agents at {content.name}</h2>
 					<p className={cn(siteText.body, "mt-3")}>

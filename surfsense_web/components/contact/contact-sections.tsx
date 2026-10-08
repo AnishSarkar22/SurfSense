@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 export function ContactHero() {
 	return (
-		<section className="px-6 py-20 md:px-10 md:py-28">
+		<section className="py-20 md:py-28">
 			<div className="mx-auto max-w-3xl text-center">
 				<h1 className={siteText.display}>
 					Talk to the people who <span className="text-primary">build it</span>
@@ -77,7 +77,7 @@ function ChannelCell({ channel }: { channel: Channel }) {
 export function ContactChannels() {
 	return (
 		<section className="border-t border-border">
-			<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+			<div className="border-b border-border pt-10 pb-8 md:pt-40">
 				<p className={siteText.eyebrow}>Where to write</p>
 				<p className={cn(siteText.body, "mt-2 text-sm")}>
 					Four addresses, each for a different kind of message. A bug report sent to a sales call
@@ -96,7 +96,7 @@ export function ContactChannels() {
 
 export function ContactBugReports() {
 	return (
-		<section className="border-t border-border px-6 md:px-10">
+		<section className="border-t border-border">
 			<div className="flex flex-col justify-center py-12 lg:py-16">
 				<h2 className={siteText.h2}>Reporting something broken</h2>
 				<p className={cn(siteText.body, "mt-6")}>
@@ -130,7 +130,7 @@ export function ContactBugReports() {
  */
 export function ContactEnterprise() {
 	return (
-		<section className="flex flex-col gap-6 border-t border-border px-6 py-12 md:px-10">
+		<section className="flex flex-col gap-6 border-t border-border py-12">
 			<h2 className={cn(siteText.h2, "max-w-3xl")}>Enterprise, volume and procurement</h2>
 			<p className={cn(siteText.body, "max-w-3xl")}>
 				Above 25 seats, or where security review, invoicing and purchase orders are part of the

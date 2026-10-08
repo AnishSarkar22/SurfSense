@@ -148,7 +148,7 @@ const WORKSPACE_PROOF: string[] = [
 export default function PrivateAiForBusinessPage() {
 	return (
 		<>
-			<section className="px-6 py-20 md:px-10 md:py-28">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-4xl text-center">
 					<h1 className={siteText.display}>
 						Turn confidential documents into decks, reports and briefings,{" "}
@@ -173,7 +173,7 @@ export default function PrivateAiForBusinessPage() {
 			</section>
 
 			<section className="border-t border-border">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<p className={siteText.eyebrow}>Who this is for</p>
 					{/* A `<p>` styled like an H2, so the three real H2s in this section
 					    are the professions themselves rather than a fourth heading above
@@ -192,7 +192,7 @@ export default function PrivateAiForBusinessPage() {
 			</section>
 
 			<section className="border-t border-border">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<p className={siteText.eyebrow}>What comes out</p>
 					<p className={cn(siteText.h2, "mt-2")}>One source set, five ways to hand it over</p>
 				</div>
@@ -212,7 +212,7 @@ export default function PrivateAiForBusinessPage() {
 					))}
 				</div>
 
-				<div className="border-t border-border px-6 py-8 md:px-10">
+				<div className="border-t border-border py-8">
 					<p className={cn(siteText.body, "max-w-4xl text-sm")}>
 						Every one of them also exports to PDF. What goes in is the file you already have: PDF,
 						Word, PowerPoint, Excel, HTML, CSV, Markdown, plain text and images.
@@ -255,14 +255,14 @@ export default function PrivateAiForBusinessPage() {
 			    state what is architecturally true and let the reader conclude. Nothing
 			    on this page claims a regulation is satisfied. */}
 			<section className="border-t border-border">
-				<div className="px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="pt-10 pb-8 md:pt-40">
 					<p className={siteText.eyebrow}>Compliance</p>
 					<h2 className={cn(siteText.h2, "mt-2")}>
 						Compliance depends on your controls, not on our software
 					</h2>
 				</div>
 
-				<div className="px-6 pb-12 md:px-10">
+				<div className="pb-12">
 					<div className={cn(siteText.body, "flex max-w-3xl flex-col gap-4")}>
 						<p>
 							Whether a workflow is HIPAA, GDPR or SRA compliant depends on the controls around it,

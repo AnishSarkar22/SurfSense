@@ -95,7 +95,7 @@ const FAQ: { question: string; answer: React.ReactNode }[] = [
 export default function LicensePage() {
 	return (
 		<>
-			<section className="py-20 md:py-28 px-6 md:px-10">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-2xl text-center">
 					<h1 className={siteText.display}>Get your license again</h1>
 					<p className={cn(siteText.lede, "mx-auto mt-6 mb-10 max-w-xl")}>
@@ -115,14 +115,14 @@ export default function LicensePage() {
 			</section>
 
 			<section className="border-t border-border" aria-labelledby="ss-license-faq-label">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<p className={siteText.eyebrow}>FAQ</p>
 					<h2 id="ss-license-faq-label" className={cn(siteText.h2, "mt-2")}>
 						Common questions
 					</h2>
 				</div>
 
-				<div className="ss-home-grid border-t border-border">
+				<div className="ss-home-grid">
 					{FAQ.map((item) => (
 						<SiteFaqItem key={item.question} question={item.question}>
 							<p className={siteText.body}>{item.answer}</p>

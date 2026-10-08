@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function BlogPostLoading() {
 	return (
-		<div className="px-6 md:px-10 pt-16 pb-20">
+		<div className="pt-16 pb-20">
 			<div className="max-w-3xl">
 				{/* Cover image */}
 				<Skeleton className="mb-8 aspect-2/1 w-full rounded-none" />

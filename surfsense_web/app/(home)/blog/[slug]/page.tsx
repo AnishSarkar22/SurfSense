@@ -88,7 +88,7 @@ export default async function BlogPostPage(props: { params: Promise<{ slug: stri
 	const faqEntries = await extractFaqFromBlogPost(slug);
 
 	return (
-		<div className="px-6 md:px-10 pt-16 pb-20">
+		<div className="pt-16 pb-20">
 			<ArticleJsonLd
 				title={page.data.title}
 				description={page.data.description}

@@ -13,7 +13,7 @@ const ROWS = ["a", "b", "c", "d", "e", "f", "g", "h"];
 export default function FreeChatLoading() {
 	return (
 		<>
-			<section className="px-6 py-20 md:px-10 md:py-28">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto flex max-w-4xl flex-col items-center gap-4">
 					<Skeleton className="h-12 w-4/5" />
 					<Skeleton className="h-5 w-full max-w-xl" />
@@ -27,17 +27,14 @@ export default function FreeChatLoading() {
 			</section>
 
 			<section className="border-t border-border">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<Skeleton className="h-8 w-80 max-w-full" />
 					<Skeleton className="mt-3 h-4 w-96 max-w-full" />
 				</div>
 
 				<div>
 					{ROWS.map((row) => (
-						<div
-							key={row}
-							className="flex items-center gap-6 border-b border-border px-6 py-4 md:px-10"
-						>
+						<div key={row} className="flex items-center gap-6 border-b border-border py-4">
 							<Skeleton className="h-4 w-40 shrink-0" />
 							<Skeleton className="h-4 w-24 shrink-0" />
 							<Skeleton className="h-4 w-14 shrink-0" />

@@ -46,16 +46,17 @@ export function HomeHero() {
 		// height) so the scene starts at the top edge of the page. Copy sits in
 		// the sky, where the wash keeps white text readable.
 		<section className="-mt-20" data-bleed>
-			<div className="relative flex min-h-[calc(100svh+4rem)] flex-col items-center justify-center overflow-hidden px-6 pt-32 pb-40 text-center md:px-10">
-				{/* Twice the hero's height, the cover width on portrait screens. */}
-				<HomeScene priority sizes="max(100vw, calc(200vh + 8rem))" />
+			<div className="relative flex min-h-[calc(100svh+4rem)] flex-col items-center justify-center overflow-hidden px-6 pt-32 pb-40 text-center md:px-10 lg:pb-96">
+				{/* 1.73 times the hero's height, the cover width on portrait screens. */}
+				<HomeScene priority sizes="max(100vw, calc(173vh + 7rem))" />
 				<div
 					aria-hidden="true"
 					className="absolute inset-0 bg-linear-to-b from-black/45 via-black/20 to-transparent"
 				/>
 				{/* Dissolves the scene into the page. It sits in the 4rem the hero runs
 				    past the fold (pb-40 offsets it so the copy stays centred), so the
-				    first screen shows no fade. */}
+				    first screen shows no fade. On desktop lg:pb-96 lifts the copy clear
+				    of the dome. */}
 				<div
 					aria-hidden="true"
 					className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-b from-transparent to-background"
@@ -94,7 +95,7 @@ export function HomeOnYourMachine() {
 		<section>
 			{/* On lg the whole frame pins for one screen (pt-20 clears the nav) and
 			    only the diagram changes as you scroll; below lg it flows normally. */}
-			<AirGapScrollSteps className="px-6 pt-10 pb-16 md:px-10 md:pt-24 lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col lg:justify-center lg:pt-20 lg:pb-0">
+			<AirGapScrollSteps className="pt-10 pb-16 md:pt-24 lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col lg:justify-center lg:pt-20 lg:pb-0">
 				<div className="text-center">
 					<HomeBadge>Features</HomeBadge>
 					<h2 className={cn(siteText.h2, "mt-4")}>Runs entirely on your machine</h2>
@@ -119,7 +120,7 @@ export function HomeOnYourMachine() {
 export function HomePillars() {
 	return (
 		<section className={cn("border-t border-border", sectionSpacing.foot)}>
-			<div className={cn("px-6 pb-8 md:px-10", sectionSpacing.head)}>
+			<div className={cn("pb-8", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>Why it is different</p>
 				<p className={cn(siteText.h2, "mt-2")}>Three things NotebookLM cannot do</p>
 			</div>
@@ -164,7 +165,7 @@ export function HomePillars() {
 export function HomeCompare() {
 	return (
 		<section className={cn("border-t border-border", sectionSpacing.foot)}>
-			<div className={cn("border-b border-border px-6 pb-8 md:px-10", sectionSpacing.head)}>
+			<div className={cn("border-b border-border pb-8", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>How it compares</p>
 				<p className={cn(siteText.h2, "mt-2")}>Getting started, compared</p>
 			</div>
@@ -221,7 +222,7 @@ export function HomeCompare() {
 export function HomeFeatures() {
 	return (
 		<section className={cn("border-t border-border", sectionSpacing.foot)}>
-			<div className={cn("border-b border-border px-6 pb-8 md:px-10", sectionSpacing.head)}>
+			<div className={cn("border-b border-border pb-8", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>What you get</p>
 				<p className={cn(siteText.h2, "mt-2")}>Three things worth knowing before you install</p>
 			</div>
@@ -243,17 +244,15 @@ export function HomeFeatures() {
 export function HomeConfidential() {
 	return (
 		<section className={cn("border-t border-border", sectionSpacing.foot)}>
-			<div className={cn("px-6 md:px-10", sectionSpacing.head)}>
-				<div className="max-w-3xl">
-					<p className={siteText.eyebrow}>{CONFIDENTIAL.eyebrow}</p>
-					<h2 className={cn(siteText.h2, "mt-2")}>{CONFIDENTIAL.heading}</h2>
-					<p className={cn(siteText.body, "mt-5")}>{CONFIDENTIAL.body}</p>
-					<p className="mt-6">
-						<Link className={siteText.forward} href={CONFIDENTIAL.action.href}>
-							{CONFIDENTIAL.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
-						</Link>
-					</p>
-				</div>
+			<div className={cn("max-w-3xl", sectionSpacing.head)}>
+				<p className={siteText.eyebrow}>{CONFIDENTIAL.eyebrow}</p>
+				<h2 className={cn(siteText.h2, "mt-2")}>{CONFIDENTIAL.heading}</h2>
+				<p className={cn(siteText.body, "mt-5")}>{CONFIDENTIAL.body}</p>
+				<p className="mt-6">
+					<Link className={siteText.forward} href={CONFIDENTIAL.action.href}>
+						{CONFIDENTIAL.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
+					</Link>
+				</p>
 			</div>
 		</section>
 	);
@@ -268,7 +267,7 @@ export function HomeConfidential() {
 export function HomeFormats() {
 	return (
 		<section className={cn("border-t border-border", sectionSpacing.foot)}>
-			<div className={cn("px-6 pb-8 md:px-10", sectionSpacing.head)}>
+			<div className={cn("pb-8", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>Artifacts</p>
 				<p className={cn(siteText.h2, "mt-2")}>Twelve things one set of sources can become</p>
 			</div>

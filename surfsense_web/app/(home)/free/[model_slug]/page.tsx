@@ -211,7 +211,7 @@ export default async function FreeModelPage({ params }: PageProps) {
 			/>
 			<FAQJsonLd questions={faqItems} />
 
-			<section className="px-6 py-20 md:px-10 md:py-28">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-3xl text-center">
 					<div className="flex justify-center">
 						<BreadcrumbNav
@@ -250,14 +250,14 @@ export default async function FreeModelPage({ params }: PageProps) {
 			</section>
 
 			<section className="border-t border-border">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<p className={siteText.eyebrow}>What changed</p>
 					<h2 className={cn(siteText.h2, "mt-2")}>
 						We stopped running a hosted free tier, not the free version
 					</h2>
 				</div>
 
-				<div className="px-6 py-12 md:px-10">
+				<div className="py-12">
 					<div className={cn(siteText.body, "flex max-w-3xl flex-col gap-4")}>
 						<p>
 							The anonymous chat on this page ran on our servers against a shared token pool. That
@@ -275,7 +275,7 @@ export default async function FreeModelPage({ params }: PageProps) {
 			</section>
 
 			<section className="border-t border-border">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<p className={siteText.eyebrow}>In the app</p>
 					<h2 className={cn(siteText.h2, "mt-2")}>How to run {label} on your own machine</h2>
 				</div>
@@ -345,7 +345,7 @@ export default async function FreeModelPage({ params }: PageProps) {
 			</section>
 
 			<section className="border-t border-border" aria-labelledby="ss-free-model-faq">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<h2 id="ss-free-model-faq" className={siteText.h2}>
 						{label} without login: frequently asked questions
 					</h2>
@@ -360,7 +360,7 @@ export default async function FreeModelPage({ params }: PageProps) {
 				</div>
 			</section>
 
-			<section className="border-t border-border px-6 py-16 md:px-10">
+			<section className="border-t border-border py-16">
 				<div className="mx-auto max-w-2xl text-center">
 					<h2 className={siteText.h2}>Get the app and run {label} locally</h2>
 					<p className={cn(siteText.body, "mt-3")}>
@@ -377,7 +377,7 @@ export default async function FreeModelPage({ params }: PageProps) {
 				</div>
 			</section>
 
-			<nav aria-label="Other AI models" className="border-t border-border px-6 py-12 md:px-10">
+			<nav aria-label="Other AI models" className="border-t border-border py-12">
 				<h2 className={siteText.h3}>Other models you can run locally</h2>
 				<ul className="mt-4 flex list-none flex-wrap gap-2 p-0">
 					{FREE_MODELS.filter((other) => other.slug !== model_slug)

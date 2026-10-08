@@ -33,7 +33,7 @@ function AnnouncementRow({ announcement }: { announcement: AnnouncementWithState
 	const config = categoryConfig[announcement.category] ?? categoryConfig.info;
 
 	return (
-		<article className="px-6 py-8 md:px-10 flex flex-col gap-4 md:flex-row md:gap-8">
+		<article className="py-8 flex flex-col gap-4 md:flex-row md:gap-8">
 			<div className="flex h-min shrink-0 flex-col items-start gap-3 md:w-48 md:sticky md:top-24">
 				<time className={siteText.eyebrow}>{formatRelativeDate(announcement.date)}</time>
 				<HomeBadge>{config.label}</HomeBadge>
@@ -71,7 +71,7 @@ function AnnouncementRow({ announcement }: { announcement: AnnouncementWithState
 
 function EmptyState() {
 	return (
-		<div className="px-6 md:px-10 flex flex-col items-center py-24 text-center">
+		<div className="flex flex-col items-center py-24 text-center">
 			<Notification03Icon className="mb-4 size-8 text-muted-foreground" />
 			<h3 className={siteText.h3}>Nothing new yet</h3>
 			<p className={cn(siteText.body, "mt-2 max-w-xs")}>
@@ -91,7 +91,7 @@ export default function AnnouncementsPage() {
 
 	return (
 		<>
-			<section className="py-20 md:py-28 px-6 md:px-10">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-2xl text-center">
 					<h1 className={siteText.display}>What's New</h1>
 					<p className={cn(siteText.lede, "mx-auto mt-6 max-w-xl")}>

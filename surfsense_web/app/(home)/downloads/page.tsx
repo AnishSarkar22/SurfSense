@@ -24,7 +24,7 @@ export default async function DownloadsPage() {
 
 	return (
 		<>
-			<section className="px-6 py-20 md:px-10 md:py-28">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-2xl text-center">
 					<h1 className={siteText.display}>Download SurfSense</h1>
 					<p className={cn(siteText.lede, "mx-auto mt-6 max-w-xl")}>
@@ -36,7 +36,7 @@ export default async function DownloadsPage() {
 
 			{assets.length > 0 ? (
 				<section>
-					<div className="px-6 pt-10 pb-8 md:px-10 md:pt-16">
+					<div className="pt-10 pb-8 md:pt-16">
 						<p className={siteText.eyebrow}>Choose your platform</p>
 						<h2 className={cn(siteText.h2, "mt-2")}>Windows, macOS and Linux</h2>
 					</div>
@@ -46,7 +46,7 @@ export default async function DownloadsPage() {
 			) : null}
 
 			<section className="border-t border-border">
-				<div className="px-6 py-10 text-center md:px-10">
+				<div className="py-10 text-center">
 					<AllReleasesLink />
 				</div>
 			</section>

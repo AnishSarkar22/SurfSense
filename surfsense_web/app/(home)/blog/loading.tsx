@@ -3,11 +3,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function BlogIndexLoading() {
 	return (
 		<>
-			<section className="py-20 md:py-28 px-6 md:px-10 pb-8">
+			<section className="py-20 md:py-28 pb-8">
 				<Skeleton className="h-10 w-24" />
 			</section>
 
-			<section className="px-6 md:px-10 pb-14">
+			<section className="pb-14">
 				{/* Heading + search bar skeleton */}
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<Skeleton className="h-6 w-24" />

@@ -108,7 +108,7 @@ function LoginContent() {
 	}
 
 	return (
-		<section className="py-20 md:py-28 px-6 md:px-10 flex min-h-screen items-center justify-center">
+		<section className="py-20 md:py-28 flex min-h-screen items-center justify-center">
 			<div className="mx-auto flex w-full max-w-md flex-col items-center text-center">
 				<Logo priority className="h-14 w-14 rounded-md transition-all md:h-16 md:w-16" />
 				<h1 className={cn(siteText.h2, "mt-6 mb-2")}>{t("sign_in")}</h1>

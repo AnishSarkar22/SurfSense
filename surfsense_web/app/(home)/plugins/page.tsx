@@ -85,7 +85,7 @@ const PLUGINS = [
 export default function PluginsPage() {
 	return (
 		<>
-			<section className="px-6 py-20 md:px-10 md:py-28">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-3xl text-center">
 					<HomeBadge>Coming soon</HomeBadge>
 					<h1 className={cn(siteText.display, "mt-4")}>
@@ -99,14 +99,14 @@ export default function PluginsPage() {
 			</section>
 
 			<section className="border-t border-border" aria-labelledby="ss-plugins-label">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<p className={siteText.eyebrow}>Plugins</p>
 					<h2 id="ss-plugins-label" className={cn(siteText.h2, "mt-2")}>
 						Shipping first
 					</h2>
 				</div>
 
-				<ul className="ss-home-grid list-none border-t border-border p-0 sm:grid-cols-2 md:grid-cols-3">
+				<ul className="ss-home-grid list-none p-0 sm:grid-cols-2 md:grid-cols-3">
 					{PLUGINS.map((plugin) => (
 						<li key={plugin.name}>
 							<Link
@@ -134,7 +134,7 @@ export default function PluginsPage() {
 				</ul>
 			</section>
 
-			<section className="border-t border-border px-6 py-12 md:px-10">
+			<section className="border-t border-border py-12">
 				<p className={cn(siteText.body, "mx-auto max-w-2xl text-center text-sm")}>
 					Need a platform that is not on this list?{" "}
 					<Link className={siteText.link} href="/contact">

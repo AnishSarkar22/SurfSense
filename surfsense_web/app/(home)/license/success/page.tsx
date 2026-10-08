@@ -52,7 +52,7 @@ const FAQ: { question: string; answer: React.ReactNode }[] = [
 export default function LicenseSuccessPage() {
 	return (
 		<>
-			<section className="py-20 md:py-28 px-6 md:px-10">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-2xl text-center">
 					<h1 className={siteText.display}>Thanks, you are all set</h1>
 					<p className={cn(siteText.lede, "mx-auto mt-6 max-w-xl")}>
@@ -62,7 +62,7 @@ export default function LicenseSuccessPage() {
 				</div>
 			</section>
 
-			<section className="border-t border-border px-6 md:px-10 py-16">
+			<section className="border-t border-border py-16">
 				<div className="max-w-xl">
 					<Suspense fallback={null}>
 						<LicenseDownload />
@@ -71,14 +71,14 @@ export default function LicenseSuccessPage() {
 			</section>
 
 			<section className="border-t border-border" aria-labelledby="ss-license-success-faq-label">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<p className={siteText.eyebrow}>Next steps</p>
 					<h2 id="ss-license-success-faq-label" className={cn(siteText.h2, "mt-2")}>
 						Installing it
 					</h2>
 				</div>
 
-				<div className="ss-home-grid border-t border-border">
+				<div className="ss-home-grid">
 					{FAQ.map((item) => (
 						<SiteFaqItem key={item.question} question={item.question}>
 							<p className={siteText.body}>{item.answer}</p>

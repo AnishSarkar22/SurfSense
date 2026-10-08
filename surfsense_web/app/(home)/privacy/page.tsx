@@ -71,7 +71,7 @@ const PROSE =
 
 export default function PrivacyPolicy() {
 	return (
-		<div className="px-6 md:px-10 pt-16 pb-20">
+		<div className="pt-16 pb-20">
 			<div className="max-w-3xl">
 				<div className="mb-10 space-y-4">
 					<h1 className={siteText.h2}>Privacy Policy</h1>

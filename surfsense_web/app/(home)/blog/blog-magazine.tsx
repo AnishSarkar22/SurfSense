@@ -54,7 +54,7 @@ function SearchIcon({ className }: { className?: string }) {
 export function BlogWithSearchMagazine({ blogs }: { blogs: BlogEntry[] }) {
 	if (blogs.length === 0) {
 		return (
-			<section className="py-20 md:py-28 px-6 md:px-10">
+			<section className="py-20 md:py-28">
 				<h1 className={siteText.display}>Blog</h1>
 				<p className={cn(siteText.body, "mt-8")}>No blog posts yet.</p>
 			</section>
@@ -63,11 +63,11 @@ export function BlogWithSearchMagazine({ blogs }: { blogs: BlogEntry[] }) {
 
 	return (
 		<>
-			<section className="py-20 md:py-28 px-6 md:px-10 pb-8">
+			<section className="py-20 md:py-28 pb-8">
 				<h1 className={siteText.display}>Blog</h1>
 			</section>
 
-			<section className="px-6 md:px-10 pb-14">
+			<section className="pb-14">
 				<PostSearchGrid blogs={blogs} />
 			</section>
 		</>

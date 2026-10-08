@@ -83,7 +83,7 @@ const STEPS: GuideStep[] = [
 export default function SunsetPage() {
 	return (
 		<>
-			<section className="py-20 md:py-28 px-6 md:px-10">
+			<section className="py-20 md:py-28">
 				<div className="mx-auto max-w-2xl text-center">
 					<h1 className={siteText.display}>SurfSense is moving to a local app</h1>
 					<p className={cn(siteText.lede, "mx-auto mt-6 max-w-xl")}>
@@ -94,7 +94,7 @@ export default function SunsetPage() {
 			</section>
 
 			<section className="border-t border-border" aria-labelledby="ss-sunset-steps">
-				<div className="border-b border-border px-6 pt-10 pb-8 md:px-10 md:pt-40">
+				<div className="border-b border-border pt-10 pb-8 md:pt-40">
 					<p className={siteText.eyebrow}>Moving your data</p>
 					<h2 id="ss-sunset-steps" className={cn(siteText.h2, "mt-2")}>
 						Five steps to the desktop app
@@ -104,7 +104,7 @@ export default function SunsetPage() {
 				<GuideSteps steps={STEPS} />
 			</section>
 
-			<section className="border-t border-border px-6 md:px-10 py-12">
+			<section className="border-t border-border py-12">
 				<p className={cn(siteText.body, "mx-auto max-w-2xl text-center text-sm")}>
 					A fresh install shows the same Upload button on its empty workspace screen, so you can
 					import before you do anything else. If something did not come across,{" "}
