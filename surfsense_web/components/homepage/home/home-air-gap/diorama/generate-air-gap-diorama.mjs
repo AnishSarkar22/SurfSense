@@ -75,6 +75,7 @@ const sideShade = (nx, ny, m) => {
 // ── Output layers ──────────────────────────────────────────────────────────
 const slab = [];
 const floor = [];
+const cast = [];
 const highlights = [];
 const objects = [];
 let sink = objects;
@@ -206,11 +207,34 @@ function hull(points) {
 	}
 	return lower.slice(0, -1).concat(upper.slice(0, -1));
 }
-// Light from −x: shadows fall toward +x.
-const castShadow = (foot, h, k = 0.62, alpha = 0.24) => {
-	const shifted = foot.map(([x, y]) => [x + h * k, y]);
+// One light for the whole scene, never drawn: from the front left, high enough
+// that a shadow is half as long as its caster is tall. Plan units per unit of height.
+const LIGHT = (() => {
+	const [dx, dy] = [1, -0.5];
+	const n = Math.hypot(dx, dy);
+	return [(dx / n) * 0.5, (dy / n) * 0.5];
+})();
+const onFloor = ([x, y, z]) => [x + z * LIGHT[0], y + z * LIGHT[1]];
+const solid = (foot, z0, z1) => [
+	...foot.map(([x, y]) => [x, y, z0]),
+	...foot.map(([x, y]) => [x, y, z1]),
+];
+// Each convex part's corners pushed along the light by their height. Parts are
+// drawn opaque in one group faded once, so overlapping shadows never darken.
+const castShadow = (...parts) => {
+	for (const corners of parts)
+		cast.push(`<path d="${path(hull(corners.map(onFloor)).map(([x, y]) => P(x, y, 0)))}"/>`);
+};
+// Where an object meets the slab: a tight band under its footprint, undirected.
+const contact = (foot, grow = 2.5, alpha = 0.5) => {
+	const cx = foot.reduce((s, p) => s + p[0], 0) / foot.length;
+	const cy = foot.reduce((s, p) => s + p[1], 0) / foot.length;
+	const out = foot.map(([x, y]) => {
+		const d = Math.hypot(x - cx, y - cy) || 1;
+		return [x + ((x - cx) / d) * grow, y + ((y - cy) / d) * grow];
+	});
 	floor.push(
-		`<path d="${path(hull([...foot, ...shifted]).map(([x, y]) => P(x, y, 0)))}" fill="${TONE4}" fill-opacity="${alpha}"/>`
+		`<path d="${path(out.map(([x, y]) => P(x, y, 0)))}" fill="${TONE4}" fill-opacity="${alpha}"/>`
 	);
 };
 const ellipse = (cx, cy, rx, ry, z = 0) =>
@@ -218,10 +242,6 @@ const ellipse = (cx, cy, rx, ry, z = 0) =>
 		const a = (i / 36) * Math.PI * 2;
 		return P(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, z);
 	});
-const glow = (cx, cy, rx, ry, color, alpha) =>
-	floor.push(
-		`<path d="${path(ellipse(cx, cy, rx, ry))}" fill="${color}" fill-opacity="${alpha}"/>`
-	);
 const highlight = (name, spots) =>
 	highlights.push(
 		`<g data-dio="glow" data-glow="${name}">${spots
@@ -254,7 +274,7 @@ const cable = (pts3) => {
 };
 const cableShadow = (pts) =>
 	floor.push(
-		`<path d="${curve(pts.map(([x, y]) => [x + 2, y + 1, 0]))}" fill="none" stroke="${TONE4}" stroke-opacity="0.3" stroke-width="3"/>`
+		`<path d="${curve(pts.map((p) => [...onFloor(p), 0]))}" fill="none" stroke="${TONE4}" stroke-opacity="0.3" stroke-width="3"/>`
 	);
 
 // ── Slab ───────────────────────────────────────────────────────────────────
@@ -580,21 +600,43 @@ const LOOSE_CABLE = [
 
 platform();
 
-castShadow(circle(-78, -24, 17, 16), 33);
-glow(-78, -24, 24, 22, TONE4, 0.32);
-castShadow(rrect(39, -96, 19, 12, 1, 1), 78, 0.4, 0.24);
-glow(39, -70, 30, 14, TONE3, 0.5);
-castShadow(rrect(0, 4, 30, 20, 1, 1), 44, 0.35, 0.22);
-glow(0, 44, 52, 30, TONE3, 0.34);
-castShadow(rrect(-72, 70, 16, 10, 1, 1), 12, 0.62, 0.24);
-castShadow(rrect(-72, 61, 12, 1, 1, 1), 22, 0.4, 0.16);
-glow(-72, 70, 22, 16, TONE4, 0.32);
-glow(-48, 58, 6, 6, TONE4, 0.3);
-castShadow(rrect(80, -30, 17, 12, 2, 1), 3, 0.62, 0.3);
-castShadow(rrect(99, 30, 3, 16, 1, 1), 42, 0.45, 0.22);
-glow(99, 30, 10, 20, TONE4, 0.3);
-castShadow(rrect(60, 80, 21, 15, 2, 1), 11, 0.62, 0.26);
-glow(60, 80, 26, 20, TONE4, 0.3);
+// Footprints and heights match each object's own geometry below.
+const rect = (x0, x1, y0, y1) => [
+	[x0, y0],
+	[x1, y0],
+	[x1, y1],
+	[x0, y1],
+];
+const DB_FOOT = circle(-78, -24, 17, 24);
+const RACK_FOOT = rect(20, 58, -108, -84);
+const LAPTOP_FOOT = rect(-30, 30, -19, 24);
+const ROUTER_FOOT = rect(-88, -56, 60, 80);
+const PLUG_FOOT = rect(-50.5, -45.5, 54, 62);
+const KEY_FOOT = rrect(80, -30, 17, 12, 3, 2);
+const REPORT_FOOT = rect(96, 102, 14, 46);
+const DECK = [
+	[0, 3, 0],
+	[4, 7, 2.5],
+	[8, 11, -2],
+].map(([z0, z1, dx]) => [rrect(60 + dx, 80 - dx, 21, 15, 2.5, 2), z0, z1]);
+
+castShadow(solid(DB_FOOT, 0, 33));
+castShadow(solid(RACK_FOOT, 0, 78));
+castShadow(solid(rect(-30, 30, -16, 24), 0, 4), solid(rect(-30, 30, -19, -16), 0, 44));
+castShadow(
+	solid(ROUTER_FOOT, 0, 12),
+	solid(rect(-84, -82, 61.5, 64.3), 0, 34),
+	solid(rect(-62, -60, 61.5, 64.3), 0, 34)
+);
+castShadow(solid(PLUG_FOOT, 0, 3.2));
+castShadow(solid(KEY_FOOT, 0, 3));
+castShadow(solid(REPORT_FOOT, 0, 42));
+castShadow(...DECK.map(([foot, , z1]) => solid(foot, 0, z1)));
+
+for (const foot of [DB_FOOT, RACK_FOOT, LAPTOP_FOOT, ROUTER_FOOT, REPORT_FOOT, DECK[0][0]])
+	contact(foot);
+contact(PLUG_FOOT, 1.5);
+contact(KEY_FOOT, 1.5);
 cableShadow(DB_CABLE);
 cableShadow(LOOSE_CABLE);
 
@@ -637,9 +679,9 @@ const svg = [
 	`<filter id="dio-under" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4"/></filter>`,
 	`<filter id="dio-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>`,
 	"</defs>",
-	`<path d="${path(SLAB.map(([x, y]) => P(x, y, -12)).map(([x, y]) => [x, y + 4]))}" fill="${TONE3}" fill-opacity="0.2" filter="url(#dio-under)"/>`,
+	`<path d="${path(SLAB.map(([x, y]) => P(...onFloor([x, y, 12]), -12)))}" fill="${TONE3}" fill-opacity="0.2" filter="url(#dio-under)"/>`,
 	slab.join(""),
-	`<g clip-path="url(#dio-slab)"><g filter="url(#dio-soft)">${floor.join("")}</g><g filter="url(#dio-glow)">${highlights.join("")}</g></g>`,
+	`<g clip-path="url(#dio-slab)"><g filter="url(#dio-soft)"><g fill="${TONE4}" opacity="0.34">${cast.join("")}</g>${floor.join("")}</g><g filter="url(#dio-glow)">${highlights.join("")}</g></g>`,
 	objects.join(""),
 	"</svg>",
 ].join("");
