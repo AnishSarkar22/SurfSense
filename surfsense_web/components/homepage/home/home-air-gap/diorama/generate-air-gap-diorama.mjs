@@ -340,6 +340,14 @@ function laptop() {
 	emit(`<path d="${quad(S, -27, 7, 27, 41)}" fill="${TONE3}" fill-opacity="0.18"/>`);
 }
 
+// 96 sides: at 32 the facets and shading bands show at hero size.
+const DB_SIDES = 96;
+// Points along a circle at height z, so a mark follows the cylinder's curve.
+const arc = (cx, cy, r, a0, a1, z, n = 8) =>
+	Array.from({ length: n + 1 }, (_, i) => {
+		const a = a0 + ((a1 - a0) * i) / n;
+		return [cx + Math.cos(a) * r, cy + Math.sin(a) * r, z];
+	});
 function database() {
 	const [cx, cy, r] = [-78, -24, 17];
 	const discs = [
@@ -348,21 +356,22 @@ function database() {
 		[23, 33],
 	];
 	for (const [z0, z1] of discs) {
-		if (z0 > 0) prism(circle(cx, cy, r - 1.5), z0 - 1.5, z0, M.deep);
-		prism(circle(cx, cy, r), z0, z1, M.light);
-		// Rib and status light on the front of each disc.
-		const a = Math.PI / 4;
-		const fx = cx + Math.cos(a) * r;
-		const fy = cy + Math.sin(a) * r;
-		stroke(path([P(fx - 5, fy + 5, z0 + 3), P(fx + 5, fy - 5, z0 + 3)], false), TONE4, 0.5);
-		const [lx, ly] = P(fx - 1.5, fy + 1.5, z0 + 6.5);
+		if (z0 > 0) prism(circle(cx, cy, r - 1.5, DB_SIDES), z0 - 1.5, z0, M.deep);
+		prism(circle(cx, cy, r, DB_SIDES), z0, z1, M.light);
+		// Drive bay on the front of each disc, mid-height: status light, then a
+		// slot grooved round the cylinder (dark cut over a lit lower lip).
+		const zm = (z0 + z1) / 2;
+		const front = Math.PI / 4; // faces the viewer; larger angles sit further left
+		const [lx, ly] = P(cx + Math.cos(front + 0.42) * r, cy + Math.sin(front + 0.42) * r, zm);
 		emit(
 			`<circle cx="${f(lx)}" cy="${f(ly)}" r="0.8" fill="${TONE1}" stroke="${OUT}" stroke-width="0.35"/>`
 		);
+		stroke(curve(arc(cx, cy, r, front + 0.27, front - 0.36, zm - 0.55)), OW, 0.4);
+		stroke(curve(arc(cx, cy, r, front + 0.27, front - 0.36, zm)), TONE4, 0.55);
 	}
 	// Top: concentric rings name it a store.
-	stroke(path(circle(cx, cy, 10).map(([x, y]) => P(x, y, 33))), TONE3, 0.55);
-	stroke(path(circle(cx, cy, 4.5).map(([x, y]) => P(x, y, 33))), TONE3, 0.55);
+	stroke(path(circle(cx, cy, 10, DB_SIDES).map(([x, y]) => P(x, y, 33))), TONE3, 0.55);
+	stroke(path(circle(cx, cy, 4.5, DB_SIDES).map(([x, y]) => P(x, y, 33))), TONE3, 0.55);
 }
 
 // A router with its link dead: unlit LEDs, a Wi-Fi-off glyph, an empty port.
@@ -583,14 +592,17 @@ function deckStack() {
 }
 
 // ── Scene ──────────────────────────────────────────────────────────────────
+// Each cable starts under the laptop base (x > -30), so the base hides its tip.
 const DB_CABLE = [
-	[-30, -4, 2.5],
+	[-25, -1.79, 1.1],
+	[-30, -3.57, 1.1],
 	[-34, -5, 1.1],
 	[-48, -10, 1.1],
-	[-58, -16, 1.1],
-	[-62, -18, 4],
+	[-56, -19, 1.1],
+	[-61.2, -21.5, 2.5],
 ];
 const LOOSE_CABLE = [
+	[-25, 11.5, 2.5],
 	[-30, 14, 2.5],
 	[-34, 16, 1.1],
 	[-42, 28, 1.1],
@@ -607,7 +619,7 @@ const rect = (x0, x1, y0, y1) => [
 	[x1, y1],
 	[x0, y1],
 ];
-const DB_FOOT = circle(-78, -24, 17, 24);
+const DB_FOOT = circle(-78, -24, 17, DB_SIDES);
 const RACK_FOOT = rect(20, 58, -108, -84);
 const LAPTOP_FOOT = rect(-30, 30, -19, 24);
 const ROUTER_FOOT = rect(-88, -56, 60, 80);
