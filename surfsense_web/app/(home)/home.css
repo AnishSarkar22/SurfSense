@@ -71,6 +71,26 @@ html:has(.ss-home) {
 	/* Space between the screen edge and the content column, matching `px-6
 	 * md:px-10` on full-bleed content such as the footer. */
 	--home-gutter: 1.5rem;
+
+	/* Fumadocs' tokens, which colour `prose` (blog, privacy, terms, changelog),
+	 * code blocks and tables. The app forces `.dark` on <html>, so without these
+	 * long-form text here would take the dark palette. */
+	--color-fd-background: var(--background);
+	--color-fd-foreground: var(--foreground);
+	--color-fd-muted: var(--muted);
+	--color-fd-muted-foreground: var(--muted-foreground);
+	--color-fd-popover: var(--popover);
+	--color-fd-popover-foreground: var(--popover-foreground);
+	--color-fd-card: var(--card);
+	--color-fd-card-foreground: var(--card-foreground);
+	--color-fd-border: var(--border);
+	--color-fd-primary: var(--primary);
+	--color-fd-primary-foreground: var(--primary-foreground);
+	--color-fd-secondary: var(--secondary);
+	--color-fd-secondary-foreground: var(--secondary-foreground);
+	--color-fd-accent: var(--accent);
+	--color-fd-accent-foreground: var(--accent-foreground);
+	--color-fd-ring: var(--ring);
 }
 
 @media (min-width: 768px) {
@@ -551,6 +571,20 @@ html:has(.ss-home) {
 /* ---------------------------------------------------------------------------
  * Unlayered on purpose: these must outrank Tailwind utilities.
  * ------------------------------------------------------------------------ */
+
+/* Running text in the homepage's body grey, as `siteText.body` sets it;
+ * headings, bold and links stay in the near-black the tokens above give them. */
+.ss-home .prose {
+	--tw-prose-body: var(--muted-foreground);
+}
+
+/* Code takes Shiki's light colours: the forced `.dark` would otherwise pick the
+ * dark theme's pale tokens, unreadable on the light card. Doubled class to
+ * outrank Fumadocs' `.dark .shiki` rule. */
+.ss-home .shiki.shiki:not(.not-fumadocs-codeblock *) code span {
+	color: var(--shiki-light);
+	font-style: var(--shiki-light-font-style);
+}
 
 @media (prefers-reduced-motion: reduce) {
 	/* biome-ignore-start lint/complexity/noImportantStyles: a reduced-motion
