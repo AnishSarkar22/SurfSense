@@ -464,6 +464,11 @@ html:has(.ss-home) {
 		animation-play-state: paused;
 	}
 
+	/* Set by `PauseOffscreen`: a loop nobody can see should not cost frames. */
+	[data-offscreen] .ss-home-marquee {
+		animation-play-state: paused;
+	}
+
 	/* -------------------------------------------------------------------------
 	 * Air-gap diorama (`AirGapDiagram`)
 	 *

@@ -27,7 +27,7 @@ export function ScenePanel({
 				className="object-cover select-none"
 				style={{ objectPosition: position }}
 			/>
-			<div className="absolute inset-0 bg-foreground/20" />
+			<div className="absolute inset-0 bg-foreground/50" />
 			<div className="absolute inset-0 flex flex-col justify-center">{children}</div>
 		</div>
 	);

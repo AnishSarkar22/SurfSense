@@ -1,9 +1,28 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
-/** A frosted pill for text set on a painted scene. */
-export function GlassChip({ icon, label }: { icon: ReactNode; label: string }) {
+/**
+ * A translucent pill for text set on a painted scene. No backdrop blur: the
+ * plugins row slides twenty of these, and a moving blur repaints every frame.
+ */
+export function GlassChip({
+	icon,
+	label,
+	large = false,
+}: {
+	icon: ReactNode;
+	label: string;
+	large?: boolean;
+}) {
 	return (
-		<span className="flex h-10 shrink-0 items-center gap-2 rounded-full bg-black/15 px-4 text-sm font-medium whitespace-nowrap text-white backdrop-blur-sm [&_svg]:size-4">
+		<span
+			className={cn(
+				"flex shrink-0 items-center rounded-full bg-black/25 font-medium whitespace-nowrap text-white",
+				large
+					? "h-11 gap-2 px-4.5 text-[0.9375rem] [&_svg]:size-[1.125rem]"
+					: "h-10 gap-2 px-4 text-sm [&_svg]:size-4"
+			)}
+		>
 			{icon}
 			{label}
 		</span>
