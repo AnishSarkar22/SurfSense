@@ -13,6 +13,7 @@ import {
 	CloudIcon as CloudIconData,
 	ComputerTerminal01Icon as ComputerTerminal01IconData,
 	Database01Icon as Database01IconData,
+	DotIcon as DotIconData,
 	DownloadIcon as DownloadIconData,
 	File02Icon as File02IconData,
 	Image01Icon as Image01IconData,
@@ -91,6 +92,7 @@ export const ChipIcon = createIcon(ChipIconData);
 export const CloudIcon = createIcon(CloudIconData);
 export const ComputerTerminal01Icon = createIcon(ComputerTerminal01IconData);
 export const Database01Icon = createIcon(Database01IconData);
+export const DotIcon = createIcon(DotIconData);
 export const DownloadIcon = createIcon(DownloadIconData);
 export const File02Icon = createIcon(File02IconData);
 export const Image01Icon = createIcon(Image01IconData);
