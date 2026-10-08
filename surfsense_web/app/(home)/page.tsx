@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
+import { HomeConfidential } from "@/components/homepage/home/home-confidential/home-confidential";
 import { HomeFormats } from "@/components/homepage/home/home-formats/home-formats";
 import { HomeLogos } from "@/components/homepage/home/home-logos";
 import { HomeQuestions } from "@/components/homepage/home/home-questions";
 import {
 	HomeCompare,
-	HomeConfidential,
 	HomeFeatures,
 	HomeHero,
 	HomeOnYourMachine,

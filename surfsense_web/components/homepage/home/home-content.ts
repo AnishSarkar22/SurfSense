@@ -254,7 +254,7 @@ export const CONFIDENTIAL: { eyebrow: string; heading: string; body: string; act
 	eyebrow: "For confidential work",
 	heading: "Private AI for business, because the file never moves",
 	body: "Lawyers, accountants, consultants and engineers all do the same job with this: a file they are not allowed to upload goes in, and a deck, a report or a briefing comes out. The deliverable is built on the same machine the source sits on, so no vendor ever holds a copy of the contract, the ledger or the inspection report.",
-	action: { label: "Turn confidential documents into deliverables", href: BUSINESS_URL },
+	action: { label: "Learn more", href: BUSINESS_URL },
 };
 
 export type CompareRow = {

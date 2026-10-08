@@ -3,7 +3,7 @@ import { AirGapDiagram } from "@/components/homepage/home/home-air-gap/air-gap-d
 import { AirGapScrollSteps } from "@/components/homepage/home/home-air-gap/air-gap-scroll-steps";
 import { HomeAnnouncement } from "@/components/homepage/home/home-announcement";
 import { HomeBadge } from "@/components/homepage/home/home-badge";
-import { COMPARE_ROWS, CONFIDENTIAL, PILLARS } from "@/components/homepage/home/home-content";
+import { COMPARE_ROWS, PILLARS } from "@/components/homepage/home/home-content";
 import { HomeDownloadButton } from "@/components/homepage/home/home-download-button";
 import { HomeFeaturesTabs } from "@/components/homepage/home/home-features-tabs";
 import { HomeScene } from "@/components/homepage/home/home-scene";
@@ -220,32 +220,6 @@ export function HomeFeatures() {
 			</div>
 
 			<HomeFeaturesTabs />
-		</section>
-	);
-}
-
-/**
- * H2 #8 — *For confidential work*, added to the brief on 17 Sep 2026.
- *
- * Sits directly after H2 #7 (*Private by construction*, the last of the claims
- * tabs) because it answers the question that one raises: privacy for whom. The
- * brief asks for one paragraph rather than a section, so this is a single
- * statement band with no grid and no proof list — the argument is made in full
- * on the page it links to.
- */
-export function HomeConfidential() {
-	return (
-		<section className={cn("border-t border-border", sectionSpacing.foot)}>
-			<div className={cn("max-w-3xl", sectionSpacing.head)}>
-				<p className={siteText.eyebrow}>{CONFIDENTIAL.eyebrow}</p>
-				<h2 className={cn(siteText.h2, "mt-2")}>{CONFIDENTIAL.heading}</h2>
-				<p className={cn(siteText.body, "mt-5")}>{CONFIDENTIAL.body}</p>
-				<p className="mt-6">
-					<Link className={siteText.forward} href={CONFIDENTIAL.action.href}>
-						{CONFIDENTIAL.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
-					</Link>
-				</p>
-			</div>
 		</section>
 	);
 }

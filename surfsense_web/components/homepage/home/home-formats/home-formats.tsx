@@ -32,7 +32,7 @@ const WRITTEN = ["summary", "docx", "pdf", "html", "xlsx"].map(format);
  */
 export function HomeFormats() {
 	return (
-		<section className={cn("border-t border-border", sectionSpacing.foot)}>
+		<section className={sectionSpacing.foot}>
 			<div className={cn("text-center", sectionSpacing.head)}>
 				<HomeBadge>Artifacts</HomeBadge>
 				<p className={cn(siteText.h2, "mt-4")}>Twelve things one set of sources can become</p>
