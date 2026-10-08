@@ -90,12 +90,12 @@ export type Action = {
  */
 export const ON_YOUR_MACHINE: (Cell & { node: AirGapNode })[] = [
 	{
-		title: "No cloud in the loop",
-		body: "The index is a file on your disk, not a row in someone else's database. Pull the network cable and it keeps answering questions about the sources you already added. That matters most when the source is a case file or a client's ledger.",
+		title: "Your index lives on your disk",
+		body: "A file you own, not a row in someone else's database. With a local model, pull the network cable and it keeps answering questions about the sources you already added. That matters most for a case file or a client's ledger.",
 		node: "index",
 	},
 	{
-		title: "Local model or your own key",
+		title: "Your model, or your own key",
 		body: "Use SurfSense with a local model, or paste a key for a provider you already pay for. The key stays on the machine that uses it.",
 		node: "model",
 	},

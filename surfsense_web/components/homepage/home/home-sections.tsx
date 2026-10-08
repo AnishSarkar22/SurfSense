@@ -79,7 +79,7 @@ export function HomeHero() {
  * below is already a three-column row, and the diagram shows the air gap
  * rather than asserting it.
  *
- * The headline is the brief's exact H2 #1 text; `Features` is the pill above
+ * The headline is the brief's exact H2 #1 text; `How it works` is the pill above
  * it instead of replacing it.
  */
 export function HomeOnYourMachine() {
@@ -89,7 +89,7 @@ export function HomeOnYourMachine() {
 			    only the diagram changes as you scroll; below lg it flows normally. */}
 			<AirGapScrollSteps className="pt-10 pb-16 md:pt-24 lg:sticky lg:top-0 lg:flex lg:h-svh lg:flex-col lg:justify-center lg:pt-20 lg:pb-0">
 				<div className="text-center">
-					<HomeBadge>Features</HomeBadge>
+					<HomeBadge>How it works</HomeBadge>
 					<h2 className={cn(siteText.h2, "mt-4")}>Runs entirely on your machine</h2>
 				</div>
 				<AirGapDiagram className="mt-10 lg:mt-14" />
