@@ -257,58 +257,67 @@ export const CONFIDENTIAL: { eyebrow: string; heading: string; body: string; act
 	action: { label: "Learn more", href: BUSINESS_URL },
 };
 
-export type CompareRow = {
-	label: string;
-	ours: string;
-	notebooklm: string;
-	anythingllm: string;
-	openNotebook: string;
-};
+/** How a cell reads at a glance; the text beside it carries the nuance. */
+export type CompareVerdict = "yes" | "no" | "partial";
+
+export type CompareCell = { text: string; verdict: CompareVerdict };
+
+export type CompareProduct = "ours" | "notebooklm" | "anythingllm" | "openNotebook";
+
+export const COMPARE_PRODUCTS: { key: CompareProduct; name: string }[] = [
+	{ key: "ours", name: "SurfSense" },
+	{ key: "notebooklm", name: "NotebookLM" },
+	{ key: "anythingllm", name: "AnythingLLM" },
+	{ key: "openNotebook", name: "Open Notebook" },
+];
+
+export type CompareRow = { label: string } & Record<CompareProduct, CompareCell>;
 
 /** Compared at the thing the brief says this page converts on: getting started
- * without an account, a cloud, or a container runtime. */
+ * without an account, a cloud, or a container runtime. Verdicts are judged the
+ * same way for every column; SurfSense does not win every row. */
 export const COMPARE_ROWS: CompareRow[] = [
 	{
 		label: "Runs offline",
-		ours: "Yes, fully",
-		notebooklm: "No, cloud only",
-		anythingllm: "Yes",
-		openNotebook: "Yes",
+		ours: { text: "Yes, fully", verdict: "yes" },
+		notebooklm: { text: "No, cloud only", verdict: "no" },
+		anythingllm: { text: "Yes", verdict: "yes" },
+		openNotebook: { text: "Yes", verdict: "yes" },
 	},
 	{
 		label: "Account required",
-		ours: "None",
-		notebooklm: "Google account",
-		anythingllm: "None",
-		openNotebook: "None",
+		ours: { text: "None", verdict: "yes" },
+		notebooklm: { text: "Google account", verdict: "no" },
+		anythingllm: { text: "None", verdict: "yes" },
+		openNotebook: { text: "None", verdict: "yes" },
 	},
 	{
 		label: "Setup",
-		ours: "Desktop installer",
-		notebooklm: "Web sign-in",
-		anythingllm: "Installer or Docker",
-		openNotebook: "Docker + env vars",
+		ours: { text: "Desktop installer", verdict: "yes" },
+		notebooklm: { text: "Web sign-in", verdict: "partial" },
+		anythingllm: { text: "Installer or Docker", verdict: "yes" },
+		openNotebook: { text: "Docker", verdict: "no" },
 	},
 	{
 		label: "Choice of model",
-		ours: "Any, local or hosted",
-		notebooklm: "Gemini only",
-		anythingllm: "Any",
-		openNotebook: "Any",
+		ours: { text: "Any, local or hosted", verdict: "yes" },
+		notebooklm: { text: "Gemini only", verdict: "no" },
+		anythingllm: { text: "Any", verdict: "yes" },
+		openNotebook: { text: "Any", verdict: "yes" },
 	},
 	{
 		label: "Model bundled",
-		ours: "No, pick one during setup",
-		notebooklm: "Not applicable",
-		anythingllm: "Yes",
-		openNotebook: "No",
+		ours: { text: "Picked at first launch", verdict: "partial" },
+		notebooklm: { text: "Not applicable", verdict: "partial" },
+		anythingllm: { text: "Yes", verdict: "yes" },
+		openNotebook: { text: "No", verdict: "no" },
 	},
 	{
 		label: "Source code",
-		ours: "Open, auditable",
-		notebooklm: "Closed",
-		anythingllm: "Open",
-		openNotebook: "Open",
+		ours: { text: "Open, auditable", verdict: "yes" },
+		notebooklm: { text: "Closed", verdict: "no" },
+		anythingllm: { text: "Open", verdict: "yes" },
+		openNotebook: { text: "Open", verdict: "yes" },
 	},
 ];
 

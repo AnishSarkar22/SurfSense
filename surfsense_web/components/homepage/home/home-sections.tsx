@@ -3,7 +3,7 @@ import { AirGapDiagram } from "@/components/homepage/home/home-air-gap/air-gap-d
 import { AirGapScrollSteps } from "@/components/homepage/home/home-air-gap/air-gap-scroll-steps";
 import { HomeAnnouncement } from "@/components/homepage/home/home-announcement";
 import { HomeBadge } from "@/components/homepage/home/home-badge";
-import { COMPARE_ROWS, PILLARS } from "@/components/homepage/home/home-content";
+import { PILLARS } from "@/components/homepage/home/home-content";
 import { HomeDownloadButton } from "@/components/homepage/home/home-download-button";
 import { HomeFeaturesTabs } from "@/components/homepage/home/home-features-tabs";
 import { HomeScene } from "@/components/homepage/home/home-scene";
@@ -146,63 +146,6 @@ export function HomePillars() {
 }
 
 /**
- * The comparison table carries no heading of its own, so the brief's H2 order
- * stays intact — the headline below is a `<p>` styled like an H2, not a real
- * one. The caption names the table for assistive technology instead.
- *
- * The scroller is focusable and labelled: on a narrow screen the table is wider
- * than the column, and a keyboard visitor needs to be able to scroll it without
- * a pointer.
- */
-export function HomeCompare() {
-	return (
-		<section className={cn("border-t border-border", sectionSpacing.foot)}>
-			<div className={cn("border-b border-border pb-8", sectionSpacing.head)}>
-				<p className={siteText.eyebrow}>How it compares</p>
-				<p className={cn(siteText.h2, "mt-2")}>Getting started, compared</p>
-			</div>
-
-			<section
-				className="overflow-x-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
-				aria-label="Scrollable comparison table"
-				/* biome-ignore lint/a11y/noNoninteractiveTabindex: a region that scrolls horizontally has to be focusable, or a keyboard-only visitor cannot reach the columns past the fold. The labelled landmark is what makes the focus stop meaningful. */
-				tabIndex={0}
-			>
-				<table className="ss-home-table">
-					<caption className="sr-only">
-						SurfSense compared with NotebookLM, AnythingLLM and Open Notebook
-					</caption>
-					<thead>
-						<tr>
-							<th scope="col">
-								<span className="sr-only">Capability</span>
-							</th>
-							<th scope="col" data-col="ours">
-								SurfSense
-							</th>
-							<th scope="col">NotebookLM</th>
-							<th scope="col">AnythingLLM</th>
-							<th scope="col">Open Notebook</th>
-						</tr>
-					</thead>
-					<tbody>
-						{COMPARE_ROWS.map((row) => (
-							<tr key={row.label}>
-								<th scope="row">{row.label}</th>
-								<td data-col="ours">{row.ours}</td>
-								<td>{row.notebooklm}</td>
-								<td>{row.anythingllm}</td>
-								<td>{row.openNotebook}</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
-			</section>
-		</section>
-	);
-}
-
-/**
  * H2 #5, #6, #7 — the reference's `Pricing` block: a header, then cells that
  * pair a claim with the concrete things that back it, each ruled off from the
  * next.
@@ -213,7 +156,7 @@ export function HomeCompare() {
  */
 export function HomeFeatures() {
 	return (
-		<section className={cn("border-t border-border", sectionSpacing.foot)}>
+		<section className={sectionSpacing.foot}>
 			<div className={cn("border-b border-border pb-8", sectionSpacing.head)}>
 				<p className={siteText.eyebrow}>What you get</p>
 				<p className={cn(siteText.h2, "mt-2")}>Three things worth knowing before you install</p>
