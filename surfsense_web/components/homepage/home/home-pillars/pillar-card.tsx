@@ -24,12 +24,7 @@ export function PillarCard({
 	);
 	return (
 		<article className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-xs transition-[translate,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-16px_rgb(0_0_0/0.2)] motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-			<div
-				aria-hidden="true"
-				className="flex min-h-52 items-center justify-center bg-secondary p-6"
-			>
-				{preview}
-			</div>
+			<div className="flex min-h-52 items-center justify-center bg-secondary p-6">{preview}</div>
 			<div className="flex flex-1 flex-col border-t border-border px-6 py-5">
 				<h2 className={siteText.h3}>{pillar.title}</h2>
 				<p className={cn(siteText.body, "mt-2 text-sm")}>{pillar.body}</p>
