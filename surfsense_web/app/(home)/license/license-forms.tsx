@@ -105,7 +105,7 @@ function InlineEmailField({
 				value={value}
 				onChange={(event) => onChange(event.target.value)}
 				required
-				className="w-64 max-w-full rounded-(--radius) border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+				className="min-w-0 flex-1 bg-transparent py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground"
 			/>
 		</>
 	);
@@ -235,9 +235,19 @@ export function TrialForm({
 
 	return (
 		<div className="mt-10 flex flex-col items-center gap-5">
-			<form onSubmit={handleSubmit} className="flex flex-wrap items-center justify-center gap-2">
+			{/* One pill, field and button together, like the site's search pills; the
+			    ring sits on the pill because the field inside has no border of its own. */}
+			<form
+				onSubmit={handleSubmit}
+				className="flex w-full max-w-md items-center gap-2 rounded-full border border-border bg-card py-1.5 pr-1.5 pl-5 shadow-xs focus-within:ring-3 focus-within:ring-ring/50"
+			>
 				<InlineEmailField id={`trial-email-${id}`} value={email} onChange={setEmail} />
-				<HomeButton type="submit" size="xl" disabled={busy} className="relative shrink-0">
+				<HomeButton
+					type="submit"
+					size="xl"
+					disabled={busy}
+					className="relative shrink-0 rounded-full px-5"
+				>
 					<span className={busy ? "opacity-0" : ""}>{label}</span>
 					{busy ? <Spinner size="sm" className="absolute" /> : null}
 				</HomeButton>
