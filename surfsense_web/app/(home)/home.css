@@ -51,6 +51,9 @@ html:has(.ss-home) {
 	--destructive: #dc2626;
 	--destructive-foreground: #ffffff;
 	--notice: #3f74c8;
+	/* The painted sky of the hero and footer, as a wash behind artifact previews. */
+	--home-sky: #cfe3f7;
+	--home-sky-soft: #eef4fa;
 	/* `HomeBadge` fill: cool grey that still reads on the warm ground. */
 	--home-badge: #e8eaed;
 	--border: #dedede;

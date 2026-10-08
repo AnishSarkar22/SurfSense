@@ -3,15 +3,9 @@ import { AirGapDiagram } from "@/components/homepage/home/home-air-gap/air-gap-d
 import { AirGapScrollSteps } from "@/components/homepage/home/home-air-gap/air-gap-scroll-steps";
 import { HomeAnnouncement } from "@/components/homepage/home/home-announcement";
 import { HomeBadge } from "@/components/homepage/home/home-badge";
-import {
-	COMPARE_ROWS,
-	CONFIDENTIAL,
-	FORMATS,
-	PILLARS,
-} from "@/components/homepage/home/home-content";
+import { COMPARE_ROWS, CONFIDENTIAL, PILLARS } from "@/components/homepage/home/home-content";
 import { HomeDownloadButton } from "@/components/homepage/home/home-download-button";
 import { HomeFeaturesTabs } from "@/components/homepage/home/home-features-tabs";
-import { HomeFormatCell } from "@/components/homepage/home/home-format-cell";
 import { HomeScene } from "@/components/homepage/home/home-scene";
 import { sectionSpacing } from "@/components/homepage/home/home-section-spacing";
 import { siteText } from "@/components/site/site-text";
@@ -25,14 +19,12 @@ import { cn } from "@/lib/utils";
  * a ruled band inside one bordered column, splits are two halves separated by a
  * hairline, and cell grids are drawn with a 1px gap over the border colour so
  * no interior rule ever doubles up. Nothing here has a radius or a shadow; only
- * controls keep the palette's `--radius`. Styled with Tailwind plus the shared
- * `siteText` styles.
+ * controls keep the palette's `--radius`. `HomeFormats` (its own folder) is the
+ * exception: rounded cards with miniatures, in the painted scenes' language.
+ * Styled with Tailwind plus the shared `siteText` styles.
  *
- * Mostly server components. Two exceptions live in their own "use client"
- * modules rather than pulling this file across the boundary:
- * `HomeFeaturesTabs` (the claims switcher) and `CardSpotlight`
- * (components/ui), which `HomeFormatCell` wraps each format cell in for its
- * hover spotlight.
+ * Mostly server components. `HomeFeaturesTabs` (the claims switcher) lives in
+ * its own "use client" module rather than pulling this file across the boundary.
  *
  * The heading order is not editorial. It is the SEO skeleton from
  * `plans/community-local/seo/02-page-briefs.md`: H1, then eight H2s in a fixed
@@ -253,31 +245,6 @@ export function HomeConfidential() {
 						{CONFIDENTIAL.action.label} <ArrowRightIcon aria-hidden="true" className="size-4" />
 					</Link>
 				</p>
-			</div>
-		</section>
-	);
-}
-
-/**
- * Not one of the brief's eight H2s (see `FORMATS`'s own doc comment in
- * `home-content.ts`) — a bento row of the twelve Studio formats, below the
- * claims tabs. `HomeFormatCell` is the one client component in the row (a
- * cursor-tracked hover spotlight); this section itself stays server-rendered.
- */
-export function HomeFormats() {
-	return (
-		<section className={cn("border-t border-border", sectionSpacing.foot)}>
-			<div className={cn("pb-8", sectionSpacing.head)}>
-				<p className={siteText.eyebrow}>Artifacts</p>
-				<p className={cn(siteText.h2, "mt-2")}>Twelve things one set of sources can become</p>
-			</div>
-
-			{/* The same grid as the logo cloud: the head is plain, so the grid draws its
-			    own top edge, and each cell draws its own right and bottom hairlines. */}
-			<div className="relative grid grid-cols-2 border-t border-border md:grid-cols-4">
-				{FORMATS.map((format, index) => (
-					<HomeFormatCell key={format.key} format={format} index={index} />
-				))}
 			</div>
 		</section>
 	);

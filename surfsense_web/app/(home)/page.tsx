@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import { HomeFormats } from "@/components/homepage/home/home-formats/home-formats";
 import { HomeLogos } from "@/components/homepage/home/home-logos";
 import { HomeQuestions } from "@/components/homepage/home/home-questions";
 import {
 	HomeCompare,
 	HomeConfidential,
 	HomeFeatures,
-	HomeFormats,
 	HomeHero,
 	HomeOnYourMachine,
 	HomePillars,

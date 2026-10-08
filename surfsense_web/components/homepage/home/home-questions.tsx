@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
  */
 export function HomeQuestions() {
 	return (
-		<section className={cn("border-t border-border", sectionSpacing.foot)}>
+		<section className={sectionSpacing.foot}>
 			<div className={cn("text-center", sectionSpacing.head)}>
 				<HomeBadge>FAQ</HomeBadge>
 				<h2 className={cn(siteText.h2, "mt-4")}>Questions people ask</h2>

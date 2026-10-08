@@ -114,33 +114,35 @@ export const ON_YOUR_MACHINE: (Cell & { node: AirGapNode })[] = [
  *
  * The twelve formats and their order come straight from the backend's own
  * catalog (`surfsense_local/backend/modules/artifacts/formats.py`), and each
- * `key` matches that file's format keys exactly — `HomeFormats` looks up an
- * icon per key from the same set the in-app Studio library uses
- * (`features/artifacts/lib/artifact-format-catalog.ts`), so the homepage and
- * the product never draw a format with two different icons.
+ * `key` matches that file's format keys exactly; `HomeFormats` places each
+ * one by key.
  */
 export type Format = { key: string; label: string; body: string };
 
 export const FORMATS: Format[] = [
-	{ key: "summary", label: "Summary", body: "A short brief of everything you have indexed." },
+	{ key: "summary", label: "Markdown", body: "A short brief of everything you have indexed." },
 	{
 		key: "docx",
-		label: "Document",
+		label: "Word",
 		body: "An editable write-up you can revise afterward.",
 	},
 	{ key: "pptx", label: "Slides", body: "An editable presentation deck." },
 	{ key: "xlsx", label: "Spreadsheet", body: "Tables pulled out of your sources." },
-	{ key: "html", label: "Web page", body: "A standalone page you can host anywhere." },
+	{ key: "html", label: "Web page", body: "A standalone HTML page." },
 	{ key: "pdf", label: "PDF", body: "A print-ready export of the same content." },
 	{ key: "mindmap", label: "Mind map", body: "Concepts laid out as a linked graph." },
 	{ key: "flashcards", label: "Flashcards", body: "A front-and-back deck for review." },
-	{ key: "quiz", label: "Quiz", body: "Multiple-choice questions with source citations." },
+	{
+		key: "quiz",
+		label: "Quiz",
+		body: "Test yourself, with every answer explained.",
+	},
 	{
 		key: "podcast",
 		label: "Podcast",
-		body: "A two-voice audio conversation, synthesised offline.",
+		body: "Your sources talked through as an audio conversation.",
 	},
-	{ key: "image", label: "Image", body: "A generated illustration for a single idea." },
+	{ key: "image", label: "Image", body: "Turn an idea into a picture." },
 	{ key: "infographic", label: "Infographic", body: "Key figures laid out as one visual." },
 ];
 
