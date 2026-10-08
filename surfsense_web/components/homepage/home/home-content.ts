@@ -246,8 +246,8 @@ export const FEATURES: {
  */
 export const CONFIDENTIAL: { eyebrow: string; heading: string; body: string; action: Action } = {
 	eyebrow: "For confidential work",
-	heading: "Private AI for business with no vendor in the middle",
-	body: "Lawyers, accountants, consultants and engineers all do the same job with this: a file they are not allowed to upload goes in, and a deck, a report or a briefing comes out. The deliverable is built on the same machine the source sits on, so no vendor ever holds a copy of the contract, the ledger or the inspection report.",
+	heading: "Private AI for business, with no vendor holding a copy",
+	body: "Lawyers, accountants, consultants and engineers all have files they are not allowed to upload. SurfSense turns them into a deck, a report or a briefing anyway. The deliverable is built on the same machine the source sits on, so no vendor ever holds a copy of the contract, the ledger or the inspection report.",
 	action: { label: "Learn more", href: BUSINESS_URL },
 };
 
