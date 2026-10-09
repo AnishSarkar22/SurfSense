@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 
 /**
  * Site footer: the closing call to action and the site's links, set on a
- * scene of a meadow river under a summer sky.
+ * painted summer sky with clouds banked at the bottom.
  *
- * The page's ground fades into the photo's sky from the top, so the download pitch
+ * The page's ground fades into the painting's sky from the top, so the download pitch
  * sits on open ground with no card of its own; the links ride a light card
- * over the hill. Rendered by `app/(home)/layout.tsx` for
+ * over the clouds. Rendered by `app/(home)/layout.tsx` for
  * every route under `(home)` except the auth pages.
  */
 
@@ -27,14 +27,14 @@ const WORDMARK_CLASS =
 export function SiteFooter() {
 	return (
 		<footer className="relative isolate overflow-hidden">
-			{/* The 4:3 scene covers the footer at 4/3 its height: about 56rem tall on
+			{/* The 2:1 sky covers the footer at twice its height: about 56rem tall on
 			    desktop, about 80rem on a phone where the card's columns stack. */}
 			<div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
 				<Image
 					src={footerScene}
 					alt=""
 					fill
-					sizes="(max-width: 767px) 107rem, max(100vw, 75rem)"
+					sizes="(max-width: 767px) 160rem, max(100vw, 112rem)"
 					quality={85}
 					placeholder="blur"
 					className="object-cover object-center select-none"
