@@ -7,13 +7,12 @@ code:
   - plugins/bundles/core/
   - surfsense_local/backend/modules/plugins/
   - surfsense_local/backend/modules/agent/plugin_tools/
-  - surfsense_local/backend/modules/chat/plugin_router/
   - surfsense_local/frontend/src/features/plugins/
 ---
 
 # Plugins
 
-> A plugin is an MCP server that gives SurfSense's models tools. Every caller, opencode, the chat engine and the user's `@` mentions, reaches it through one Tool Gateway, and results come back into the turn. Remote plugins, hosted by their publishers, come first; plugins on the user's machine come later, as [bundles](bundles/README.md).
+> A plugin is an MCP server that gives SurfSense's models tools. Every caller, opencode and the user's `@` mentions now and the chat engine later, reaches it through one Tool Gateway, and results come back into the turn. Remote plugins, hosted by their publishers, come first; plugins on the user's machine come later, as [bundles](bundles/README.md).
 
 This replaces the earlier design, where a plugin was a sidebar action with a form whose output went into Sources and reached the models only through search. That design is kept in [`bundles/`](bundles/README.md), where its local-runtime parts wait for bundles ([ADR 0051](../../adr/0051-plugins-are-mcp-servers-behind-one-tool-gateway.md)).
 
@@ -33,7 +32,7 @@ plugins/
 |---|---|
 | [`01-architecture.md`](core/01-architecture.md) | The Tool Gateway, tool sources, naming, the tables, the routes |
 | [`02-registry.md`](core/02-registry.md) | The two plugin lists, built-in and registry, who publishes, review, Restricted mode, tools added later, delisting, how the app gets each list |
-| [`03-engines.md`](core/03-engines.md) | opencode, the chat engine's router step, `@` mentions, results, Save to Sources |
+| [`03-engines.md`](core/03-engines.md) | opencode, `@` mentions, results, Save to Sources; the chat engine's router step, later |
 | [`04-trust.md`](core/04-trust.md) | Approval, permissions, what a plugin can and cannot do, prompt injection |
 | [`05-paid.md`](core/05-paid.md) | SurfSense's paid plugins on the license key, checked on the server, and third parties billing on their own |
 | [`06-later.md`](core/06-later.md) | What comes after, and the extension points that keep it additive |
@@ -52,8 +51,8 @@ plugins/
 
 - **A user** opens Settings → Plugins and sees SurfSense's plugins at once, with no network; other publishers' appear when they turn other publishers on. They press **Connect**, sign in or paste a key, allow the plugin's host, and its tools are ready.
 - **In an agent thread**, opencode sees the plugin's tools beside SurfSense's own and calls one when it needs it.
-- **In a chat thread**, the model never calls a tool. When a question fits a plugin, SurfSense asks the model, under a JSON schema, which tool and with what inputs, calls it, and the model answers with the result.
-- **Anywhere**, the user can type `@notion search Q3 plan` to call a tool directly.
+- **In an agent thread**, the user can also type `@notion search` to ask for a tool by name; the agent fills its inputs.
+- **In a chat thread**, plugins come later. Settings → Plugins says plugins work in Agentic threads.
 - **A result** shows as a step in the thread. "Save to Sources" keeps it as a note.
 
 ## Prior art
@@ -80,8 +79,8 @@ plugins/
 | Custom plugins | A user can add any remote MCP server by URL, labelled "Not reviewed by SurfSense", behind Restricted mode |
 | Tools added later | A tool a server adds after the user connected starts off; the app asks before turning it on |
 | opencode | Plugin tools reach it as a second MCP server, `plugins`, registered before each turn beside `surfsense` |
-| Chat engine | The model never calls tools. A router step chooses a tool under a JSON schema, then fills its inputs under the tool's own schema, and SurfSense makes the call ([ADR 0052](../../adr/0052-the-chat-model-never-calls-tools.md)) |
-| `@` mentions | The user names the tool; the model only fills its inputs |
+| Chat engine | Plugins reach agent threads first. The chat engine gets them later, through a router step: its model never calls tools; it chooses a tool and fills its inputs under JSON schemas, and SurfSense makes the call ([ADR 0052](../../adr/0052-the-chat-model-never-calls-tools.md), [`core/03-engines.md`](core/03-engines.md#the-chat-engine-later)) |
+| `@` mentions | In agent threads: the user names the tool, the agent fills its inputs, and approval is as for any call |
 | Results | Belong to the turn and are stored with the call. Nothing reaches Sources unless the user saves it |
 | Approval | From the tool's MCP annotations, in SurfSense's own dialog, for every caller |
 | Egress | A plugin's hosts need consent before it connects, and appear in Settings → Network with its name |
@@ -100,15 +99,15 @@ plugins/
 | **Gateway** | `modules/plugins/gateway/`, `installed/`, `results/`, `routes.py`, the tables, approval, permissions | the MCP client |
 | **Screen** | `frontend/src/features/plugins/`: Settings → Plugins, Connect, Restricted mode, permissions, activity | the gateway's routes; can start against their shapes |
 | **opencode** | `modules/agent/plugin_tools/` | the gateway |
-| **Chat router** | `modules/chat/plugin_router/`, `@` mentions, the chat eval's router test | the gateway |
+| **`@` mentions** | The agent composer's `@` list, and the mention in `modules/agent/plugin_tools/` | the opencode endpoint |
 | **Plugin host** | `plugins/remote/host/` and `plugins/remote/mcp_server/`: the one container on Azure Container Apps, its image, its deployment, Redis and SearXNG | nothing |
 | **SurfSense scrapers** | `plugins/remote/proprietary/`: the scraping code copied out of `surfsense_backend`, its MCP tools, the license check | the plugin host; the root `LICENSE` line for `plugins/remote/proprietary/` |
 | **Contributor guide** | [`plugins/README.md`](../../../plugins/README.md), rewritten: building a remote MCP server, trying it with a custom plugin by URL, the registry pull request | the registry's rules |
 | **Bundles** | [`bundles/`](bundles/README.md) | deferred |
 
-**Demo:** a thread on a tool-calling model connects a test remote server added as a custom plugin by URL, the agent calls one of its tools, and the result shows as a step. The same question in a chat thread with the router on gets the same tool called and answered from.
+**Demo:** a thread on a tool-calling model connects a test remote server added as a custom plugin by URL, the agent calls one of its tools, and the result shows as a step.
 
-**Ship:** Settings → Plugins lists SurfSense's plugins with no network and the registry once other publishers are on, a user connects SurfSense Scrapers with a trial license and a partner plugin with OAuth, both engines and `@` mentions use them, and Restricted mode, approval and Save to Sources work.
+**Ship:** Settings → Plugins lists SurfSense's plugins with no network and the registry once other publishers are on, a user connects SurfSense Scrapers with a trial license and a partner plugin with OAuth, the agent and `@` mentions use them, and Restricted mode, approval and Save to Sources work.
 
 ## Order of work
 
@@ -116,9 +115,10 @@ plugins/
 2. **MCP client, gateway, tables and the opencode endpoint**, shown with a test server added as a custom plugin by URL. The agent calling a plugin is the first thing to demonstrate.
 3. **Settings → Plugins**: Connect, sign-in, egress consent, Restricted mode, tool switches, approval, activity.
 4. **The plugin lists**: the built-in list, the registry, their check, signing and publishing the registry to SurfSense's host, the app's fetch and cache.
-5. **The chat router and `@` mentions**, with the chat eval's router test.
+5. **`@` mentions** in agent threads.
 6. **The plugin host and SurfSense Scrapers** on it ([`remote/02-surfsense-servers.md`](remote/02-surfsense-servers.md)). Then partners' entries.
-7. **Bundles**, when something needs them.
+7. **The chat engine's router step**, when plugins reach Basic threads, with the chat eval's router test ([`core/03-engines.md`](core/03-engines.md#the-chat-engine-later)).
+8. **Bundles**, when something needs them.
 
 ## What this design gives up
 
@@ -128,9 +128,9 @@ Against the earlier design, where plugins ran locally from reviewed code:
 - **Data staying on the machine.** Each call's arguments go to the plugin's publisher. Consent per host, the privacy policy shown before Connect, and approval with the exact arguments make that visible.
 - **Seeing the code.** SurfSense reviews a listing, not the server behind it, which can change at any time. Tools added or changed later start off, and a plugin can be delisted.
 - **Availability.** A plugin stops working if its publisher's server does.
-- **One extra step for chat.** The router costs one or two model calls when tools are ready, and how well small models choose is unmeasured.
+- **Plugins in Basic threads, for now.** Only Agentic threads have plugins, and Agentic mode is offered only for models tested with opencode, so a user on a chat-only model waits for the chat engine's router step.
 
-In return, both engines call plugins and get live results, existing MCP servers become plugins with one pull request, publishers update without app releases, and there is far less for SurfSense to build before the first plugin ships.
+In return, the agent calls plugins and gets live results, existing MCP servers become plugins with one pull request, publishers update without app releases, and there is far less for SurfSense to build before the first plugin ships.
 
 ## What happens to the code already built
 
@@ -144,6 +144,5 @@ Plugins that change SurfSense itself (providers, interface, prompts); local MCP 
 
 - The citation a chat answer gives a tool result, beside today's chunk citations.
 - How long tool results are kept and how large a stored one may be.
-- The router's default per model, from the chat eval's router test.
 - Whether outside clients, `surfsense_mcp` and direct users of the scraper API, move to the plugin host once the backend's scraper API is retired.
 - Whether contributions under `plugins/remote/proprietary/` need a contributor agreement, so SurfSense can still move that code to Apache-2.0.

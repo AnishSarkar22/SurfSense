@@ -30,7 +30,7 @@ This follows Claude's connectors, where a new tool needs approval until the user
 - The dialog shows the plugin, its publisher badge, the tool's title, and the exact arguments.
 - It is the agent's approval dialog ([`approval-dialog.tsx`](../../../../surfsense_local/frontend/src/features/agent/approval-dialog.tsx)) with a plugin variant. The run goes `needs-approval`, and the answer uses the thread's existing permission route; the gateway handles plugin requests itself.
 - "Always allow" is stored per tool (`plugin_tools.approval` is `always`; otherwise `ask`) and can be revoked in Settings → Plugins.
-- An `@` mention approves its own call, except for a destructive tool ([`03-engines.md`](03-engines.md#-mentions)).
+- An `@` mention asks as any call does: the agent chose the inputs, not the user ([`03-engines.md`](03-engines.md#-mentions)).
 - A call not answered before its deadline ends `denied`, and the model is told the user did not answer.
 
 ## Permissions per tool

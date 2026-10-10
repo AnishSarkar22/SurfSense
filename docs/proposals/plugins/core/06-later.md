@@ -7,7 +7,7 @@
 | Extension point | Where | Why |
 |---|---|---|
 | `kind` on every list entry | [`02-registry.md`](02-registry.md) | `bundle` joins `remote` in both lists, behind the same Connect button |
-| `ToolSource` behind the gateway | [`01-architecture.md`](01-architecture.md#tool-sources) | A new kind of source is one more implementation; opencode, the router, `@` mentions and approval do not change |
+| `ToolSource` behind the gateway | [`01-architecture.md`](01-architecture.md#tool-sources) | A new kind of source is one more implementation; opencode, `@` mentions, approval and the chat engine's router do not change |
 | `<plugin>__<tool>` names | [`01-architecture.md`](01-architecture.md#names) | Permissions, steps and history stay stable whatever the source |
 | Permissions and consent per plugin and tool | [`04-trust.md`](04-trust.md) | Not tied to how a plugin runs |
 | `schema_version` and ignored unknown fields | [`02-registry.md`](02-registry.md) | New fields reach new apps without breaking old ones |
@@ -16,6 +16,7 @@
 
 | Addition | What it gives | What it takes |
 |---|---|---|
+| **The chat engine's router step** | Plugins in Basic threads, so every model the chat engine runs can use them, not only those tested with opencode | `modules/chat/plugin_router/`, the chat eval's router test, `@` mentions with an input form in chat threads ([`03-engines.md`](03-engines.md#the-chat-engine-later), [ADR 0052](../../../adr/0052-the-chat-model-never-calls-tools.md)) |
 | **Skills on a plugin** | A `SKILL.md` folder on a plugin's entry teaching the agent to use the plugin's tools well | A `skills` field; opencode's `skills.paths` and its `skill` permission allowlist, as SurfSense's own skills reach it ([agent](../../../architecture/agent.md)) |
 | **Finding tools on demand** | Plugins beyond the 24 listed per thread, through a search tool, as Pi's `tool_search` does | `exposure: deferred`; a `find_plugin_tools` tool and a way to call what it finds without breaking the prompt cache |
 | **Prompts and resources** | A server's prompts as composer shortcuts; its resources to browse and save to Sources | Two more parts of the MCP client and two screens |

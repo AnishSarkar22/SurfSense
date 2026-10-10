@@ -7,8 +7,8 @@
 
 ```
 opencode ──MCP──► modules/agent/plugin_tools ──┐
-chat engine ──► modules/chat/plugin_router ────┼──► Tool Gateway ──► ToolSource ──► remote MCP server
-"@plugin tool" in the composer ────────────────┘         │                       (later: bundle process)
+"@plugin tool" in the agent composer ──────────┼──► Tool Gateway ──► ToolSource ──► remote MCP server
+chat engine, later ──► plugin_router ──────────┘         │                       (later: bundle process)
                                                           ├── Installed: what is connected, enabled, ready
                                                           ├── Policy and approval
                                                           └── plugin_calls: every call and its result
@@ -45,7 +45,7 @@ What every kind shares sits at the top, in folders named for what they do. Each 
 | `list_tools(scope) -> list[PluginTool]` | The tools ready in this workspace: plugin connected and enabled, Restricted mode allowing it, credentials present, its hosts allowed, the tool itself on. A paid plugin's license is not checked here: its server decides ([`05-paid.md`](05-paid.md)) |
 | `call_tool(scope, name, arguments, caller) -> ToolOutcome` | Checks the arguments against the tool's schema, asks for approval when its policy says so ([`04-trust.md`](04-trust.md)), records a `plugin_calls` row, calls the source, trims the result, stores it, returns it |
 
-`scope` carries the workspace, the thread, and the turn. `caller` is `agent`, `chat_router` or `mention`. A refusal (no credentials, a host revoked, a server refusing the license, the user denying) comes back as a `ToolOutcome` with a sentence the model or the screen shows, never an exception.
+`scope` carries the workspace, the thread, and the turn. `caller` is `agent` or `mention`; `chat_router` is kept for the chat engine's router step, later ([`03-engines.md`](03-engines.md#the-chat-engine-later)). A refusal (no credentials, a host revoked, a server refusing the license, the user denying) comes back as a `ToolOutcome` with a sentence the model or the screen shows, never an exception.
 
 `PluginTool` is engine-neutral: the qualified name, the plugin's display name, the tool's title and description, its input schema, its MCP annotations, its exposure. `exposure` is SurfSense's, not MCP's: `direct` (listed to the engines) or `deferred` (later, found by search, [`06-later.md`](06-later.md)), stored per tool, `direct` by default. Each caller turns it into what its engine needs ([`03-engines.md`](03-engines.md)).
 
