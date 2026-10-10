@@ -60,7 +60,7 @@ plugins/
 
 | Product | What it does | What this design takes |
 |---|---|---|
-| [Pi](https://github.com/earendil-works/pi) | Its own tool pipeline, with MCP as a built-in extension adapting servers into it through Pi's own client; exposure modes and a tool search; MCP annotations driving permission checks; results trimmed at 20 KB | The structure: one gateway of SurfSense's own, MCP as a source behind it, a small client of our own, exposure, annotations, trimming. Not its in-process extensions, its installs from npm and git, or its lack of review |
+| [Pi](https://github.com/earendil-works/pi) | Its own tool pipeline, with MCP as a built-in extension adapting servers into it through Pi's own client; exposure modes and a tool search; MCP annotations driving permission checks; results trimmed at 20 KB | The structure: one gateway of SurfSense's own, MCP as a source behind it, exposure, annotations, trimming. Not its in-process extensions, its installs from npm and git, or its lack of review |
 | Claude's connectors | A reviewed directory of remote MCP servers, custom connectors by URL, local servers packaged as [MCP Bundles](https://github.com/modelcontextprotocol/mcpb) | Remote plugins listed and reviewed; custom plugins by URL; MCPB as the format of later bundles |
 | [Obsidian](https://github.com/obsidianmd/obsidian-releases) | One list of community plugins on its own server, each pointing at the author's repository and its GitHub releases; every version scanned; community plugins off until turned on | One list served from SurfSense's host; code and files staying with their authors; Restricted mode; scanning every bundle version |
 

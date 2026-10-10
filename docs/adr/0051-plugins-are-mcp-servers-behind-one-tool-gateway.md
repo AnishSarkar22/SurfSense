@@ -16,7 +16,7 @@ The agent already calls SurfSense's own tools over MCP ([agent](../architecture/
 - One Tool Gateway in the API is the only way any caller reaches a plugin tool: opencode, the chat engine's router step, and `@` mentions. Approval, policy, logging, trimming and storing results live there.
 - Behind the gateway, sources implement one interface. The first is a remote MCP server over HTTPS, hosted by its publisher, which may be SurfSense, a company or a community developer. Plugins that run on the user's machine come later as bundles behind the same interface.
 - A tool's result returns into the turn and is stored with the call. Nothing reaches Sources unless the user saves it.
-- The API carries a small MCP client of its own rather than the official SDK.
+- The API uses the official MCP Python SDK's client, pinned to one minor version and wrapped in one folder.
 - No plugin code runs inside the app, and a plugin cannot change SurfSense's own behaviour.
 
 ## Consequences

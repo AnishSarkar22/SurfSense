@@ -5,12 +5,12 @@
 
 ## The MCP client
 
-The API carries a small MCP client of its own, as Pi does with [`@earendil-works/pi-mcp`](https://github.com/earendil-works/pi/tree/main/packages/mcp), which does not depend on the official SDK. The app already serves MCP without a library ([agent](../../../architecture/agent.md#surfsenses-tools)), and the packaged API binary stays small.
+The API uses the client of the official MCP Python SDK, [`mcp`](https://pypi.org/project/mcp/), pinned to one minor version and used only inside `modules/plugins/remote/`, so a breaking release touches one folder and nothing above the gateway. It adds about 5 MB to the packaged API and brings the parts of MCP that keep growing: OAuth sign-in, new protocol revisions, notifications. The rules below are SurfSense's, whatever the SDK's defaults; where the SDK does not keep one, a thin layer in `remote/` does, and the client's tests check each against the SDK's own server.
 
 - **Transport:** Streamable HTTP only, answering both JSON and SSE responses, keeping the `Mcp-Session-Id` a server issues. The legacy SSE transport and stdio are not supported.
-- **Protocol:** offers `2025-11-25` and accepts what a server answers down to `2025-03-26`.
+- **Protocol:** the SDK's `auto` mode: it asks a server for `2026-07-28` first and falls back to the `initialize` handshake of `2025-11-25` down to `2025-03-26`, which most servers speak today.
 - **Requests:** `initialize`, `tools/list` (following its cursor), `tools/call`, `ping`, and the notifications `notifications/cancelled`, `notifications/progress` and `notifications/tools/list_changed`. Resources, prompts, sampling and elicitation wait for [`../core/06-later.md`](../core/06-later.md).
-- **Connecting:** on the first call after the app starts, kept while used, dropped after ten minutes idle. A dropped connection reconnects on the next call.
+- **Connecting:** each listing and each call opens its own connection, since the SDK's tasks must close in the task that opened them. A server on the 2025 protocol that forgets the session gets the request again on a new one, which is safe because it handled nothing. Keeping one connection per plugin, dropped after ten minutes idle, waits for a holder task of its own.
 - **Time:** each call carries the caller's deadline ([`../core/03-engines.md`](../core/03-engines.md)). At the deadline the client sends `notifications/cancelled` and the call ends `failed` with `timeout`. Progress notifications are passed up for the step to show.
 - **Retries:** connecting, listing and `ping` retry twice on a network error, 408, 429 or 5xx. `tools/call` is never retried, since the server may already have acted.
 - **Tool list:** read at connect, on `list_changed`, and when the user opens the plugin's row. What changed is applied as [`../core/02-registry.md`](../core/02-registry.md#tools-added-later) says.
@@ -26,7 +26,7 @@ The API carries a small MCP client of its own, as Pi does with [`@earendil-works
 | `oauth` | Signs in on the publisher's page in their browser | `Authorization: Bearer <access token>` |
 | `license` | Nothing beyond holding a SurfSense license | `Authorization: License <key>` ([`../core/05-paid.md`](../core/05-paid.md)) |
 
-OAuth follows MCP's authorization spec, as Pi's client does:
+OAuth follows MCP's authorization spec, through the SDK's OAuth client:
 
 1. The client reads the server's protected resource metadata ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728)) and the authorization server's metadata ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)), and checks the issuer.
 2. It identifies itself with a Client ID Metadata Document when the server supports one, otherwise registers dynamically ([RFC 7591](https://www.rfc-editor.org/rfc/rfc7591)), and keeps the client it registered.
