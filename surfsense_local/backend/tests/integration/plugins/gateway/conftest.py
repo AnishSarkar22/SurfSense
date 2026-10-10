@@ -1,0 +1,82 @@
+from collections.abc import Iterator
+from typing import Any
+
+import pytest
+from sqlalchemy import Engine
+from sqlalchemy.orm import Session
+
+from modules.plugins.gateway.source_result import SourceResult
+from modules.plugins.gateway.source_tool import SourceTool
+from modules.plugins.installed.models import InstalledPlugin, PluginKind, PluginSource
+from modules.plugins.installed.recorded_tools import record_tools
+from shared.db import create_session_factory
+
+
+@pytest.fixture
+def session(engine: Engine) -> Iterator[Session]:
+    """A session on the migrated database."""
+    with create_session_factory(engine)() as opened:
+        yield opened
+
+
+class FakeSource:
+    """A plugin's server, answered from memory, so the gateway is tested on its own."""
+
+    def __init__(self, tools: list[SourceTool], answer: Any = "done") -> None:
+        self.tools = tools
+        self.answer = answer
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def list_tools(self) -> list[SourceTool]:
+        return self.tools
+
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any], *, timeout: float | None = None
+    ) -> SourceResult:
+        self.calls.append((name, arguments))
+        if isinstance(self.answer, Exception):
+            raise self.answer
+        if isinstance(self.answer, SourceResult):
+            return self.answer
+        return SourceResult(text=self.answer, structured=None, is_error=False)
+
+
+def tool(name: str, **annotations: bool) -> SourceTool:
+    """A tool taking one required string, with the given annotations."""
+    return SourceTool(
+        name=name,
+        title=None,
+        description=f"The {name} tool.",
+        input_schema={
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+        annotations=annotations,
+    )
+
+
+async def connect(
+    session: Session,
+    plugin_id: str,
+    source: FakeSource,
+    *,
+    publisher: str = "surfsense",
+    url: str = "http://127.0.0.1:9/mcp",
+) -> InstalledPlugin:
+    """A plugin connected the way Connect leaves it: its row and its first listing."""
+    plugin = InstalledPlugin(
+        id=plugin_id,
+        kind=PluginKind.REMOTE,
+        source=PluginSource.BUILT_IN
+        if publisher == "surfsense"
+        else PluginSource.REGISTRY,
+        url=url,
+        publisher=publisher,
+        entry={"name": plugin_id.title(), "hosts": []},
+    )
+    session.add(plugin)
+    session.flush()
+    record_tools(session, plugin, await source.list_tools())
+    session.commit()
+    return plugin
