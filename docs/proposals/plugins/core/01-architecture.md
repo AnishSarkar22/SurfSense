@@ -82,8 +82,9 @@ Hand-written migrations, as [ADR 0005](../../../adr/0005-hand-written-migrations
 |---|---|
 | `installed_plugins` | `id`, `kind` (`remote`), `source` (`built_in`, `registry` or `custom`), `url`, `publisher`, `enabled`, `connected_at`, the list entry it was connected from |
 | `plugin_credentials` | `plugin_id`, `kind` (`oauth`, `token`, `license`), encrypted values through `shared/secrets.py`: token, refresh token, expiry, the registered OAuth client |
-| `plugin_tools` | `plugin_id`, `tool`, `first_seen_at`, `enabled`, `approval` (`ask` or `always`, [`04-trust.md`](04-trust.md#approval)), `exposure`, and the description, annotations and schema last seen, which [`02-registry.md`](02-registry.md#tools-added-later) compares on each listing |
+| `plugin_tools` | `plugin_id`, `tool`, `position` (the server's order), `first_seen_at`, `enabled`, `approval` (`ask` or `always`, [`04-trust.md`](04-trust.md#approval)), `exposure`, and the description, annotations and schema last seen, which [`02-registry.md`](02-registry.md#tools-added-later) compares on each listing |
 | `plugin_calls` | `id`, `workspace_id`, `thread_id`, `message_id`, `caller`, `plugin_id`, `tool`, `arguments`, `status` (`waiting_approval`, `running`, `succeeded`, `failed`, `denied`, `cancelled`), `result_text`, `result_data`, `error`, `started_at`, `finished_at` |
+| `plugin_settings` | One row: `other_publishers_on`, whether Restricted mode is off ([`02-registry.md`](02-registry.md#restricted-mode)) |
 
 `plugin_runs`, built for the earlier design, stays for bundles, with its runner in `modules/plugins/bundles/`.
 
