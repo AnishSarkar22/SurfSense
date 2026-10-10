@@ -21,8 +21,11 @@ Approval follows the tool's MCP annotations. A server that sets none gets MCP's 
 
 | Tool | Before a call |
 |---|---|
-| Not destructive | Asks, offering Allow once, Always allow this tool, or Deny, until the user picks Always allow |
+| `readOnlyHint: true` on a plugin from the built-in list | Runs without asking. Annotations are the server's own claim, trusted only from servers SurfSense runs |
+| Not destructive | Asks, offering Allow once, Always allow this tool, or Deny, until the user picks Always allow. A third party's read-only tool is here too |
 | `destructiveHint: true` | Asks every call, offering Allow once or Deny |
+
+This follows Claude's connectors, where a new tool needs approval until the user allows it always, and only a tool annotated read-only skips it.
 
 - The dialog shows the plugin, its publisher badge, the tool's title, and the exact arguments.
 - It is the agent's approval dialog ([`approval-dialog.tsx`](../../../../surfsense_local/frontend/src/features/agent/approval-dialog.tsx)) with a plugin variant. The run goes `needs-approval`, and the answer uses the thread's existing permission route; the gateway handles plugin requests itself.
@@ -32,7 +35,7 @@ Approval follows the tool's MCP annotations. A server that sets none gets MCP's 
 
 ## Permissions per tool
 
-Settings → Plugins shows each connected plugin's tools with an on/off switch and its approval setting, as browser extensions show their permissions. A new tool starts off ([`02-registry.md`](02-registry.md#tools-added-later)). Each plugin has an activity view: its recent calls, from which thread, with what arguments, and how they ended.
+Settings → Plugins shows each connected plugin's tools in two groups, read-only and the rest, each tool with an on/off switch and its approval setting, and each group with one setting for all its tools, as browser extensions show their permissions. A new tool starts off ([`02-registry.md`](02-registry.md#tools-added-later)). Each plugin has an activity view: its recent calls, from which thread, with what arguments, and how they ended.
 
 ## Prompt injection
 
@@ -54,5 +57,6 @@ Later Enterprise work, kept possible by this design: a policy can turn plugins o
 - A tool asks until Always allow is picked and not after; revoking it restores the dialog.
 - A destructive tool asks on every call and never offers Always allow, including after an `@` mention.
 - A tool with no annotations asks on every call.
+- A read-only tool runs without asking on a built-in plugin, and asks on a third-party one.
 - A call left unanswered past its deadline ends `denied`.
 - The activity view lists a call's thread, arguments and outcome, and no credential.
