@@ -1,15 +1,32 @@
+import json
 import shutil
 from collections.abc import Sequence
+from pathlib import PurePosixPath
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Response, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Form,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy import and_, delete, func, or_, select
 
 from api.dependencies import SessionDep
+from api.notify import (
+    notify_changed,
+    notify_document_deleted,
+    notify_document_updates,
+)
 from modules.chunks.models import Chunk
 from modules.documents.dependencies import DocumentDep
 from modules.documents.models import Document, DocumentStatus, DocumentType
+from modules.documents.original_file import original_path, stored_name
+from modules.documents.recordings.ended_run import drop_when_cancelled_in_queue
 from modules.documents.schemas import (
     DocumentByChunkRead,
     DocumentDetail,
@@ -23,14 +40,27 @@ from modules.documents.schemas import (
 from modules.documents.storage import (
     SUPPORTED_UPLOAD_SUFFIXES,
     StreamedUpload,
-    original_path,
     stream_upload,
     suffix_of,
     title_of,
     validate_upload,
 )
-from modules.documents.tasks import ingest_document
+from modules.documents.tasks import (
+    BULK_UPLOAD_FILES,
+    PRIORITY_BULK,
+    PRIORITY_INTERACTIVE,
+    ingest_document,
+)
+from modules.embedding.dependencies import EMBEDDER_CHOSEN
+from modules.events.dependencies import EventBrokerDep
+from modules.events.schemas import EventKind
+from modules.folders.dependencies import live_folder
+from modules.folders.ensure_path import ensure_folder_path
+from modules.folders.models import Folder
+from modules.folders.placement import require_library
+from modules.source_roots.managed_root import ensure_managed_root
 from modules.workspaces.dependencies import WorkspaceDep
+from modules.workspaces.models import Workspace
 from shared.config import get_storage_settings
 from worker.jobs import cancel_ingest_job
 
@@ -47,17 +77,27 @@ def list_documents(
     session: SessionDep,
     document_type: Annotated[list[DocumentType] | None, Query()] = None,
     status_in: Annotated[list[DocumentStatus] | None, Query(alias="status")] = None,
+    folder_id: int | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> Sequence[Document]:
+    """One page; a client wanting every source reads pages until one comes short."""
     query = select(Document).where(Document.workspace_id == workspace.id)
 
+    if folder_id is not None:
+        query = query.where(Document.folder_id == folder_id)
     if document_type:
         query = query.where(Document.document_type.in_(document_type))
     if status_in:
         query = query.where(Document.status.in_(status_in))
 
-    query = query.order_by(Document.created_at).limit(limit).offset(offset)
+    # Newest first, so a fresh upload leads the list and survives the page cap.
+    # `created_at` has second precision, so the id orders one batch.
+    query = (
+        query.order_by(Document.created_at.desc(), Document.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
 
     return session.scalars(query).all()
 
@@ -125,40 +165,75 @@ def get_document_by_chunk(
     )
 
 
+# Declared after the by-chunk route on purpose: FastAPI matches in declaration
+# order, and above it `/by-chunk/5` would resolve as a document called by-chunk.
+@router.get(
+    "/{document_id}",
+    response_model=DocumentDetail,
+    summary="Read a document",
+)
+def read_document(document: DocumentDep) -> Document:
+    # A FILE the worker has not written yet answers 200 with a null content, not
+    # 404: a client polling its fresh upload watches the row's status and body.
+    return document
+
+
 @router.post(
     "",
     response_model=DocumentDetail,
+    dependencies=[EMBEDDER_CHOSEN],
     status_code=status.HTTP_201_CREATED,
     summary="Write a note",
 )
 def create_note(
-    payload: NoteCreate, workspace: WorkspaceDep, session: SessionDep
+    payload: NoteCreate,
+    workspace: WorkspaceDep,
+    session: SessionDep,
+    broker: EventBrokerDep,
 ) -> Document:
     # A note arrives as text, so nothing needs parsing, but it stays pending
     # until the worker has chunked and indexed it: ready means searchable.
+    folder = _target_folder(session, workspace, payload.folder_id)
     note = Document(
         workspace_id=workspace.id,
         title=payload.title,
         document_type=DocumentType.NOTE,
         content=payload.content,
+        document_metadata=payload.document_metadata,
+        folder_id=folder.id,
     )
     session.add(note)
     session.commit()
 
     ingest_document(note.id)
+    notify_document_updates(broker, note)
     return note
 
 
 @router.post(
     "/upload",
+    dependencies=[EMBEDDER_CHOSEN],
     response_model=UploadOutcome,
     status_code=status.HTTP_201_CREATED,
     summary="Upload files",
 )
 def upload_documents(
-    files: list[UploadFile], workspace: WorkspaceDep, session: SessionDep
+    files: list[UploadFile],
+    workspace: WorkspaceDep,
+    session: SessionDep,
+    broker: EventBrokerDep,
+    folder_id: Annotated[int | None, Form()] = None,
+    relative_paths: Annotated[str | None, Form()] = None,
 ) -> UploadOutcome:
+    """Files into `folder_id`, else the top of the Library. `relative_paths`, a
+    JSON list index for index with `files`, carries a dropped folder's tree:
+    each file lands in the folders its path names below the target."""
     storage = get_storage_settings()
+    target = _target_folder(session, workspace, folder_id)
+    paths = _relative_paths(relative_paths, len(files))
+    # Folders past this id were made by the paths below.
+    last_folder = session.scalar(select(func.max(Folder.id))) or 0
+    priority = PRIORITY_BULK if len(files) > BULK_UPLOAD_FILES else PRIORITY_INTERACTIVE
     created: list[Document] = []
     duplicates: list[DuplicateRead] = []
     rejected: list[RejectedUploadRead] = []
@@ -166,7 +241,7 @@ def upload_documents(
     staged: list[StreamedUpload] = []
 
     try:
-        for upload in files:
+        for index, upload in enumerate(files):
             suffix = suffix_of(upload)
             if suffix not in SUPPORTED_UPLOAD_SUFFIXES:
                 rejected.append(
@@ -191,18 +266,29 @@ def upload_documents(
                 )
                 continue
 
-            # Keyed on the bytes: the same report under two names is one
-            # document, and two unrelated files both called report.pdf are two.
+            folder = (
+                target
+                if paths is None
+                else ensure_folder_path(session, target, paths[index])
+            )
+            # Keyed on the bytes, per folder: the same report under two names is
+            # one document, two unrelated report.pdf files are two, and a copied
+            # folder keeps a file that already sits in another folder.
             twin = session.scalar(
                 select(Document).where(
                     Document.workspace_id == workspace.id,
+                    Document.folder_id == folder.id,
                     Document.dedup_key == streamed.digest,
                 )
             )
             if twin is not None:
                 streamed.path.unlink(missing_ok=True)
                 duplicates.append(
-                    DuplicateRead(filename=title_of(upload), document_id=twin.id)
+                    DuplicateRead(
+                        filename=title_of(upload),
+                        document_id=twin.id,
+                        folder_id=folder.id,
+                    )
                 )
                 continue
 
@@ -210,7 +296,9 @@ def upload_documents(
                 workspace_id=workspace.id,
                 title=title_of(upload),
                 document_type=DocumentType.FILE,
+                folder_id=folder.id,
                 dedup_key=streamed.digest,
+                content_hash=streamed.digest,
                 document_metadata={
                     "mime_type": mime_type,
                     "size_bytes": streamed.size,
@@ -230,30 +318,85 @@ def upload_documents(
     for document, streamed, suffix in accepted:
         destination = storage.document_dir(workspace.id, document.id)
         destination.mkdir(parents=True, exist_ok=True)
-        streamed.path.replace(destination / f"original{suffix}")
+        streamed.path.replace(destination / stored_name(document.title, suffix))
 
+    made = list(
+        session.scalars(
+            select(Folder.id).where(
+                Folder.workspace_id == workspace.id, Folder.id > last_folder
+            )
+        )
+    )
     # Before enqueueing, not by the session dependency afterwards: the worker is
     # another process and would look for a row this request had not written yet.
     session.commit()
 
+    notify_changed(broker, workspace.id, EventKind.FOLDERS, made, "created")
     for document, _, _ in accepted:
-        ingest_document(document.id)
+        ingest_document(document.id, priority=priority)
+        notify_document_updates(broker, document)
 
     return UploadOutcome(created=created, duplicates=duplicates, rejected=rejected)
 
 
+def _target_folder(
+    session: SessionDep, workspace: Workspace, folder_id: int | None
+) -> Folder:
+    """Where a new source is filed: the folder named, else the Library's top."""
+    if folder_id is None:
+        return ensure_managed_root(session, workspace.id)
+    folder = live_folder(session, workspace.id, folder_id)
+    require_library(session, folder)
+    return folder
+
+
+def _relative_paths(raw: str | None, count: int) -> list[list[str]] | None:
+    """Each file's folder names, from paths like `Research/2024/a.pdf`."""
+    if raw is None:
+        return None
+    try:
+        paths = json.loads(raw)
+    except ValueError:
+        paths = None
+    if (
+        not isinstance(paths, list)
+        or len(paths) != count
+        or not all(isinstance(path, str) for path in paths)
+    ):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "relative_paths must be a JSON list of one path per file",
+        )
+    # Folder names only, never a filesystem path: bytes stay id-keyed.
+    return [
+        [
+            part
+            for part in PurePosixPath(path.replace("\\", "/")).parts[:-1]
+            if part not in ("", ".", "..", "/")
+        ]
+        for path in paths
+    ]
+
+
 @router.patch(
     "/{document_id}",
+    dependencies=[EMBEDDER_CHOSEN],
     response_model=DocumentRead,
     summary="Edit a document",
 )
 def update_document(
-    document: DocumentDep, payload: DocumentUpdate, session: SessionDep
+    document: DocumentDep,
+    payload: DocumentUpdate,
+    session: SessionDep,
+    broker: EventBrokerDep,
 ) -> Document:
     if payload.title is not None:
         document.title = payload.title
 
     if payload.content is None:
+        # A rename runs no ingest, so no worker would notify of it.
+        session.commit()
+        notify_document_updates(broker, document)
         return document
 
     if document.document_type is not DocumentType.NOTE:
@@ -269,15 +412,19 @@ def update_document(
     session.commit()
 
     ingest_document(document.id)
+    notify_document_updates(broker, document)
     return document
 
 
 @router.post(
     "/{document_id}/retry",
+    dependencies=[EMBEDDER_CHOSEN],
     response_model=DocumentRead,
     summary="Requeue a failed or cancelled document",
 )
-def retry_document(document: DocumentDep, session: SessionDep) -> Document:
+def retry_document(
+    document: DocumentDep, session: SessionDep, broker: EventBrokerDep
+) -> Document:
     # Otherwise failed/cancelled is terminal: the same bytes re-uploaded are a duplicate.
     if document.status not in (DocumentStatus.FAILED, DocumentStatus.CANCELLED):
         raise HTTPException(
@@ -290,6 +437,7 @@ def retry_document(document: DocumentDep, session: SessionDep) -> Document:
     session.commit()
 
     ingest_document(document.id)
+    notify_document_updates(broker, document)
     return document
 
 
@@ -298,9 +446,14 @@ def retry_document(document: DocumentDep, session: SessionDep) -> Document:
     response_model=DocumentRead,
     summary="Stop a queued or running ingest",
 )
-def cancel_ingest(document: DocumentDep, session: SessionDep) -> Document:
+def cancel_ingest(
+    document: DocumentDep, session: SessionDep, broker: EventBrokerDep
+) -> Document:
+    was = document.status
     if not cancel_ingest_job(session, document):
         raise HTTPException(status.HTTP_409_CONFLICT, "nothing is running")
+    drop_when_cancelled_in_queue(document, was)
+    notify_document_updates(broker, document)
     return document
 
 
@@ -312,7 +465,7 @@ def cancel_ingest(document: DocumentDep, session: SessionDep) -> Document:
 def read_original(document: DocumentDep) -> FileResponse:
     path = original_path(document)
 
-    if not path.is_file():
+    if path is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no file behind this document")
 
     # Never inline: a stored html or svg would run its script on this origin.
@@ -330,10 +483,19 @@ def read_original(document: DocumentDep) -> FileResponse:
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a document",
 )
-def delete_document(document: DocumentDep, session: SessionDep) -> Response:
+def delete_document(
+    document: DocumentDep, session: SessionDep, broker: EventBrokerDep
+) -> Response:
     # Chunks cascade and their triggers clear both indexes. Only the bytes are
     # beyond the database, and go after the commit a rollback would undo.
-    directory = get_storage_settings().document_dir(document.workspace_id, document.id)
+    storage = get_storage_settings()
+    workspace_id, document_id = document.workspace_id, document.id
+    directories = [storage.document_dir(workspace_id, document_id)]
+    # A Studio output keeps its rendered blobs under its artifact's own id.
+    if document.artifact is not None:
+        directories.append(
+            storage.artifact_dir(document.workspace_id, document.artifact.id)
+        )
 
     deleted = session.execute(
         delete(Document).where(
@@ -349,5 +511,7 @@ def delete_document(document: DocumentDep, session: SessionDep) -> Response:
         )
     session.commit()
 
-    shutil.rmtree(directory, ignore_errors=True)
+    for directory in directories:
+        shutil.rmtree(directory, ignore_errors=True)
+    notify_document_deleted(broker, workspace_id, document_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

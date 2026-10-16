@@ -7,6 +7,7 @@ import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { ZoomInIcon, ZoomOutIcon } from "@/components/ui/icons"
 import { Spinner } from "@/components/ui/spinner"
+import { intl } from "@/i18n/intl"
 import { fileUrl, type ArtifactDetail } from "../api"
 
 // Ported from surfsense_web's components/shared/pdf-viewer.tsx (trimmed:
@@ -87,9 +88,12 @@ export function PdfViewer({
         // loadPdfViewerModule() then fetch — not Promise.all — so
         // pdf_viewer.mjs never starts before globalThis.pdfjsLib is set.
         const viewerModulePromise = loadPdfViewerModule()
-        const responsePromise = fetch(fileUrl(artifact.id, "primary"), {
-          signal: controller.signal,
-        })
+        const responsePromise = fetch(
+          fileUrl(artifact.id, "primary", artifact.generation),
+          {
+            signal: controller.signal,
+          }
+        )
         const [pdfjsLib, viewerModule, response] = await Promise.all([
           loadPdfjsLib(),
           viewerModulePromise,
@@ -97,7 +101,18 @@ export function PdfViewer({
         ])
 
         if (!response.ok) {
-          throw new Error(`Server returned ${response.status} while retrieving the PDF`)
+          throw new Error(
+            intl.formatMessage(
+              {
+                id: "studio_pdf_viewer_load_error",
+                defaultMessage:
+                  "Server returned {status} while retrieving the PDF",
+              },
+              {
+                status: String(response.status),
+              }
+            )
+          )
         }
 
         const data = await response.arrayBuffer()
@@ -131,7 +146,9 @@ export function PdfViewer({
         loadingTask = pdfjsLib.getDocument({ data })
         pdfDocument = await loadingTask.promise
         if (disposed) {
-          await pdfDocument.destroy()
+          // PDF.js 6 dropped PDFDocumentProxy.destroy(); the loading task
+          // owns the document and its worker.
+          await loadingTask.destroy()
           return
         }
 
@@ -151,7 +168,14 @@ export function PdfViewer({
         resizeObserver.observe(container)
       } catch (error: unknown) {
         if (disposed) return
-        setLoadError(error instanceof Error ? error.message : "Failed to load PDF")
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : intl.formatMessage({
+                id: "studio_pdf_viewer_unknown_error",
+                defaultMessage: "Failed to load PDF",
+              })
+        )
         setLoading(false)
       }
     })()
@@ -161,17 +185,15 @@ export function PdfViewer({
       controller.abort()
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
       resizeObserver?.disconnect()
-      if (eventBus && handlePagesInit) eventBus.off("pagesinit", handlePagesInit)
-      if (eventBus && handlePageRendered) eventBus.off("pagerendered", handlePageRendered)
+      if (eventBus && handlePagesInit)
+        eventBus.off("pagesinit", handlePagesInit)
+      if (eventBus && handlePageRendered)
+        eventBus.off("pagerendered", handlePageRendered)
       pdfViewer?.setDocument(null)
       pdfViewerRef.current = null
-      if (pdfDocument) {
-        void pdfDocument.destroy()
-      } else {
-        void loadingTask?.destroy()
-      }
+      void loadingTask?.destroy()
     }
-  }, [artifact.id, primary, retryKey])
+  }, [artifact.id, artifact.generation, primary, retryKey])
 
   useEffect(() => {
     const container = containerRef.current
@@ -208,7 +230,12 @@ export function PdfViewer({
   if (loadError) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm font-medium">Failed to load PDF</p>
+        <p className="text-sm font-medium">
+          {intl.formatMessage({
+            id: "studio_pdf_viewer_error_title",
+            defaultMessage: "Failed to load PDF",
+          })}
+        </p>
         <p className="text-xs text-muted-foreground">{loadError}</p>
         <Button
           type="button"
@@ -216,7 +243,10 @@ export function PdfViewer({
           size="sm"
           onClick={() => setRetryKey((key) => key + 1)}
         >
-          Try again
+          {intl.formatMessage({
+            id: "studio_pdf_viewer_retry_button",
+            defaultMessage: "Try again",
+          })}
         </Button>
       </div>
     )
@@ -228,7 +258,10 @@ export function PdfViewer({
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label="Zoom out"
+        aria-label={intl.formatMessage({
+          id: "studio_pdf_viewer_zoom_out_aria",
+          defaultMessage: "Zoom out",
+        })}
         onClick={zoomOut}
       >
         <ZoomOutIcon />
@@ -237,7 +270,10 @@ export function PdfViewer({
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label="Zoom in"
+        aria-label={intl.formatMessage({
+          id: "studio_pdf_viewer_zoom_in_aria",
+          defaultMessage: "Zoom in",
+        })}
         onClick={zoomIn}
       >
         <ZoomInIcon />

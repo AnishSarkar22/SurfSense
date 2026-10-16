@@ -11,7 +11,7 @@ This is the demand document. The rest of the set:
 | [`03-international.md`](03-international.md) | 26 markets in 15 languages: market sizes, localisation tiers, per-language glossaries, hreflang plan |
 | [`04-competitors.md`](04-competitors.md) | domain authority, competitor footprints, keyword gaps, patterns to copy; the edtech set that owns the Studio SERPs |
 | [`05-serp-landscape.md`](05-serp-landscape.md) | what the results page looks like for the four priority terms and the study-guide head, AI Overview citations, PAA |
-| [`06-repo-readme.md`](06-repo-readme.md) | the repo as a ranking page: description, topics, and a paste-ready README draft in [`drafts/`](drafts/README.md) |
+| [`06-repo-readme.md`](06-repo-readme.md) | the repo as a ranking page: description, topics, the README's structure and how to change it; the 2.0.0 draft in [`drafts/`](drafts/README.md) is kept for history |
 | [`07-what-users-do.md`](07-what-users-do.md) | **what our own users actually ask for**, from production chat data — the audience check on everything in this file |
 | [`data/master-keywords.csv`](data/master-keywords.csv) | 565 keywords scored and clustered, the single list to work from |
 
@@ -996,7 +996,7 @@ after the rewrite should be measured on the no-signup cluster, not on the
 **One build constraint follows from all of it**, and it is in the brief: every
 claim on the page has to be true of the shipped app, so the model roster
 renders from
-[`curated-models.json`](../../../surfsense_local/backend/modules/llm/recommendations/curated-models.json)
+[`catalog/local/manifest/models.json`](../../../surfsense_local/backend/modules/llm/catalog/local/manifest/models.json)
 rather than a hand-kept list. A page that cannot advertise a model the app
 cannot run cannot drift back into the hosted-era copy.
 

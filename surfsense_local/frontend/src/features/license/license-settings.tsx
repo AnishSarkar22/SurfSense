@@ -13,62 +13,97 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
-import { CircleAlertIcon } from "@/components/ui/icons"
+import { CircleAlertIcon, DotIcon } from "@/components/ui/icons"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
+import { ExternalLink } from "@/features/about/external-link"
 import { SettingsSection } from "@/features/settings/settings-section"
+import { intl } from "@/i18n/intl"
 
+import { translatedLicenseError } from "./license-error-text"
+import { PRICING_URL } from "./license-links"
 import {
   importLicense,
   readLicense,
   removeLicense,
   type LicenseStatus,
 } from "./api"
+import { TrialButton } from "./trial-button"
 import { licenseQueryKey, useLicense } from "./use-license"
+import { refreshLicenseVerdict } from "@/features/plugins/license-verdict"
 
 const DAY = 24 * 60 * 60 * 1000
 const EXPIRY_NOTICE_DAYS = 14
 
-function messageFrom(error: unknown) {
-  return error instanceof Error ? error.message : "An unexpected error occurred"
-}
+const messageFrom = translatedLicenseError
 
 function planLabel(plan: string) {
-  return `${plan.charAt(0).toUpperCase()}${plan.slice(1)} plan`
+  return intl.formatMessage(
+    { id: "license_plan_title", defaultMessage: "{plan} plan" },
+    {
+      plan: `${plan.charAt(0).toUpperCase()}${plan.slice(1)}`,
+    }
+  )
 }
 
-function dateLabel(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })
-}
-
-function notice(
-  status: LicenseStatus
-): { title: string; description: string } | null {
+function notice(status: LicenseStatus): {
+  title: string
+  description: string
+  link?: { href: string; label: string }
+  /** A heads-up rather than a problem reads quieter. */
+  variant?: "secondary"
+} | null {
   if (status.state === "clock_untrusted") {
     return {
-      title: "Clock is off",
-      description:
-        "This computer's clock is behind the last time SurfSense ran. Set it right to use your license.",
+      title: intl.formatMessage({
+        id: "license_clock_notice_title",
+        defaultMessage: "Clock is off",
+      }),
+      description: intl.formatMessage({
+        id: "license_clock_notice_body",
+        defaultMessage:
+          "This computer’s clock is behind the last time SurfSense ran. Set it right to use your license.",
+      }),
     }
   }
   if (status.state === "license_expired") {
     return {
-      title: "Expired",
-      description:
-        "This license has expired. Renew it from your account and add the new file.",
+      title: intl.formatMessage({
+        id: "license_expired_notice_title",
+        defaultMessage: "Expired",
+      }),
+      description: intl.formatMessage({
+        id: "license_expired_notice_body",
+        defaultMessage:
+          "This license has expired. Renewing issues a new file to add here.",
+      }),
+      link: {
+        href: PRICING_URL,
+        label: intl.formatMessage({
+          id: "license_expired_notice_link",
+          defaultMessage: "Renew license",
+        }),
+      },
     }
   }
   if (status.expiry) {
     const days = Math.ceil((Date.parse(status.expiry) - Date.now()) / DAY)
     if (days <= EXPIRY_NOTICE_DAYS) {
       return {
-        title: "Expiring soon",
-        description: `This license runs out in ${days} ${days === 1 ? "day" : "days"}.`,
+        title: intl.formatMessage({
+          id: "license_expiring_notice_title",
+          defaultMessage: "Expiring soon",
+        }),
+        description: intl.formatMessage(
+          {
+            id: "license_expiring_notice_body",
+            defaultMessage:
+              "This license runs out in {count, plural, one {# day} other {# days}}.",
+          },
+          { count: days }
+        ),
+        variant: "secondary",
       }
     }
   }
@@ -76,12 +111,16 @@ function notice(
 }
 
 function LicenseFormDialog({
+  open,
   replacing,
   onOpenChange,
+  onOpenChangeComplete,
   onImported,
 }: {
+  open: boolean
   replacing: boolean
   onOpenChange: (open: boolean) => void
+  onOpenChangeComplete: (open: boolean) => void
   onImported: (status: LicenseStatus) => void
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
@@ -111,14 +150,29 @@ function LicenseFormDialog({
   }
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md select-none">
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      onOpenChangeComplete={onOpenChangeComplete}
+    >
+      <DialogContent className="select-none sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {replacing ? "Replace license" : "Add license"}
+            {replacing
+              ? intl.formatMessage({
+                  id: "license_form_replace_title",
+                  defaultMessage: "Replace license",
+                })
+              : intl.formatMessage({
+                  id: "license_form_add_title",
+                  defaultMessage: "Add license",
+                })}
           </DialogTitle>
           <DialogDescription>
-            Choose a .lic file or paste it below.
+            {intl.formatMessage({
+              id: "license_form_body",
+              defaultMessage: "Choose a .lic file or paste it below.",
+            })}
           </DialogDescription>
         </DialogHeader>
         <FieldGroup>
@@ -129,7 +183,10 @@ function LicenseFormDialog({
               type="file"
               accept=".lic"
               className="sr-only"
-              aria-label="Choose license file"
+              aria-label={intl.formatMessage({
+                id: "license_form_file_aria",
+                defaultMessage: "Choose license file",
+              })}
               disabled={busy}
               onChange={importPicked}
             />
@@ -140,14 +197,25 @@ function LicenseFormDialog({
               onClick={() => fileInput.current?.click()}
             >
               {busy ? <Spinner data-icon="inline-start" /> : null}
-              Choose license file
+              {intl.formatMessage({
+                id: "license_form_choose_file_button",
+                defaultMessage: "Choose license file",
+              })}
             </Button>
           </Field>
           <Field>
-            <FieldLabel htmlFor="license-paste">Or paste the file</FieldLabel>
+            <FieldLabel htmlFor="license-paste">
+              {intl.formatMessage({
+                id: "license_form_paste_label",
+                defaultMessage: "Or paste the file",
+              })}
+            </FieldLabel>
             <textarea
               id="license-paste"
-              aria-label="Paste license file"
+              aria-label={intl.formatMessage({
+                id: "license_form_paste_aria",
+                defaultMessage: "Paste license file",
+              })}
               className="min-h-24 w-full min-w-0 resize-y rounded-lg border border-input bg-transparent px-2.5 py-2 font-mono text-xs transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring/70 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30"
               placeholder="-----BEGIN LICENSE FILE-----"
               value={pasted}
@@ -167,7 +235,10 @@ function LicenseFormDialog({
             variant="outline"
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            {intl.formatMessage({
+              id: "license_form_cancel_button",
+              defaultMessage: "Cancel",
+            })}
           </Button>
           <Button
             type="button"
@@ -175,7 +246,10 @@ function LicenseFormDialog({
             onClick={() => void submit(pasted)}
           >
             {busy ? <Spinner data-icon="inline-start" /> : null}
-            Add
+            {intl.formatMessage({
+              id: "license_form_add_button",
+              defaultMessage: "Add",
+            })}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -187,14 +261,22 @@ export function LicenseSettings() {
   const queryClient = useQueryClient()
   const license = useLicense()
   const [editor, setEditor] = useState<"add" | "replace" | null>(null)
+  const [editorOpen, setEditorOpen] = useState(false)
+  const openEditor = (mode: "add" | "replace") => {
+    setEditor(mode)
+    setEditorOpen(true)
+  }
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const status = license.data ?? null
   // Straight into the cache rather than local state, so the sidebar's license
   // row reacts to an import here without refetching.
-  const publish = (next: LicenseStatus) =>
+  const publish = (next: LicenseStatus) => {
     queryClient.setQueryData(licenseQueryKey, next)
+    // The paid plugins show what the new license unlocks, before anyone opens Plugins.
+    void refreshLicenseVerdict(queryClient, { ifStale: false })
+  }
 
   const remove = async () => {
     setBusy(true)
@@ -216,8 +298,15 @@ export function LicenseSettings() {
 
   return (
     <SettingsSection
-      title="License"
-      description="Paid plugins need a license file tied to your email. It's verified on this device."
+      title={intl.formatMessage({
+        id: "license_settings_title",
+        defaultMessage: "License",
+      })}
+      description={intl.formatMessage({
+        id: "license_settings_body",
+        defaultMessage:
+          "Paid plugins need a license file tied to your email. It’s verified on this device.",
+      })}
     >
       {loading ? (
         <div className="flex flex-col gap-1">
@@ -227,13 +316,34 @@ export function LicenseSettings() {
       ) : null}
 
       {status?.state === "none" ? (
-        <div className="flex items-center justify-between gap-8">
-          <p className="text-sm text-pretty text-muted-foreground">
-            No license on this device
-          </p>
-          <Button type="button" onClick={() => setEditor("add")}>
-            Add license
-          </Button>
+        <div className="flex items-start justify-between gap-8">
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-pretty text-muted-foreground">
+              {intl.formatMessage({
+                id: "license_settings_empty",
+                defaultMessage: "No license on this device",
+              })}
+            </p>
+            <ExternalLink href={PRICING_URL}>
+              {intl.formatMessage({
+                id: "license_settings_pricing_link",
+                defaultMessage: "See pricing",
+              })}
+            </ExternalLink>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => openEditor("add")}
+            >
+              {intl.formatMessage({
+                id: "license_settings_add_button",
+                defaultMessage: "Add license",
+              })}
+            </Button>
+            <TrialButton />
+          </div>
         </div>
       ) : null}
 
@@ -245,17 +355,57 @@ export function LicenseSettings() {
                 {planLabel(status.plan ?? "")}
               </h3>
               {status.state === "active" ? (
-                <Badge variant="secondary">Active</Badge>
+                <Badge variant="secondary">
+                  {intl.formatMessage({
+                    id: "license_status_active_label",
+                    defaultMessage: "Active",
+                  })}
+                </Badge>
               ) : null}
             </div>
             <p className="text-sm text-pretty text-muted-foreground">
               {status.email}
             </p>
             {status.expiry ? (
-              <p className="text-sm text-pretty text-muted-foreground tabular-nums">
-                {status.state === "active" ? "Expires" : "Ended"}{" "}
-                {dateLabel(status.expiry)}
-                {status.max_users ? ` · ${status.max_users} seats` : ""}
+              <p className="flex flex-wrap items-center text-sm text-muted-foreground tabular-nums">
+                <span>
+                  {status.state === "active"
+                    ? intl.formatMessage(
+                        {
+                          id: "license_status_expires_label",
+                          defaultMessage: "Expires {date, date, ::yyyyMMMd}",
+                        },
+                        {
+                          date: new Date(status.expiry),
+                        }
+                      )
+                    : intl.formatMessage(
+                        {
+                          id: "license_status_ended_label",
+                          defaultMessage: "Ended {date, date, ::yyyyMMMd}",
+                        },
+                        {
+                          date: new Date(status.expiry),
+                        }
+                      )}
+                </span>
+                {status.max_users ? (
+                  <>
+                    <DotIcon aria-hidden="true" className="size-3 shrink-0" />
+                    <span>
+                      {intl.formatMessage(
+                        {
+                          id: "license_status_seats_label",
+                          defaultMessage:
+                            "{count, plural, one {# seat} other {# seats}}",
+                        },
+                        {
+                          count: status.max_users,
+                        }
+                      )}
+                    </span>
+                  </>
+                ) : null}
               </p>
             ) : null}
           </div>
@@ -264,9 +414,12 @@ export function LicenseSettings() {
               type="button"
               variant="outline"
               disabled={busy}
-              onClick={() => setEditor("replace")}
+              onClick={() => openEditor("replace")}
             >
-              Replace license
+              {intl.formatMessage({
+                id: "license_settings_replace_button",
+                defaultMessage: "Replace license",
+              })}
             </Button>
             <Button
               type="button"
@@ -275,17 +428,27 @@ export function LicenseSettings() {
               onClick={() => void remove()}
             >
               {busy ? <Spinner data-icon="inline-start" /> : null}
-              Remove license
+              {intl.formatMessage({
+                id: "license_settings_remove_button",
+                defaultMessage: "Remove license",
+              })}
             </Button>
           </div>
         </div>
       ) : null}
 
       {shown ? (
-        <Alert role="status" className="mt-6">
+        <Alert role="status" variant={shown.variant} className="mt-6">
           <CircleAlertIcon />
           <AlertTitle>{shown.title}</AlertTitle>
-          <AlertDescription>{shown.description}</AlertDescription>
+          <AlertDescription className="flex flex-col items-start gap-1">
+            <span>{shown.description}</span>
+            {shown.link ? (
+              <ExternalLink href={shown.link.href}>
+                {shown.link.label}
+              </ExternalLink>
+            ) : null}
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -295,10 +458,13 @@ export function LicenseSettings() {
         </p>
       ) : null}
 
-      {editor !== null ? (
+      {editor ? (
         <LicenseFormDialog
+          key={editor}
+          open={editorOpen}
           replacing={editor === "replace"}
-          onOpenChange={(open) => {
+          onOpenChange={setEditorOpen}
+          onOpenChangeComplete={(open) => {
             if (!open) setEditor(null)
           }}
           onImported={publish}

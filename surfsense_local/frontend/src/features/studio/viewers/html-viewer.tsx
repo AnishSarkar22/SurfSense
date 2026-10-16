@@ -3,8 +3,10 @@ import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { FileIcon } from "@/components/ui/icons"
 import { Spinner } from "@/components/ui/spinner"
+import { intl } from "@/i18n/intl"
 import { fileUrl, type ArtifactDetail } from "../api"
 import { VIEWER_PADDING } from "./viewer-layout"
+import { studioKeys } from "../query-keys"
 
 export function HtmlViewer({ artifact }: { artifact: ArtifactDetail }) {
   const primary = artifact.files.find((file) => file.role === "primary")
@@ -15,14 +17,20 @@ export function HtmlViewer({ artifact }: { artifact: ArtifactDetail }) {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["artifact-html", artifact.id],
+    queryKey: [
+      ...studioKeys.artifact(artifact.id),
+      "html",
+      artifact.generation,
+    ],
     queryFn: async () => {
       if (!primary) throw new Error("This artifact has no file to preview")
       // Content-Disposition on this route is "attachment" for text/html (see
       // the API's _INLINE_UNSAFE), which only affects navigation — fetch()
       // ignores it and returns the body normally, so we render it via
       // srcDoc into a sandboxed iframe instead of pointing src at the URL.
-      const response = await fetch(fileUrl(artifact.id, "primary"))
+      const response = await fetch(
+        fileUrl(artifact.id, "primary", artifact.generation)
+      )
       if (!response.ok) {
         throw new Error(`Could not load page (${response.status})`)
       }
@@ -48,9 +56,18 @@ export function HtmlViewer({ artifact }: { artifact: ArtifactDetail }) {
       >
         <FileIcon className="size-8 text-muted-foreground" />
         <div>
-          <p className="text-sm font-medium">Couldn't open this page</p>
+          <p className="text-sm font-medium">
+            {intl.formatMessage({
+              id: "studio_html_viewer_error_title",
+              defaultMessage: "Couldn’t open this page",
+            })}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            This page can't be previewed here. Download it to open it.
+            {intl.formatMessage({
+              id: "studio_html_viewer_error_body",
+              defaultMessage:
+                "This page can’t be previewed here. Download it to open it.",
+            })}
           </p>
         </div>
         <Button
@@ -59,7 +76,10 @@ export function HtmlViewer({ artifact }: { artifact: ArtifactDetail }) {
           size="sm"
           onClick={() => void refetch()}
         >
-          Try again
+          {intl.formatMessage({
+            id: "studio_html_viewer_retry_button",
+            defaultMessage: "Try again",
+          })}
         </Button>
       </div>
     )

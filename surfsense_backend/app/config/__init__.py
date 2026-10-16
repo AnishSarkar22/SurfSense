@@ -473,7 +473,7 @@ class Config:
     # Deployment Mode (self-hosted or cloud)
     # self-hosted: Full access to local file system connectors (Obsidian, etc.)
     # cloud: Only cloud-based connectors available
-    DEPLOYMENT_MODE = os.getenv("SURFSENSE_DEPLOYMENT_MODE", "self-hosted")
+    DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "self-hosted")
     ENABLE_DESKTOP_LOCAL_FILESYSTEM = (
         os.getenv("ENABLE_DESKTOP_LOCAL_FILESYSTEM", "FALSE").upper() == "TRUE"
     )
@@ -678,7 +678,7 @@ class Config:
     #
     # Keygen is the system of record: there is no license table, and every
     # lookup is a filter over Keygen license metadata. See
-    # plans/community-local/portal/01-license-routes.md.
+    # docs/architecture/license/portal.md.
     KEYGEN_ACCOUNT_ID = os.getenv("KEYGEN_ACCOUNT_ID")
     KEYGEN_API_TOKEN = os.getenv("KEYGEN_API_TOKEN")
     # Self-hosted CE only; unset means Keygen Cloud. KEYGEN_HOST is the dotted
@@ -1229,7 +1229,7 @@ class Config:
 
     # Proxy endpoint(s), shared across all providers — PROXY_PROVIDER selects how
     # they're interpreted, not a different env name. PROXY_URL is a single full
-    # http://user:pass@host:port endpoint (used by every provider); e.g. DataImpulse
+    # http://user:pass@host:port endpoint (used by every provider); e.g. DataImpulse  # pragma: allowlist secret
     # encodes country as a "__cr.<country>" username suffix that its provider parses
     # for geoip-match. PROXY_URLS is a comma-separated pool that the "custom" provider
     # rotates client-side (server-side-rotating gateways ignore it). Leave unset to

@@ -6,6 +6,7 @@ import "react-data-grid/lib/styles.css"
 import { Button } from "@/components/ui/button"
 import { FileIcon } from "@/components/ui/icons"
 import { Spinner } from "@/components/ui/spinner"
+import { intl } from "@/i18n/intl"
 import { fileUrl, type ArtifactDetail } from "../api"
 import {
   MAX_VIEWER_BYTES,
@@ -14,6 +15,7 @@ import {
   type SheetView,
 } from "./parse-workbook"
 import { VIEWER_PADDING } from "./viewer-layout"
+import { studioKeys } from "../query-keys"
 
 function columnLabel(index: number): string {
   let n = index
@@ -35,13 +37,10 @@ function SpreadsheetGrid({ sheet }: { sheet: SheetView }) {
     const colCount = Math.max(1, ...sheet.cells.map((row) => row.length))
     const gridColumns: Column<GridRow>[] = [
       { key: "rowNumber", name: "", width: 48, frozen: true },
-      ...Array.from(
-        { length: colCount },
-        (_, col): Column<GridRow> => ({
-          key: `column-${col}`,
-          name: columnLabel(col),
-        })
-      ),
+      ...Array.from({ length: colCount }, (_, col): Column<GridRow> => ({
+        key: `column-${col}`,
+        name: columnLabel(col),
+      })),
     ]
     const gridRows: GridRow[] = sheet.cells.map((row, index) =>
       Object.fromEntries([
@@ -54,7 +53,13 @@ function SpreadsheetGrid({ sheet }: { sheet: SheetView }) {
 
   return (
     <DataGrid
-      aria-label={`${sheet.name} worksheet`}
+      aria-label={intl.formatMessage(
+        {
+          id: "studio_xlsx_viewer_sheet_aria",
+          defaultMessage: "{name} worksheet",
+        },
+        { name: sheet.name }
+      )}
       className="rdg-light h-full"
       columns={columns}
       rowKeyGetter={(row) => row.rowNumber}
@@ -67,11 +72,23 @@ function SpreadsheetGrid({ sheet }: { sheet: SheetView }) {
 function fallbackMessage(error: unknown): string {
   if (error instanceof ParseWorkbookError) {
     if (error.code === "oversize") {
-      return "This workbook is too large to preview here. Download it to open it."
+      return intl.formatMessage({
+        id: "studio_xlsx_viewer_oversize_error",
+        defaultMessage:
+          "This workbook is too large to preview here. Download it to open it.",
+      })
     }
-    return "This workbook could not be opened. Download it to open it."
+    return intl.formatMessage({
+      id: "studio_xlsx_viewer_unreadable_error",
+      defaultMessage:
+        "This workbook could not be opened. Download it to open it.",
+    })
   }
-  return "This spreadsheet can't be previewed here. Download it to open it."
+  return intl.formatMessage({
+    id: "studio_xlsx_viewer_load_error",
+    defaultMessage:
+      "This spreadsheet can’t be previewed here. Download it to open it.",
+  })
 }
 
 export function XlsxViewer({ artifact }: { artifact: ArtifactDetail }) {
@@ -83,7 +100,11 @@ export function XlsxViewer({ artifact }: { artifact: ArtifactDetail }) {
     isLoading,
     refetch,
   } = useQuery({
-    queryKey: ["artifact-workbook", artifact.id],
+    queryKey: [
+      ...studioKeys.artifact(artifact.id),
+      "workbook",
+      artifact.generation,
+    ],
     queryFn: async () => {
       if (!primary) throw new Error("This artifact has no file to preview")
       if (primary.size_bytes > MAX_VIEWER_BYTES) {
@@ -92,7 +113,9 @@ export function XlsxViewer({ artifact }: { artifact: ArtifactDetail }) {
           `Workbook is too large to preview (${primary.size_bytes} bytes)`
         )
       }
-      const response = await fetch(fileUrl(artifact.id, "primary"))
+      const response = await fetch(
+        fileUrl(artifact.id, "primary", artifact.generation)
+      )
       if (!response.ok) {
         throw new Error(`Could not load workbook (${response.status})`)
       }
@@ -126,19 +149,28 @@ export function XlsxViewer({ artifact }: { artifact: ArtifactDetail }) {
       >
         <FileIcon className="size-8 text-muted-foreground" />
         <div>
-          <p className="text-sm font-medium">Couldn't open this spreadsheet</p>
+          <p className="text-sm font-medium">
+            {intl.formatMessage({
+              id: "studio_xlsx_viewer_error_title",
+              defaultMessage: "Couldn’t open this spreadsheet",
+            })}
+          </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {fallbackMessage(error)}
           </p>
         </div>
-        {error && !(error instanceof ParseWorkbookError && error.code === "oversize") ? (
+        {error &&
+        !(error instanceof ParseWorkbookError && error.code === "oversize") ? (
           <Button
             type="button"
             variant="secondary"
             size="sm"
             onClick={() => void refetch()}
           >
-            Try again
+            {intl.formatMessage({
+              id: "studio_xlsx_viewer_retry_button",
+              defaultMessage: "Try again",
+            })}
           </Button>
         ) : null}
       </div>
@@ -152,32 +184,44 @@ export function XlsxViewer({ artifact }: { artifact: ArtifactDetail }) {
       {view.sheets.length > 1 ? (
         <div
           role="tablist"
-          aria-label="Worksheets"
-          className="flex shrink-0 gap-1 overflow-x-auto border-neutral-200 border-b px-2 py-1.5"
+          aria-label={intl.formatMessage({
+            id: "studio_xlsx_viewer_tabs_aria",
+            defaultMessage: "Worksheets",
+          })}
+          className="flex shrink-0 gap-1 overflow-x-auto border-b border-neutral-200 px-2 py-1.5"
         >
           {view.sheets.map((entry, index) => (
-            <button
+            <Button
               key={entry.name}
               type="button"
+              variant="bare"
               role="tab"
               aria-selected={index === active}
               className={
                 index === active
-                  ? "rounded-md bg-neutral-100 px-2.5 py-1 font-medium text-neutral-950 text-xs"
-                  : "rounded-md px-2.5 py-1 text-neutral-500 text-xs hover:bg-neutral-100"
+                  ? "rounded-md bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-950"
+                  : "rounded-md px-2.5 py-1 text-xs text-neutral-500 hover:bg-neutral-100"
               }
               onClick={() => setActive(index)}
             >
               {entry.name}
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}
 
       {sheet.truncated ? (
-        <p className="shrink-0 border-neutral-200 border-b px-3 py-1.5 text-neutral-500 text-xs">
-          Showing the first {sheet.cells.length} rows. Download the file for
-          the full workbook.
+        <p className="shrink-0 border-b border-neutral-200 px-3 py-1.5 text-xs text-neutral-500">
+          {intl.formatMessage(
+            {
+              id: "studio_xlsx_viewer_truncated_body",
+              defaultMessage:
+                "Showing the first {count, plural, one {# row} other {# rows}}. Download the file for the full workbook.",
+            },
+            {
+              count: sheet.cells.length,
+            }
+          )}
         </p>
       ) : null}
 

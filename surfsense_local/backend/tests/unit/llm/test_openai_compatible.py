@@ -3,12 +3,15 @@ import base64
 import pytest
 
 from modules.llm.connections.service import normalize_base_url, parse_models
+from modules.llm.model_type import ModelType
+from modules.llm.providers.openai_compatible import image as image_module
 from modules.llm.providers.openai_compatible.chat import _delta
 from modules.llm.providers.openai_compatible.image import (
     NonRetryableImageError,
     OpenAICompatibleImageProvider,
     _route_cache,
 )
+from modules.llm.providers.types import Delta
 
 pytestmark = pytest.mark.unit
 PNG = b"\x89PNG\r\n\x1a\nfake"
@@ -33,7 +36,7 @@ def test_base_url_is_normalized_without_weakening_internal_network_support() -> 
         normalize_base_url("https://example.test/v1?token=secret")
 
 
-def test_capabilities_come_from_the_endpoint_then_the_catalogue_then_nowhere() -> None:
+def test_types_come_from_the_endpoint_then_the_catalogue_then_nowhere() -> None:
     """Declared beats catalogued beats unknown, and nothing is read off a name.
 
     The bare ids are real: OpenAI and Gemini return nothing else from /models.
@@ -59,43 +62,81 @@ def test_capabilities_come_from_the_endpoint_then_the_catalogue_then_nowhere() -
     }
 
     declared = models["openai/gpt-4o"]
-    assert declared.capabilities == ("completion",)
+    assert declared.types == (ModelType.TEXT_GEN,)
     assert declared.capability_source == "declared"
     assert declared.capability_known is True
 
-    assert models["gpt-image-2"].capabilities == ("image_generation",)
+    assert models["gpt-image-2"].types == (ModelType.IMAGE_GEN, ModelType.IMAGE_EDIT)
     assert models["gpt-image-2"].capability_source == "catalog"
 
     # Resolved by the last path segment, for the ids Gemini and gateways prefix.
-    # Both roles at once is a real answer, not a conflict: this model returns
+    # Several types at once is a real answer, not a conflict: this model returns
     # text alongside the image, and dropping either would hide it from a picker.
     gemini = models["models/gemini-3.1-flash-image"]
-    assert gemini.capabilities == ("completion", "image_generation")
+    assert gemini.types == (
+        ModelType.TEXT_GEN,
+        ModelType.IMAGE_GEN,
+        ModelType.IMAGE_EDIT,
+    )
     assert gemini.capability_source == "catalog"
 
-    assert models["gpt-4o-mini"].capabilities == ("completion",)
+    assert models["gpt-4o-mini"].types == (ModelType.TEXT_GEN,)
     assert models["gpt-4o-mini"].capability_source == "catalog"
 
-    # Knowing a model does neither is an answer, and it is what keeps the picker
-    # from offering speech and video models for chat.
-    for name in ("whisper-large-v3", "veo-3.1-generate-preview"):
-        assert models[name].capabilities == ()
-        assert models[name].capability_source == "catalog"
-        assert models[name].capability_known is True
+    # Knowing a model is none of the types is an answer, and it is what keeps
+    # a transcriber out of every picker.
+    assert models["whisper-large-v3"].types == ()
+    assert models["whisper-large-v3"].capability_source == "catalog"
+    assert models["whisper-large-v3"].capability_known is True
+
+    # The manifest keeps the modalities, so a video model is one, not "neither".
+    assert models["veo-3.1-generate-preview"].types == (ModelType.VIDEO_GEN,)
 
     # Absent from models.dev, so unknown rather than guessed. This is the model
     # that used to be labelled a chat model by reading its name.
     for name in ("babbage-002", "a-model-nobody-has-catalogued"):
-        assert models[name].capabilities == ()
+        assert models[name].types == ()
         assert models[name].capability_source == "unknown"
         # Unknown must not gate a choice; the test dialog resolves it instead.
         assert models[name].capability_known is False
 
 
+def test_an_endpoints_own_word_for_speech_is_the_audio_slot() -> None:
+    """OpenRouter declares `speech` for text-to-speech and `transcription` for
+    speech-to-text; each output a model declares is a type, as with images."""
+    models = {
+        model.name: model
+        for model in parse_models(
+            {
+                "data": [
+                    {"id": "omni", "output_modalities": ["text", "audio"]},
+                    {
+                        "id": "hexgrad/kokoro-82m",
+                        "architecture": {"output_modalities": ["speech"]},
+                    },
+                    {
+                        "id": "openai/whisper-1",
+                        "architecture": {"output_modalities": ["transcription"]},
+                    },
+                ]
+            }
+        )
+    }
+
+    assert models["omni"].types == (ModelType.TEXT_GEN, ModelType.AUDIO_GEN)
+    assert models["hexgrad/kokoro-82m"].types == (ModelType.AUDIO_GEN,)
+    assert models["openai/whisper-1"].types == ()
+    assert models["openai/whisper-1"].capability_known is True
+
+
 def test_delta_reads_openai_sse_and_ignores_done() -> None:
     """Chat streaming retains the existing OpenAI delta behavior."""
-    assert _delta('data: {"choices":[{"delta":{"content":"hi"}}]}') == "hi"
+    assert _delta('data: {"choices":[{"delta":{"content":"hi"}}]}') == Delta("hi")
     assert _delta("data: [DONE]") is None
+
+
+async def allow_any(_url: str) -> None:
+    """A caller that has allowed every host."""
 
 
 async def test_image_route_falls_back_only_after_missing_standard_route(
@@ -103,7 +144,9 @@ async def test_image_route_falls_back_only_after_missing_standard_route(
 ) -> None:
     """OpenRouter's /images extension is negotiated once and then cached."""
     _route_cache.clear()
-    provider = OpenAICompatibleImageProvider(1, "https://example.test/v1")
+    provider = OpenAICompatibleImageProvider(
+        1, "https://example.test/v1", allow_url_host=allow_any
+    )
     calls: list[str] = []
 
     async def post(route: str, _model: str, _prompt: str):
@@ -123,7 +166,9 @@ async def test_image_route_does_not_fallback_after_ambiguous_failure(
 ) -> None:
     """A 5xx may follow billed work, so another image request is forbidden."""
     _route_cache.clear()
-    provider = OpenAICompatibleImageProvider(2, "https://example.test/v1")
+    provider = OpenAICompatibleImageProvider(
+        2, "https://example.test/v1", allow_url_host=allow_any
+    )
     calls: list[str] = []
 
     async def post(route: str, _model: str, _prompt: str):
@@ -134,3 +179,33 @@ async def test_image_route_does_not_fallback_after_ambiguous_failure(
     with pytest.raises(NonRetryableImageError, match="500"):
         await provider.generate("image", "draw")
     assert calls == ["/images/generations"]
+
+
+async def test_an_image_url_is_not_fetched_until_its_host_is_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The endpoint names the host, so the caller's egress check runs first."""
+    _route_cache.clear()
+    checked: list[str] = []
+    fetched: list[str] = []
+
+    async def refuse(url: str) -> None:
+        checked.append(url)
+        raise PermissionError("cdn.example.test is off")
+
+    async def post(_route: str, _model: str, _prompt: str):
+        return 200, {"data": [{"url": "https://cdn.example.test/x.png"}]}
+
+    async def download(url: str) -> None:
+        fetched.append(url)
+
+    provider = OpenAICompatibleImageProvider(
+        3, "https://example.test/v1", allow_url_host=refuse
+    )
+    monkeypatch.setattr(provider, "_post", post)
+    monkeypatch.setattr(image_module, "_download_image", download)
+
+    with pytest.raises(PermissionError, match=r"cdn\.example\.test"):
+        await provider.generate("image", "draw")
+    assert checked == ["https://cdn.example.test/x.png"]
+    assert fetched == []

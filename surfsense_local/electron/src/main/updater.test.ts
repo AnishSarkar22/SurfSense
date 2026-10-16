@@ -13,6 +13,7 @@ function fakeAutoUpdater() {
     emit: (event: string, ...args: unknown[]) => listeners.get(event)?.(...args),
     updater: {
       autoDownload: true,
+      allowPrerelease: false,
       on(event: string, listener: Listener) {
         listeners.set(event, listener)
       },
@@ -37,6 +38,8 @@ test("a found update is downloaded and offered, never installed on its own", asy
   const updates = attachUpdater(fake.updater, (state) => states.push(state))
 
   assert.equal(fake.updater.autoDownload, false)
+  // Walks the releases feed rather than /releases/latest; see updater.ts.
+  assert.equal(fake.updater.allowPrerelease, true)
   await updates.check()
   fake.emit("update-available", { version: "1.0.1" })
   fake.emit("update-downloaded", { version: "1.0.1" })

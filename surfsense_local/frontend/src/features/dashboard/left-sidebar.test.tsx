@@ -2,6 +2,7 @@ import { cleanup, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { FeatureBadge } from "@/components/feature-badge"
 import { render } from "@/test-utils"
 
 import { LeftSidebar, type SidebarNavAction } from "./left-sidebar"
@@ -35,7 +36,7 @@ describe("LeftSidebar", () => {
     render(<LeftSidebar {...baseProps()} />)
 
     const brand = screen.getByRole("heading", { name: "SurfSense" })
-    expect(brand.className).toContain("font-heading")
+    expect(brand.className).toContain("brand-wordmark")
     expect(brand.className).toContain("select-none")
 
     const newChat = screen.getByRole("button", { name: "New chat" })
@@ -56,6 +57,7 @@ describe("LeftSidebar", () => {
             id: 1,
             workspace_id: 1,
             title: "Past chat",
+            uses_agent: false,
             created_at: "2026-09-08T00:00:00Z",
             updated_at: "2026-09-08T00:00:00Z",
           },
@@ -101,7 +103,7 @@ describe("LeftSidebar", () => {
         key: "plugins",
         label: "Plugins",
         icon: UnplugIcon,
-        badge: "Coming soon",
+        badge: <FeatureBadge stage="coming-soon" />,
         onClick: noop,
       },
     ]
@@ -119,10 +121,77 @@ describe("LeftSidebar", () => {
   })
 
   it("pins the footer under the sources slot", () => {
-    render(
-      <LeftSidebar {...baseProps()} footer={<div>License footer</div>} />
-    )
+    render(<LeftSidebar {...baseProps()} footer={<div>License footer</div>} />)
 
     expect(screen.getByText("License footer")).toBeTruthy()
+  })
+})
+
+describe("LeftSidebar, with replies elsewhere", () => {
+  it("marks a thread waiting on the user's approval ahead of everything else", () => {
+    render(
+      <LeftSidebar
+        {...baseProps()}
+        activeThreadId={1}
+        runStates={{
+          2: { state: "running" },
+          3: { state: "needs-approval" },
+        }}
+        unreadThreadIds={[4]}
+      />
+    )
+
+    const chats = screen.getByRole("button", { name: /^Chats/ })
+    expect(chats.textContent).toBe("Chats")
+    expect(chats.getAttribute("aria-label")).toBe(
+      "Chats, 1 reply waiting for your approval"
+    )
+  })
+
+  it("marks unread replies ahead of others still writing, without a count", () => {
+    render(
+      <LeftSidebar
+        {...baseProps()}
+        activeThreadId={1}
+        runStates={{
+          2: { state: "running" },
+          3: { state: "queued", position: 1 },
+        }}
+        unreadThreadIds={[4, 5]}
+      />
+    )
+
+    const chats = screen.getByRole("button", { name: /^Chats/ })
+    expect(chats.textContent).toBe("Chats")
+    expect(chats.getAttribute("aria-label")).toBe("Chats, 2 new replies")
+  })
+
+  it("says other threads are writing or waiting once none is unread, without a count", () => {
+    render(
+      <LeftSidebar
+        {...baseProps()}
+        activeThreadId={1}
+        runStates={{
+          1: { state: "running" },
+          2: { state: "running" },
+          3: { state: "queued", position: 1 },
+        }}
+        unreadThreadIds={[1]}
+      />
+    )
+
+    const chats = screen.getByRole("button", { name: /^Chats/ })
+    expect(chats.textContent).toBe("Chats")
+    expect(chats.getAttribute("aria-label")).toBe(
+      "Chats, 2 replies being written"
+    )
+  })
+
+  it("looks as it always did with nothing running and nothing unread", () => {
+    render(<LeftSidebar {...baseProps()} activeThreadId={1} />)
+
+    expect(screen.getByRole("button", { name: "Chats" }).textContent).toBe(
+      "Chats"
+    )
   })
 })

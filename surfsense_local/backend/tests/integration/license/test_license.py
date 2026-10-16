@@ -15,7 +15,7 @@ from modules.license import service, verify
 pytestmark = pytest.mark.integration
 
 SAMPLE = Path(__file__).resolve().parents[5] / (
-    "plans/community-local/contracts/license-sample"
+    "docs/contracts/license-sample"
 )
 # The fixtures were issued 2026-09-10 and the shortest one expires two weeks later.
 TODAY = datetime(2026, 9, 11, 12, 0, tzinfo=UTC)
@@ -192,6 +192,30 @@ async def test_a_clock_set_back_is_untrusted_until_it_catches_up(
     caught_up = (await client.get("/license/status")).json()["state"]
 
     assert (rolled_back, caught_up) == ("clock_untrusted", "active")
+
+
+async def test_a_stored_file_issued_ahead_of_the_clock_is_a_state_not_an_error(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A clock behind the issue time is explained in Settings; only a fresh import is refused."""
+    clock = {"now": TODAY}
+    monkeypatch.setattr(service, "now", lambda: clock["now"])
+    certificate = signed(payload("2026-09-11T12:00:00Z"))
+    await put_license(client, certificate)
+
+    clock["now"] = TODAY - timedelta(minutes=10)
+    status = await client.get("/license/status")
+    reimport = await put_license(client, certificate)
+
+    assert status.status_code == 200
+    assert (status.json()["state"], status.json()["plan"]) == (
+        "clock_untrusted",
+        "individual",
+    )
+    assert (reimport.status_code, reimport.json()["detail"]["code"]) == (
+        422,
+        "clock_untrusted",
+    )
 
 
 async def test_a_fresh_install_has_no_license(client: AsyncClient) -> None:

@@ -1,3 +1,5 @@
+import { intl } from "@/i18n/intl"
+
 export type Health = {
   status: "ok"
 }
@@ -19,12 +21,52 @@ declare global {
         check: () => Promise<void>
         install: () => Promise<void>
         onState: (listener: (state: UpdateState) => void) => () => void
+        // The app menu's Check for Updates…. Mirrors electron/src/preload/index.ts.
+        onCheckRequested: (listener: () => void) => () => void
       }
       setTitleBarOverlay?: (overlay: {
         color: string
         symbolColor: string
       }) => Promise<void>
       openExternal?: (url: string) => Promise<void>
+      // A content link the user confirmed in the link popup: any https page.
+      openConfirmedLink?: (url: string) => Promise<void>
+      // A listed plugin's homepage or privacy policy, found by its id.
+      openPluginPage?: (
+        pluginId: string,
+        page: "homepage" | "privacy_policy"
+      ) => Promise<void>
+      about?: {
+        details: () => Promise<AppDetails>
+      }
+      // This run's log, oldest line first. Mirrors electron/src/preload/index.ts.
+      sessionLog?: {
+        read: () => Promise<string[]>
+      }
+      // The system's switch for SurfSense's microphone; Electron decides the
+      // page's own permission. Mirrors electron/src/preload/index.ts.
+      microphone?: {
+        status: () => Promise<MicrophoneAccess>
+        // macOS prompts the first time; call it before getUserMedia.
+        request: () => Promise<MicrophoneAccess>
+        // False where the system has no microphone settings to open (Linux).
+        openSettings: () => Promise<boolean>
+      }
+      // Unexpected sidecar exits pushed by main. Mirrors electron/src/preload/index.ts.
+      sidecars?: {
+        onCrash: (listener: (crash: SidecarCrash) => void) => () => void
+      }
+      // The app menu's Help › Report Issue…. Mirrors electron/src/preload/index.ts.
+      help?: {
+        onReportIssue: (listener: () => void) => () => void
+      }
+      // Mirrors electron/src/preload/index.ts; main resolves and owns the locale.
+      locale?: {
+        get: () => string
+        preference: () => Promise<string>
+        set: (preference: string) => Promise<void>
+        onChange: (listener: (locale: string) => void) => () => void
+      }
       theme?: {
         set: (theme: "dark" | "light" | "system") => Promise<void>
         getSystemTheme: () => "dark" | "light"
@@ -34,6 +76,16 @@ declare global {
       }
     }
   }
+}
+
+// Mirrors electron/src/main/about/app-details.ts.
+export type AppDetails = {
+  version: string
+  electron: string
+  chrome: string
+  node: string
+  os: string
+  arch: string
 }
 
 // Mirrors electron/src/main/updater.ts.
@@ -46,10 +98,23 @@ export type UpdateState =
   | { status: "ready"; version: string }
   | { status: "error"; message: string }
 
-// Packaged (Electron) exposes the sidecar's dynamic origin; a bare dev browser
-// leaves it empty so root-relative paths still hit the Vite proxy.
+export type SidecarCrash = {
+  name: string
+  code: number | null
+}
+
+// Mirrors electron/src/main/microphone/system-access.ts. Linux has no switch
+// and reports "granted"; getUserMedia's own error says the rest there.
+export type MicrophoneAccess =
+  "not-determined" | "granted" | "denied" | "restricted" | "unknown"
+
+// Packaged (Electron) exposes the sidecar's dynamic origin. A browser build
+// with no bridge (Docker) reaches the API under VITE_API_BASE. A bare dev
+// browser leaves both empty so root-relative paths still hit the Vite proxy.
 const apiBase =
-  typeof window !== "undefined" ? (window.surfsense?.apiUrl ?? "") : ""
+  (typeof window !== "undefined" ? window.surfsense?.apiUrl : undefined) ??
+  import.meta.env.VITE_API_BASE ??
+  ""
 
 function withBase(input: RequestInfo | URL): RequestInfo | URL {
   return typeof input === "string" && input.startsWith("/")
@@ -101,20 +166,8 @@ async function responseError(response: Response): Promise<ErrorDetails> {
         "message" in body.detail &&
         typeof body.detail.message === "string"
       ) {
-        const required =
-          "required" in body.detail && typeof body.detail.required === "number"
-            ? body.detail.required
-            : null
-        const available =
-          "available" in body.detail &&
-          typeof body.detail.available === "number"
-            ? body.detail.available
-            : null
         return {
-          message:
-            required !== null && available !== null
-              ? `${body.detail.message} (${(required / 1e9).toFixed(1)} GB required, ${(available / 1e9).toFixed(1)} GB available)`
-              : body.detail.message,
+          message: body.detail.message,
           code:
             "code" in body.detail && typeof body.detail.code === "string"
               ? body.detail.code
@@ -129,7 +182,16 @@ async function responseError(response: Response): Promise<ErrorDetails> {
 
   return {
     message:
-      response.statusText || `Request failed with status ${response.status}`,
+      response.statusText ||
+      intl.formatMessage(
+        {
+          id: "app_api_request_failed_error",
+          defaultMessage: "Request failed with status {status}",
+        },
+        {
+          status: String(response.status),
+        }
+      ),
     code: null,
   }
 }

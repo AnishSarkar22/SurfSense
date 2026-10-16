@@ -10,7 +10,7 @@ from sqlalchemy import Engine, inspect, text
 
 from alembic import command
 from shared.db import Base, create_db_engine
-from shared.migrations import upgrade_to_head
+from shared.migrations import is_migrated, upgrade_to_head
 
 pytestmark = pytest.mark.integration
 
@@ -44,6 +44,23 @@ def test_migrations_are_idempotent(engine: Engine) -> None:
     assert _drift_from_models(engine) == []
 
 
+def test_a_database_behind_the_code_is_not_migrated(tmp_path: Path) -> None:
+    """What the workers wait on: Electron starts them beside the API, which
+    alone migrates, and a job read against the old schema fails."""
+    engine = create_db_engine(tmp_path / "surfsense.db")
+    config = Config()
+    config.set_main_option(
+        "script_location", str(Path(__file__).parents[2] / "alembic")
+    )
+    config.attributes["engine"] = engine
+
+    assert not is_migrated(engine)
+    command.upgrade(config, "0020")
+    assert not is_migrated(engine)
+    upgrade_to_head(engine)
+    assert is_migrated(engine)
+
+
 def test_a_failed_migration_leaves_nothing_behind(tmp_path: Path) -> None:
     """pysqlite autocommits DDL, which would strand a half-upgraded user database."""
     engine = create_db_engine(tmp_path / "surfsense.db")
@@ -55,10 +72,17 @@ def test_a_failed_migration_leaves_nothing_behind(tmp_path: Path) -> None:
     assert inspect(engine).get_table_names() == []
 
 
-def test_connection_migration_preserves_only_ollama_selection(
+def test_connection_migration_drops_old_remote_secrets(
     tmp_path: Path,
 ) -> None:
-    """The breaking migration drops old remote secrets without harming local setup."""
+    """The breaking migration at 0004 drops old remote secrets.
+
+    It used to assert the local Ollama selection survived to head as well. It no
+    longer does: 0012 clears it, because the weights are in a format the app
+    stopped managing and a selection nothing can resolve kills chat. That the
+    selection is cleared rather than remapped is pinned in
+    `test_migration_0012.py`; what this still guards is the credentials table.
+    """
     engine = create_db_engine(tmp_path / "surfsense.db")
     config = Config()
     config.set_main_option(
@@ -83,12 +107,10 @@ def test_connection_migration_preserves_only_ollama_selection(
     command.upgrade(config, "head")
 
     with engine.connect() as connection:
-        selected = connection.execute(
-            text(
-                "SELECT role, provider, connection_id, name FROM selected_models"
-            )
-        ).one()
+        selections = connection.execute(
+            text("SELECT provider FROM selected_models")
+        ).all()
         tables = inspect(connection).get_table_names()
-    assert tuple(selected) == ("generation", "ollama", None, "qwen3:4b")
+    assert selections == []
     assert "provider_credentials" not in tables
     assert "provider_connections" in tables

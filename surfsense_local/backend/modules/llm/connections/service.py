@@ -5,7 +5,10 @@ from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
-from modules.llm.connections.model_capabilities import lookup_capabilities
+from modules.llm.catalog.remote.manifest.loader import remote_lookup
+from modules.llm.catalog.remote.rows import CUSTOM
+from modules.llm.connections.key_headers import key_headers
+from modules.llm.model_type import ModelType
 from modules.llm.models import ProviderConnection
 
 DISCOVERY_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
@@ -16,11 +19,25 @@ DISCOVERY_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 CapabilitySource = Literal["declared", "catalog", "unknown"]
 
 
+# What an endpoint's declared output modality says a model is for.
+_DECLARED_AS = {
+    "text": ModelType.TEXT_GEN,
+    "image": ModelType.IMAGE_GEN,
+    "video": ModelType.VIDEO_GEN,
+    "audio": ModelType.AUDIO_GEN,
+    # OpenRouter's word for text-to-speech output.
+    "speech": ModelType.AUDIO_GEN,
+}
+
+
 @dataclass(frozen=True)
 class DiscoveredModel:
     name: str
-    capabilities: tuple[str, ...]
+    types: tuple[ModelType, ...]
     capability_source: CapabilitySource
+    # The manifest's own reason this model cannot be called through the
+    # provider the connection names; None for a custom connection.
+    unusable_reason: str | None = None
 
     @property
     def capability_known(self) -> bool:
@@ -48,10 +65,6 @@ def normalize_base_url(value: str) -> str:
     netloc = f"{host}:{port}" if port is not None else host
     path = parsed.path.rstrip("/")
     return urlunsplit((parsed.scheme, netloc, path, "", ""))
-
-
-def _headers(api_key: str | None) -> dict[str, str]:
-    return {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
 
 def _modalities(entry: dict) -> set[str]:
@@ -89,24 +102,35 @@ def _entries(payload: object) -> dict[str, set[str]]:
     return entries
 
 
-def _classify(name: str, modalities: set[str]) -> DiscoveredModel:
+def _classify(
+    name: str, modalities: set[str], catalog_provider: str | None = None
+) -> DiscoveredModel:
     """Resolve one model against every source, in order, first answer winning.
 
     The same three doors for every model from every endpoint: what the endpoint
     published, then the reviewed catalogue, then nothing. There is no fourth
-    door that guesses.
+    door that guesses. A connection that names its manifest provider reads that
+    provider's entry first.
     """
+    lookup = remote_lookup()
+    # The same answer the remote catalog gives, from the one rule in lookup.py.
+    unusable = lookup.unusable_reason(name, catalog_provider)
     if modalities:
-        capabilities = []
-        if "text" in modalities:
-            capabilities.append("completion")
-        if "image" in modalities:
-            capabilities.append("image_generation")
-        return DiscoveredModel(name, tuple(capabilities), "declared")
-    catalogued = lookup_capabilities(name)
-    if catalogued is not None:
-        return DiscoveredModel(name, catalogued, "catalog")
-    return DiscoveredModel(name, (), "unknown")
+        # `audio` and `speech` name one type; a model declaring both has it once.
+        declared = tuple(
+            dict.fromkeys(
+                model_type
+                for modality, model_type in _DECLARED_AS.items()
+                if modality in modalities
+            )
+        )
+        return DiscoveredModel(name, declared, "declared", unusable)
+    catalogued = lookup.classify(name, provider=catalog_provider)
+    if catalogued.known:
+        # Enum order, so a model's types read the same wherever they are shown.
+        types = tuple(t for t in ModelType if t in catalogued.types)
+        return DiscoveredModel(name, types, "catalog", unusable)
+    return DiscoveredModel(name, (), "unknown", unusable)
 
 
 def parse_models(payload: object) -> list[DiscoveredModel]:
@@ -119,12 +143,12 @@ async def _request_entries(
     base_url: str,
     api_key: str | None,
     *,
-    image_only: bool = False,
+    every_modality: bool = False,
 ) -> dict[str, set[str]]:
-    params = {"output_modalities": "image"} if image_only else None
+    params = {"output_modalities": "all"} if every_modality else None
     async with httpx.AsyncClient(
         timeout=DISCOVERY_TIMEOUT,
-        headers=_headers(api_key),
+        headers=key_headers(base_url, api_key),
     ) as client:
         reply = await client.get(f"{base_url}/models", params=params)
         reply.raise_for_status()
@@ -139,28 +163,30 @@ async def probe_connection(base_url: str, api_key: str | None) -> list[Discovere
 async def discover_models(connection: ProviderConnection) -> list[DiscoveredModel]:
     baseline, optional = await asyncio.gather(
         _request_entries(connection.base_url, connection.api_key),
-        _optional_image_entries(connection.base_url, connection.api_key),
+        _optional_other_entries(connection.base_url, connection.api_key),
     )
     merged = {name: set(modalities) for name, modalities in baseline.items()}
     for name, modalities in optional.items():
         merged.setdefault(name, set()).update(modalities)
+    # `custom` names no manifest provider, so its models are read across all.
+    provider = None if connection.catalog_provider == CUSTOM else connection.catalog_provider
     return sorted(
-        (_classify(name, modalities) for name, modalities in merged.items()),
+        (_classify(name, modalities, provider) for name, modalities in merged.items()),
         key=lambda model: model.name.casefold(),
     )
 
 
-async def _optional_image_entries(
+async def _optional_other_entries(
     base_url: str, api_key: str | None
 ) -> dict[str, set[str]]:
-    """Ask again for image models, because a default listing may not hold them.
+    """Ask again for every modality, because a default listing may not hold them.
 
-    OpenRouter serves 444 models from /models and 54 from the image-filtered
-    query, 43 of which the first call never returns at all. This is enumeration,
-    not classification. An endpoint that ignores the parameter answers with the
+    OpenRouter's /models holds 464 models; `output_modalities=all` holds 635,
+    among them its 46 image and 21 speech models. This is enumeration, not
+    classification. An endpoint that ignores the parameter answers with the
     same set, so the union is a no-op and no provider has to be recognised.
     """
     try:
-        return await _request_entries(base_url, api_key, image_only=True)
+        return await _request_entries(base_url, api_key, every_modality=True)
     except (httpx.HTTPError, ValueError):
         return {}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 import {
   Alert02Icon,
   CancelCircleHalfDotIcon,
@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { RelativeTime } from "@/components/relative-time"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -40,7 +41,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty"
-import { ScrollShadow } from "@/components/ui/scroll-shadow"
+import { OverflowTooltip } from "@/components/ui/overflow-tooltip"
+import { ScrollFade } from "@/components/ui/scroll-fade"
 import { SkeletonSlabs } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import {
@@ -49,10 +51,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useModifierHeld } from "@/hooks/use-modifier-held"
+import { intl } from "@/i18n/intl"
 import { cn } from "@/lib/utils"
 
 import type { Artifact, StudioFormat } from "./api"
-import { FORMAT_ICONS } from "./studio-formats"
+import {
+  artifactLines,
+  newestReady,
+  type ArtifactLine,
+} from "./artifact-versions"
+import { canRetry } from "./can-retry"
+import { FORMAT_ICONS, formatLabel } from "./studio-formats"
 
 function artifactFilterKey(workspaceId: number) {
   return `surfsense:artifact-filter:${workspaceId}:v1`
@@ -82,158 +91,376 @@ function writeStoredFormats(workspaceId: number, formats: string[]) {
   }
 }
 
-function ArtifactRow({
-  artifact,
-  onOpen,
+// A version mid-run would be deleted under its job.
+function canDeleteLine(line: ArtifactLine) {
+  return line.versions.every((version) => version.status !== "processing")
+}
+
+/** The version a document's row stands for: its newest, unless that one
+ *  failed and an earlier one is ready, since the document still works. */
+function shownVersion(line: ArtifactLine): Artifact {
+  const ready = newestReady(line.versions)
+  return line.newest.status === "failed" && ready ? ready : line.newest
+}
+
+type ArtifactRowProps = {
+  line: ArtifactLine
+  onOpenVersion: (id: number) => void
+  onRegenerate: (id: number) => void
+  onCancelVersion: (id: number) => void
+  onAskDelete: (line: ArtifactLine) => void
+}
+
+// The same row while its line holds the same versions: a re-read of the list
+// keeps each unchanged artifact's object, so only the rows that changed render.
+function sameRow(previous: ArtifactRowProps, next: ArtifactRowProps) {
+  const before = previous.line.versions
+  const after = next.line.versions
+  return (
+    before.length === after.length &&
+    before.every((version, index) => version === after[index]) &&
+    previous.onOpenVersion === next.onOpenVersion &&
+    previous.onRegenerate === next.onRegenerate &&
+    previous.onCancelVersion === next.onCancelVersion &&
+    previous.onAskDelete === next.onAskDelete
+  )
+}
+
+const ArtifactRow = memo(function ArtifactRow({
+  line,
+  onOpenVersion,
   onRegenerate,
-  onCancel,
-  onDelete,
-}: {
-  artifact: Artifact
-  onOpen: () => void
-  onRegenerate: () => void
-  onCancel: () => void
-  onDelete: () => void
-}) {
+  onCancelVersion,
+  onAskDelete,
+}: ArtifactRowProps) {
+  // The version the row stands for; its status is the row's.
+  const artifact = shownVersion(line)
+  // A newer version than `artifact` that failed, or null.
+  const failedEdit = artifact === line.newest ? null : line.newest
+  const canDelete = canDeleteLine(line)
+  // Null while no version of the document has finished.
+  const openable = newestReady(line.versions)
+  const onOpen = openable ? () => onOpenVersion(openable.id) : null
+  const onCancel = () => onCancelVersion(line.newest.id)
+  const onDelete = () => onAskDelete(line)
   const ready = artifact.status === "ready"
   const failed = artifact.status === "failed"
   const cancelled = artifact.status === "cancelled"
-  const retryable = failed || cancelled
+  const retryable = canRetry(artifact)
+  // What the developer tooltip explains: the failed edit, or the row's own end.
+  const problem = failedEdit ?? (failed || cancelled ? artifact : null)
   const ingesting =
     artifact.status === "pending" || artifact.status === "processing"
-  const processing = artifact.status === "processing"
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [rowHovered, setRowHovered] = useState(false)
   // A developer aid: holding Ctrl/Cmd while hovering anywhere on a failed
   // row (not just the retry icon) surfaces the actual error above the row.
-  const modifierHeld = useModifierHeld()
+  const [modifierHeld, seedModifier] = useModifierHeld(
+    problem !== null && rowHovered
+  )
   const FormatIcon = FORMAT_ICONS[artifact.format] ?? FileIcon
 
   return (
-    <Tooltip open={retryable && modifierHeld && rowHovered}>
-      <TooltipTrigger asChild>
-        <li
-          className={cn(
-            "group group/artifact relative flex h-8 w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-lg border border-transparent pr-2 pl-1 hover:bg-muted dark:hover:bg-muted/50",
-            dropdownOpen && "bg-muted dark:bg-muted/50"
-          )}
-          onMouseEnter={() => setRowHovered(true)}
-          onMouseLeave={() => setRowHovered(false)}
-        >
-          <span className="relative flex size-7 shrink-0 items-center justify-center">
-            {ready ? (
-              <FormatIcon className="size-4.5 text-muted-foreground" />
-            ) : null}
-            {ingesting ? (
-              <Spinner
-                className="size-4.5 text-muted-foreground"
-                aria-label={`Processing ${artifact.title}`}
-              />
-            ) : null}
-            {retryable ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label={
-                      cancelled
-                        ? `Cancelled. Retry ${artifact.title}`
-                        : `Generation failed. Retry ${artifact.title}`
-                    }
-                    className="relative hover:bg-transparent"
-                    onClick={onRegenerate}
-                  >
-                    <Alert02Icon className="size-4.5 text-destructive transition-opacity duration-150 group-hover/artifact:opacity-0 group-focus-visible/button:opacity-0" />
-                    <RefreshCwIcon className="absolute inset-0 m-auto size-4.5 text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/artifact:opacity-100 group-focus-visible/button:opacity-100" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top" collisionPadding={8}>
-                  {cancelled
-                    ? "Cancelled. Retry again."
-                    : "Generation failed. Retry again."}
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
-          </span>
-          <button
-            type="button"
-            disabled={!ready}
+    <Tooltip open={modifierHeld}>
+      <TooltipTrigger
+        render={
+          <li
             className={cn(
-              "sidebar-row-title-fade min-w-0 flex-1 overflow-hidden rounded-sm text-left text-sm font-normal whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default",
-              dropdownOpen && "sidebar-row-title-fade-actions"
+              "group group/artifact relative flex h-8 w-full min-w-0 items-center gap-1.5 overflow-hidden rounded-lg border border-transparent pr-2 pl-1 hover:bg-muted dark:hover:bg-muted/50",
+              dropdownOpen && "bg-muted dark:bg-muted/50"
             )}
-            onClick={ready ? onOpen : undefined}
+            onMouseEnter={(event) => {
+              setRowHovered(true)
+              seedModifier(event)
+            }}
+            onMouseLeave={() => setRowHovered(false)}
           >
-            {artifact.title}
-          </button>
-          {/* Two runs of one format share a title; the date tells them apart. */}
-          <RelativeTime
-            date={new Date(artifact.created_at)}
-            compact
-            showTooltip={false}
-            className={cn(
-              "shrink-0 text-[11px] text-muted-foreground/70 tabular-nums transition-opacity group-focus-within/artifact:opacity-0 group-hover/artifact:opacity-0",
-              dropdownOpen && "opacity-0"
-            )}
-          />
-          <div className="absolute inset-y-0 right-0 flex items-center pr-1">
-            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
-              <DropdownMenuTrigger asChild>
+            <span className="relative flex size-7 shrink-0 items-center justify-center">
+              {ready ? (
+                <FormatIcon className="size-4.5 text-muted-foreground" />
+              ) : null}
+              {ingesting ? (
+                <Spinner
+                  className="size-4.5 text-muted-foreground"
+                  aria-label={intl.formatMessage(
+                    {
+                      id: "studio_artifact_row_processing_aria",
+                      defaultMessage: "Processing {name}",
+                    },
+                    {
+                      name: artifact.title,
+                    }
+                  )}
+                />
+              ) : null}
+              {retryable ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={
+                          cancelled
+                            ? intl.formatMessage(
+                                {
+                                  id: "studio_artifact_row_retry_cancelled_aria",
+                                  defaultMessage: "Cancelled. Retry {name}",
+                                },
+                                {
+                                  name: artifact.title,
+                                }
+                              )
+                            : intl.formatMessage(
+                                {
+                                  id: "studio_artifact_row_retry_failed_aria",
+                                  defaultMessage:
+                                    "Generation failed. Retry {name}",
+                                },
+                                {
+                                  name: artifact.title,
+                                }
+                              )
+                        }
+                        className="relative hover:bg-transparent"
+                        onClick={() => onRegenerate(artifact.id)}
+                      >
+                        <Alert02Icon className="size-4.5 text-destructive transition-opacity duration-150 group-hover/artifact:opacity-0 group-focus-visible/button:opacity-0" />
+                        <RefreshCwIcon className="absolute inset-0 m-auto size-4.5 text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/artifact:opacity-100 group-focus-visible/button:opacity-100" />
+                      </Button>
+                    }
+                  />
+                  <TooltipContent side="top" collisionPadding={8}>
+                    {cancelled
+                      ? intl.formatMessage({
+                          id: "studio_artifact_row_retry_cancelled_tooltip",
+                          defaultMessage: "Cancelled. Retry again.",
+                        })
+                      : intl.formatMessage({
+                          id: "studio_artifact_row_retry_failed_tooltip",
+                          defaultMessage: "Generation failed. Retry again.",
+                        })}
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {failed && !retryable ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span
+                        role="img"
+                        tabIndex={0}
+                        aria-label={intl.formatMessage(
+                          {
+                            id: "studio_artifact_row_script_failed_aria",
+                            defaultMessage: "Generation failed for {name}",
+                          },
+                          { name: artifact.title }
+                        )}
+                        className="flex rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                      >
+                        <Alert02Icon className="size-4.5 text-destructive" />
+                      </span>
+                    }
+                  />
+                  <TooltipContent side="top" collisionPadding={8}>
+                    {intl.formatMessage({
+                      id: "studio_artifact_row_script_failed_tooltip",
+                      defaultMessage:
+                        "The document script failed. Ask the agent to fix it.",
+                    })}
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+            </span>
+            <OverflowTooltip
+              label={artifact.title}
+              render={
                 <Button
                   type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  className="size-6 shrink-0 opacity-0 group-hover/artifact:opacity-100 hover:bg-transparent focus-visible:opacity-100 active:translate-y-px data-[state=open]:bg-accent data-[state=open]:opacity-100"
-                  aria-label={`Actions for ${artifact.title}`}
+                  variant="bare"
+                  static
+                  disabled={!onOpen}
+                  className={cn(
+                    "sidebar-row-title-fade min-w-0 flex-1 overflow-hidden rounded-sm text-left text-sm font-normal whitespace-nowrap focus-visible:ring-2 disabled:pointer-events-auto disabled:cursor-default disabled:opacity-100",
+                    dropdownOpen && "sidebar-row-title-fade-actions"
+                  )}
+                  onClick={onOpen ?? undefined}
                 >
-                  <EllipsisIcon />
+                  {artifact.title}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                sideOffset={8}
-                className="min-w-40"
+              }
+            />
+            {artifact.version ? (
+              <Badge
+                variant="secondary"
+                className="h-4 shrink-0 px-1.5 text-[10px] tabular-nums"
               >
-                <DropdownMenuGroup>
-                  {ready ? (
-                    <DropdownMenuItem onSelect={onOpen}>
-                      <ViewIcon />
-                      Open
+                {intl.formatMessage(
+                  {
+                    id: "studio_artifact_row_version_label",
+                    defaultMessage: "v{version, number}",
+                  },
+                  { version: artifact.version.number }
+                )}
+              </Badge>
+            ) : null}
+            {failedEdit?.version && artifact.version ? (
+              <FailedEditHint
+                failed={failedEdit.version.number}
+                shown={artifact.version.number}
+              />
+            ) : null}
+            {/* Two runs of one format share a title; the date tells them apart. */}
+            <RelativeTime
+              date={new Date(artifact.created_at)}
+              compact
+              showTooltip={false}
+              className={cn(
+                "shrink-0 text-[11px] text-muted-foreground/70 tabular-nums transition-opacity group-focus-within/artifact:opacity-0 group-hover/artifact:opacity-0",
+                dropdownOpen && "opacity-0"
+              )}
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-1">
+              <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      className="size-6 shrink-0 opacity-0 group-hover/artifact:opacity-100 hover:bg-transparent focus-visible:opacity-100 data-popup-open:bg-accent data-popup-open:opacity-100"
+                      aria-label={intl.formatMessage(
+                        {
+                          id: "studio_artifact_row_actions_aria",
+                          defaultMessage: "Actions for {name}",
+                        },
+                        {
+                          name: artifact.title,
+                        }
+                      )}
+                    >
+                      <EllipsisIcon />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={8}
+                  className="min-w-40"
+                >
+                  <DropdownMenuGroup>
+                    {onOpen ? (
+                      <DropdownMenuItem onClick={onOpen}>
+                        <ViewIcon />
+                        {intl.formatMessage({
+                          id: "studio_artifact_row_open_label",
+                          defaultMessage: "Open",
+                        })}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {ready || retryable ? (
+                      // One route, two words: after a failure it is a retry,
+                      // after a success a fresh run of the same job.
+                      <DropdownMenuItem
+                        onClick={() => onRegenerate(artifact.id)}
+                      >
+                        <RefreshCwIcon />
+                        {ready
+                          ? intl.formatMessage({
+                              id: "studio_artifact_row_regenerate_label",
+                              defaultMessage: "Regenerate",
+                            })
+                          : intl.formatMessage({
+                              id: "studio_artifact_row_retry_label",
+                              defaultMessage: "Retry",
+                            })}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {failedEdit?.version && canRetry(failedEdit) ? (
+                      <DropdownMenuItem
+                        onClick={() => onRegenerate(failedEdit.id)}
+                      >
+                        <RefreshCwIcon />
+                        {intl.formatMessage(
+                          {
+                            id: "studio_artifact_row_retry_version_label",
+                            defaultMessage: "Retry v{version, number}",
+                          },
+                          { version: failedEdit.version.number }
+                        )}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {ingesting ? (
+                      <DropdownMenuItem onClick={onCancel}>
+                        <CancelCircleHalfDotIcon />
+                        {intl.formatMessage({
+                          id: "studio_artifact_row_cancel_label",
+                          defaultMessage: "Cancel",
+                        })}
+                      </DropdownMenuItem>
+                    ) : null}
+                    <DropdownMenuItem
+                      variant="destructive"
+                      disabled={!canDelete}
+                      onClick={onDelete}
+                    >
+                      <Trash2Icon />
+                      {intl.formatMessage({
+                        id: "studio_artifact_row_delete_label",
+                        defaultMessage: "Delete",
+                      })}
                     </DropdownMenuItem>
-                  ) : null}
-                  {ready || retryable ? (
-                    // One route, two words: after a failure it is a retry,
-                    // after a success a fresh run of the same job.
-                    <DropdownMenuItem onSelect={onRegenerate}>
-                      <RefreshCwIcon />
-                      {ready ? "Regenerate" : "Retry"}
-                    </DropdownMenuItem>
-                  ) : null}
-                  {ingesting ? (
-                    <DropdownMenuItem onSelect={onCancel}>
-                      <CancelCircleHalfDotIcon />
-                      Cancel
-                    </DropdownMenuItem>
-                  ) : null}
-                  <DropdownMenuItem
-                    variant="destructive"
-                    disabled={processing}
-                    onSelect={onDelete}
-                  >
-                    <Trash2Icon />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </li>
-      </TooltipTrigger>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </li>
+        }
+      />
       <TooltipContent side="top" collisionPadding={8}>
-        {artifact.error_message ??
-          (cancelled ? "Cancelled" : "Generation failed")}
+        {problem?.error_message ??
+          (problem?.status === "cancelled"
+            ? intl.formatMessage({
+                id: "studio_artifact_row_cancelled_tooltip",
+                defaultMessage: "Cancelled",
+              })
+            : intl.formatMessage({
+                id: "studio_artifact_row_failed_tooltip",
+                defaultMessage: "Generation failed",
+              }))}
+      </TooltipContent>
+    </Tooltip>
+  )
+}, sameRow)
+
+/** A quiet mark for an edit that failed after the version the row shows. */
+function FailedEditHint({ failed, shown }: { failed: number; shown: number }) {
+  const hint = intl.formatMessage(
+    {
+      id: "studio_artifact_row_failed_edit_tooltip",
+      defaultMessage:
+        "Latest edit failed (v{failed, number}). Showing v{shown, number}.",
+    },
+    { failed, shown }
+  )
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            role="img"
+            tabIndex={0}
+            aria-label={hint}
+            className="flex shrink-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <Alert02Icon className="size-3.5 text-muted-foreground" />
+          </span>
+        }
+      />
+      <TooltipContent side="top" collisionPadding={8}>
+        {hint}
       </TooltipContent>
     </Tooltip>
   )
@@ -254,34 +481,53 @@ function TypeFilter({
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className={cn(
-            "relative size-6 shrink-0 text-muted-foreground data-[state=open]:bg-accent",
-            selected.length > 0 && "text-foreground"
-          )}
-          aria-label={
-            selected.length > 0
-              ? `Filter artifacts (${selected.length} active)`
-              : "Filter artifacts"
-          }
-        >
-          <FilterIcon className="size-4" />
-          {selected.length > 0 ? (
-            <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary" />
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className={cn(
+              "relative shrink-0 text-muted-foreground data-popup-open:bg-accent",
+              selected.length > 0 && "text-foreground"
+            )}
+            aria-label={
+              selected.length > 0
+                ? intl.formatMessage(
+                    {
+                      id: "studio_type_filter_active_aria",
+                      defaultMessage:
+                        "Filter artifacts ({count, number} active)",
+                    },
+                    {
+                      count: selected.length,
+                    }
+                  )
+                : intl.formatMessage({
+                    id: "studio_type_filter_aria",
+                    defaultMessage: "Filter artifacts",
+                  })
+            }
+          >
+            <FilterIcon className="size-4" />
+            {selected.length > 0 ? (
+              <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary" />
+            ) : null}
+          </Button>
+        }
+      />
       <DropdownMenuContent
         align="end"
         sideOffset={8}
         className="w-52 select-none"
       >
-        <DropdownMenuLabel>Filter by type</DropdownMenuLabel>
         <DropdownMenuGroup>
+          <DropdownMenuLabel>
+            {intl.formatMessage({
+              id: "studio_type_filter_title",
+              defaultMessage: "Filter by type",
+            })}
+          </DropdownMenuLabel>
           {formats.map(([format, count]) => {
             const FormatIcon = FORMAT_ICONS[format] ?? FileIcon
             return (
@@ -291,12 +537,16 @@ function TypeFilter({
                 onCheckedChange={(checked) =>
                   onToggle(format, checked === true)
                 }
-                onSelect={(event) => event.preventDefault()} // stay open for a second pick
               >
                 <FormatIcon className="size-4 text-muted-foreground" />
                 <span className="flex-1">
-                  {labels.get(format) ?? format}{" "}
-                  <span className="text-muted-foreground">({count})</span>
+                  {formatLabel({
+                    key: format,
+                    label: labels.get(format) ?? format,
+                  })}{" "}
+                  <span className="text-muted-foreground">
+                    ({intl.formatNumber(count)})
+                  </span>
                 </span>
               </DropdownMenuCheckboxItem>
             )
@@ -305,7 +555,12 @@ function TypeFilter({
         {selected.length > 0 ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={onClear}>Clear filter</DropdownMenuItem>
+            <DropdownMenuItem onClick={onClear}>
+              {intl.formatMessage({
+                id: "studio_type_filter_clear_label",
+                defaultMessage: "Clear filter",
+              })}
+            </DropdownMenuItem>
           </>
         ) : null}
       </DropdownMenuContent>
@@ -313,7 +568,8 @@ function TypeFilter({
   )
 }
 
-export function ArtifactList({
+// Memoized: the dashboard re-renders for a streamed reply or a column drag.
+export const ArtifactList = memo(function ArtifactList({
   workspaceId,
   artifacts,
   formats = [],
@@ -338,7 +594,8 @@ export function ArtifactList({
     () => new Map(formats.map((format) => [format.key, format.label])),
     [formats]
   )
-  const [deleteTarget, setDeleteTarget] = useState<Artifact | null>(null)
+  const [deleteAsked, setDeleteAsked] = useState<ArtifactLine | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [selectedFormats, setSelectedFormats] = useState<string[]>(() =>
     readStoredFormats(workspaceId)
   )
@@ -352,22 +609,35 @@ export function ArtifactList({
     setSelectedFormats(readStoredFormats(workspaceId))
   }
 
+  const lines = useMemo(() => artifactLines(artifacts), [artifacts])
+  // The document as it is now, not as it was when the dialog opened: the
+  // agent can add a version, or start one, while the user decides. Once it
+  // is gone, the dialog keeps its words through the closing animation.
+  const deleteNow = deleteAsked
+    ? (lines.find((line) => line.key === deleteAsked.key) ?? null)
+    : null
+  const deleteTarget = deleteNow ?? deleteAsked
+  const askDelete = useCallback((line: ArtifactLine) => {
+    setDeleteAsked(line)
+    setDeleteOpen(true)
+  }, [])
+
   const availableFormats = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const artifact of artifacts) {
-      counts.set(artifact.format, (counts.get(artifact.format) ?? 0) + 1)
+    for (const { newest } of lines) {
+      counts.set(newest.format, (counts.get(newest.format) ?? 0) + 1)
     }
     return [...counts.entries()]
-  }, [artifacts])
+  }, [lines])
 
   // Filtered directly against what's selected, not intersected with what's
   // available — a filter saved in another workspace (e.g. "podcast") should
   // correctly show zero results here rather than silently showing everything.
-  const visibleArtifacts = useMemo(() => {
-    if (selectedFormats.length === 0) return artifacts
+  const visibleLines = useMemo(() => {
+    if (selectedFormats.length === 0) return lines
     const wanted = new Set(selectedFormats)
-    return artifacts.filter((artifact) => wanted.has(artifact.format))
-  }, [artifacts, selectedFormats])
+    return lines.filter(({ newest }) => wanted.has(newest.format))
+  }, [lines, selectedFormats])
 
   function toggleFormat(format: string, checked: boolean) {
     const next = checked
@@ -392,7 +662,10 @@ export function ArtifactList({
           id="all-artifacts"
           className="px-1 text-sm font-medium text-muted-foreground"
         >
-          Artifacts
+          {intl.formatMessage({
+            id: "studio_artifact_list_title",
+            defaultMessage: "Artifacts",
+          })}
         </h3>
         {/* One type is no choice at all; the filter appears with the second. */}
         {availableFormats.length > 1 ? (
@@ -405,7 +678,7 @@ export function ArtifactList({
           />
         ) : null}
       </div>
-      <ScrollShadow className="min-h-0 flex-1" from="from-background">
+      <ScrollFade className="min-h-0 flex-1">
         {isLoading ? (
           <SkeletonSlabs />
         ) : artifacts.length === 0 ? (
@@ -414,70 +687,138 @@ export function ArtifactList({
               <EmptyMedia variant="icon">
                 <FileTextIcon />
               </EmptyMedia>
-              <EmptyTitle>No generated artifacts yet</EmptyTitle>
+              <EmptyTitle>
+                {intl.formatMessage({
+                  id: "studio_artifact_list_empty",
+                  defaultMessage: "No generated artifacts yet",
+                })}
+              </EmptyTitle>
               <EmptyDescription>
-                Artifacts generated in Studio will appear here.
+                {intl.formatMessage({
+                  id: "studio_artifact_list_empty_body",
+                  defaultMessage:
+                    "Artifacts generated in Studio will appear here.",
+                })}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
-        ) : visibleArtifacts.length === 0 ? (
+        ) : visibleLines.length === 0 ? (
           <Empty className="min-h-0 border-0 px-2">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <FilterIcon />
               </EmptyMedia>
-              <EmptyTitle>No artifacts match this filter</EmptyTitle>
+              <EmptyTitle>
+                {intl.formatMessage({
+                  id: "studio_artifact_list_filtered_empty",
+                  defaultMessage: "No artifacts match this filter",
+                })}
+              </EmptyTitle>
               <EmptyDescription>
                 <Button type="button" variant="link" onClick={clearFormats}>
-                  Clear filter
+                  {intl.formatMessage({
+                    id: "studio_artifact_list_clear_filter_button",
+                    defaultMessage: "Clear filter",
+                  })}
                 </Button>
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
           <ul className="flex list-none flex-col gap-1">
-            {visibleArtifacts.map((artifact) => (
+            {visibleLines.map((line) => (
               <ArtifactRow
-                key={artifact.id}
-                artifact={artifact}
-                onOpen={() => onOpen(artifact.id)}
-                onRegenerate={() => onRegenerate(artifact.id)}
-                onCancel={() => onCancel(artifact.id)}
-                onDelete={() => setDeleteTarget(artifact)}
+                key={line.key}
+                line={line}
+                onOpenVersion={onOpen}
+                onRegenerate={onRegenerate}
+                onCancelVersion={onCancel}
+                onAskDelete={askDelete}
               />
             ))}
           </ul>
         )}
-      </ScrollShadow>
+      </ScrollFade>
       <AlertDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null)
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        onOpenChangeComplete={(open) => {
+          if (!open) setDeleteAsked(null)
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete {deleteTarget?.title ?? "this artifact"}?
+              {deleteTarget
+                ? intl.formatMessage(
+                    {
+                      id: "studio_delete_dialog_title",
+                      defaultMessage: "Delete {name}?",
+                    },
+                    {
+                      name: deleteTarget.newest.title,
+                    }
+                  )
+                : intl.formatMessage({
+                    id: "studio_delete_dialog_unnamed_title",
+                    defaultMessage: "Delete this artifact?",
+                  })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This permanently deletes {deleteTarget?.title ?? "this artifact"}{" "}
-              and its generated files.
+              {deleteTarget && deleteTarget.versions.length > 1
+                ? intl.formatMessage(
+                    {
+                      id: "studio_delete_dialog_versions_body",
+                      defaultMessage:
+                        "This permanently deletes all {count, plural, one {# version} other {# versions}} of {name} and their generated files.",
+                    },
+                    {
+                      count: deleteTarget.versions.length,
+                      name: deleteTarget.newest.title,
+                    }
+                  )
+                : deleteTarget
+                  ? intl.formatMessage(
+                      {
+                        id: "studio_delete_dialog_body",
+                        defaultMessage:
+                          "This permanently deletes {name} and its generated files.",
+                      },
+                      {
+                        name: deleteTarget.newest.title,
+                      }
+                    )
+                  : intl.formatMessage({
+                      id: "studio_delete_dialog_unnamed_body",
+                      defaultMessage:
+                        "This permanently deletes this artifact and its generated files.",
+                    })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>
+              {intl.formatMessage({
+                id: "studio_delete_dialog_cancel_button",
+                defaultMessage: "Cancel",
+              })}
+            </AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
+              disabled={!deleteNow || !canDeleteLine(deleteNow)}
               onClick={() => {
-                if (deleteTarget) onDelete(deleteTarget.id)
+                for (const version of deleteNow?.versions ?? []) {
+                  onDelete(version.id)
+                }
               }}
             >
-              Delete artifact
+              {intl.formatMessage({
+                id: "studio_delete_dialog_confirm_button",
+                defaultMessage: "Delete artifact",
+              })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </section>
   )
-}
+})

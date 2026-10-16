@@ -1,13 +1,22 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { QueryClientProvider } from "@tanstack/react-query"
+import { RawIntlProvider } from "react-intl"
 
 import "./index.css"
 import App from "./App.tsx"
+import { guardFileDrops } from "@/app/file-drop-guard.ts"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
+import { AppDialogs } from "@/components/ui/app-dialog-slot.tsx"
 import { Toaster } from "@/components/ui/sonner.tsx"
 import { TooltipProvider } from "@/components/ui/tooltip.tsx"
 import { EgressPrompt } from "@/features/egress/egress-prompt.tsx"
+import { IssueReportDialog } from "@/features/feedback/issue-report-dialog.tsx"
+import { SidecarCrashReporter } from "@/features/feedback/sidecar-crash-reporter.tsx"
+import { InstallFeed } from "@/features/models/local/installs/install-feed.tsx"
+import { MenuUpdateCheck } from "@/features/updates/menu-update-check.tsx"
+import { intl } from "@/i18n/intl.ts"
+import { followMainLocale } from "@/i18n/locale.ts"
 import { queryClient } from "@/lib/query-client.ts"
 
 const root = document.getElementById("root")
@@ -22,16 +31,28 @@ if (window.surfsense?.platform) {
   }
 }
 
+followMainLocale()
+guardFileDrops(window)
+
+// Open over any dialog as its nested dialog, or on their own when none is open.
+const APP_DIALOGS = [EgressPrompt, IssueReportDialog]
+
 createRoot(root).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <TooltipProvider>
-          <App />
-          <EgressPrompt />
-          <Toaster position="top-right" />
-        </TooltipProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <RawIntlProvider value={intl}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <TooltipProvider>
+            <AppDialogs dialogs={APP_DIALOGS}>
+              <App />
+            </AppDialogs>
+            <MenuUpdateCheck />
+            <InstallFeed />
+            <SidecarCrashReporter />
+            <Toaster position="top-right" />
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </RawIntlProvider>
   </StrictMode>
 )

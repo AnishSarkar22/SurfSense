@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HomeBadge } from "@/components/homepage/home/home-badge";
+import { sectionSpacing } from "@/components/homepage/home/home-section-spacing";
 import { type GuideStep, GuideSteps } from "@/components/site/guide-steps";
+import { siteText } from "@/components/site/site-text";
+import { cn } from "@/lib/utils";
 import { SunsetExport } from "./sunset-export";
 
 /**
- * Rendered in the site design: the palette, ruled column, navigation and
- * footer all come from `app/(home)/layout.tsx`, and every style resolves from
- * `app/(home)/home.css`. Listed in `SITE_DESIGN_ROUTES` in
+ * Rendered in the site design: the palette, column, navigation and footer all
+ * come from `app/(home)/layout.tsx`; the page uses the homepage's centred
+ * heads and the shared rounded step cards. Listed in `SITE_DESIGN_ROUTES` in
  * `components/site/site-shell.tsx`.
  */
 
@@ -14,6 +18,13 @@ export const metadata: Metadata = {
 	title: "SurfSense is moving | SurfSense",
 	robots: { index: false, follow: false },
 };
+
+/**
+ * The day the purge runs, written out: the page must still read correctly
+ * after it, which a countdown would not. `docs/architecture/sunset.md` is the
+ * source.
+ */
+const DELETION_DATE = "18 October 2026";
 
 /**
  * The move, in the order someone does it.
@@ -31,7 +42,7 @@ export const metadata: Metadata = {
 const STEPS: GuideStep[] = [
 	{
 		title: "Export your cloud data",
-		body: "Save the ZIP somewhere you will find it again. You need it in step five.",
+		body: `Your cloud data is deleted on ${DELETION_DATE}, and an export made before then is the only copy you keep. Save the ZIP somewhere you will find it again. You need it in step five.`,
 		control: <SunsetExport />,
 	},
 	{
@@ -74,28 +85,36 @@ const STEPS: GuideStep[] = [
 export default function SunsetPage() {
 	return (
 		<>
-			<section className="ss-home-hero ss-home-pad">
-				<div className="mx-auto max-w-2xl text-center">
-					<h1 className="ss-home-display">SurfSense is moving to a local app</h1>
-				</div>
+			<section className={cn("text-center", sectionSpacing.head)}>
+				<HomeBadge>Cloud data deleted on {DELETION_DATE}</HomeBadge>
+				<h1 className={cn(siteText.display, "mx-auto mt-4 max-w-4xl")}>
+					SurfSense is moving to a local app
+				</h1>
+				<p className={cn(siteText.lede, "mx-auto mt-6 max-w-xl")}>
+					The cloud service is export-only, and everything stored in it is deleted on{" "}
+					<strong className="whitespace-nowrap text-foreground">{DELETION_DATE}</strong>. Export
+					before then.
+				</p>
 			</section>
 
-			<section className="ss-home-rule" aria-labelledby="ss-sunset-steps">
-				<div className="ss-home-head">
-					<p className="ss-home-eyebrow">Moving your data</p>
-					<h2 id="ss-sunset-steps" className="ss-home-h2 mt-2">
+			<section className={sectionSpacing.foot} aria-labelledby="ss-sunset-steps">
+				<div className={cn("text-center", sectionSpacing.head)}>
+					<HomeBadge>Moving your data</HomeBadge>
+					<h2 id="ss-sunset-steps" className={cn(siteText.h2, "mt-4")}>
 						Five steps to the desktop app
 					</h2>
 				</div>
 
-				<GuideSteps steps={STEPS} />
+				<div className="mt-10 lg:mt-14">
+					<GuideSteps steps={STEPS} />
+				</div>
 			</section>
 
-			<section className="ss-home-rule ss-home-pad py-12">
-				<p className="ss-home-body mx-auto max-w-2xl text-center text-sm">
+			<section className={sectionSpacing.foot}>
+				<p className={cn(siteText.body, "rounded-3xl bg-muted px-6 py-8 text-center text-sm")}>
 					A fresh install shows the same Upload button on its empty workspace screen, so you can
 					import before you do anything else. If something did not come across,{" "}
-					<Link className="ss-home-link" href="/contact">
+					<Link className={siteText.link} href="/contact">
 						tell us
 					</Link>
 					.

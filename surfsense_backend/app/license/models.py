@@ -4,7 +4,7 @@ There is no license table. Stripe and Keygen are the system of record, and
 every lookup is a filter over Keygen license ``metadata``. Nothing in this
 slice takes a database session or touches Postgres.
 
-Spec: ``plans/community-local/portal/01-license-routes.md``.
+Spec: ``docs/architecture/license/portal.md``.
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from app.license.keygen import LicensePlan
 LicenseSource = Literal["stripe", "trial", "enterprise"]
 PAID_STATUSES = {"paid", "no_payment_required"}
 
-# Keygen camelCases metadata keys in filter queries, so these are the spellings
-# both writes and lookups must use.
+# The one spelling of each key, for writes and lookups alike. Keygen ignores
+# case, since it snake-cases keys, but a key with a different word finds nothing.
 META_EMAIL = "email"
 META_PLAN = "plan"
 META_CUSTOMER = "stripeCustomerId"

@@ -1,0 +1,245 @@
+from collections.abc import AsyncIterator, Sequence
+from pathlib import Path
+from typing import Any, Literal, Self
+
+import httpx
+
+from modules.agent.opencode_client.events import read_events
+from modules.agent.opencode_client.payloads import Event
+from modules.agent.opencode_config import AGENT, PROVIDER
+
+# The release electron/scripts/opencode/pins.mjs stages; its HTTP API is unversioned.
+OPENCODE_VERSION = "1.18.34"
+
+# Every call but the event stream answers at once; a server that does not was
+# seen to accept a connection and never reply while starting.
+_TIMEOUT = httpx.Timeout(30.0, connect=5.0)
+_HEALTH_TIMEOUT = httpx.Timeout(3.0, connect=2.0)
+
+
+class OpencodeVersionError(RuntimeError):
+    """The opencode that answered is not the release SurfSense was written against."""
+
+
+class OpencodeClient:
+    """The backend's calls to opencode, each scoped to the folder a workspace works in."""
+
+    def __init__(self, url: str, password: str) -> None:
+        self._http = httpx.AsyncClient(
+            base_url=url, auth=("opencode", password), timeout=_TIMEOUT
+        )
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        await self.close()
+
+    async def close(self) -> None:
+        """Release the connection pool."""
+        await self._http.aclose()
+
+    async def version(self) -> str:
+        """The release the running server reports."""
+        reply = await self._http.get("/global/health", timeout=_HEALTH_TIMEOUT)
+        reply.raise_for_status()
+        return reply.json()["version"]
+
+    async def require_pinned_version(self) -> None:
+        """Refuse to go on with any opencode but the pinned one."""
+        running = await self.version()
+        if running != OPENCODE_VERSION:
+            raise OpencodeVersionError(
+                f"opencode {running} is running; SurfSense speaks {OPENCODE_VERSION}"
+            )
+
+    async def config(self) -> dict[str, Any]:
+        """The configuration the running server loaded."""
+        reply = await self._http.get("/config")
+        reply.raise_for_status()
+        return reply.json()
+
+    async def reload_config(self) -> None:
+        """Make every folder read the configuration file again, ending their running turns.
+
+        opencode reads the file the first time a folder is used and keeps what
+        it read, so a rewrite counts only after this.
+        """
+        reply = await self._http.post("/global/dispose")
+        reply.raise_for_status()
+
+    async def create_session(self, directory: Path, title: str) -> str:
+        """Open a session; with a title, opencode never asks the model for one."""
+        reply = await self._http.post(
+            "/session", params=_in(directory), json={"title": title}
+        )
+        reply.raise_for_status()
+        return reply.json()["id"]
+
+    async def delete_session(self, directory: Path, session_id: str) -> None:
+        """Remove a session and everything it holds."""
+        reply = await self._http.delete(f"/session/{session_id}", params=_in(directory))
+        reply.raise_for_status()
+
+    async def session_directory(self, session_id: str) -> str:
+        """The folder a session was created in, where every call about it runs."""
+        reply = await self._http.get(f"/session/{session_id}")
+        reply.raise_for_status()
+        return reply.json()["directory"]
+
+    async def session_metadata(
+        self, directory: Path, session_id: str
+    ) -> dict[str, Any]:
+        """What callers stored on the session; opencode itself writes none."""
+        reply = await self._http.get(f"/session/{session_id}", params=_in(directory))
+        reply.raise_for_status()
+        return reply.json().get("metadata") or {}
+
+    async def set_session_metadata(
+        self, directory: Path, session_id: str, metadata: dict[str, Any]
+    ) -> None:
+        """Replace the session's metadata whole: opencode does not merge it."""
+        reply = await self._http.patch(
+            f"/session/{session_id}", params=_in(directory), json={"metadata": metadata}
+        )
+        reply.raise_for_status()
+
+    async def dispose_instance(self, directory: Path) -> None:
+        """Drop the folder's instance: its MCP clients, its config and its memory.
+
+        opencode keeps one per folder until it exits; the next call there starts a new one.
+        """
+        reply = await self._http.post("/instance/dispose", params=_in(directory))
+        reply.raise_for_status()
+
+    async def session_ids(self, directory: Path) -> set[str]:
+        """The sessions opencode holds for this folder."""
+        reply = await self._http.get("/session", params=_in(directory))
+        reply.raise_for_status()
+        return {session["id"] for session in reply.json()}
+
+    async def status(self, directory: Path, session_id: str) -> str:
+        """`busy`, `retry` or `idle`; opencode lists only sessions that are not idle."""
+        reply = await self._http.get("/session/status", params=_in(directory))
+        reply.raise_for_status()
+        return reply.json().get(session_id, {}).get("type", "idle")
+
+    async def messages(self, directory: Path, session_id: str) -> list[dict[str, Any]]:
+        """Every message of the session, oldest first, each with its parts."""
+        reply = await self._http.get(
+            f"/session/{session_id}/message", params=_in(directory)
+        )
+        reply.raise_for_status()
+        return reply.json()
+
+    async def send_turn(
+        self,
+        directory: Path,
+        session_id: str,
+        text: str,
+        *,
+        model: str,
+        notes: Sequence[str] = (),
+    ) -> None:
+        """Start a turn and return at once; what happens next arrives as events.
+
+        The model is named on every turn, so a session keeps working after the
+        selected model, and with it opencode's configuration, changes. Each of
+        `notes` goes beside the user's words as a synthetic part: the model
+        reads it, and it is marked as not the user's.
+        """
+        parts: list[dict[str, Any]] = [{"type": "text", "text": text}]
+        parts += [{"type": "text", "text": note, "synthetic": True} for note in notes]
+        body = {
+            "agent": AGENT,
+            "model": {"providerID": PROVIDER, "modelID": model},
+            "parts": parts,
+        }
+        reply = await self._http.post(
+            f"/session/{session_id}/prompt_async", params=_in(directory), json=body
+        )
+        reply.raise_for_status()
+
+    async def abort(self, directory: Path, session_id: str) -> None:
+        """Stop the session's running turn."""
+        reply = await self._http.post(
+            f"/session/{session_id}/abort", params=_in(directory)
+        )
+        reply.raise_for_status()
+
+    async def reply(
+        self, directory: Path, request_id: str, reply: Literal["once", "reject"]
+    ) -> None:
+        """Answer a permission request; SurfSense never answers "always"."""
+        answered = await self._http.post(
+            f"/permission/{request_id}/reply",
+            params=_in(directory),
+            json={"reply": reply},
+        )
+        answered.raise_for_status()
+
+    async def add_tool_server(
+        self,
+        directory: Path,
+        name: str,
+        url: str,
+        headers: dict[str, str],
+        *,
+        timeout_seconds: int,
+    ) -> str:
+        """Point the folder's opencode at a remote MCP server; its status once it tried to connect.
+
+        Kept by that folder's instance alone, and forgotten when opencode reloads.
+        A call to one of its tools fails after `timeout_seconds`.
+        """
+        added = await self._http.post(
+            "/mcp",
+            params=_in(directory),
+            json={
+                "name": name,
+                "config": {
+                    "type": "remote",
+                    "url": url,
+                    "headers": headers,
+                    # Otherwise a refused key starts OAuth discovery against SurfSense.
+                    "oauth": False,
+                    "timeout": timeout_seconds * 1000,
+                },
+            },
+        )
+        added.raise_for_status()
+        return added.json().get(name, {}).get("status", "unknown")
+
+    async def tool_servers(self, directory: Path) -> dict[str, str]:
+        """Each MCP server the folder's instance holds, by name, with its status."""
+        reply = await self._http.get("/mcp", params=_in(directory))
+        reply.raise_for_status()
+        return {
+            name: held.get("status", "unknown") for name, held in reply.json().items()
+        }
+
+    async def drop_tool_server(self, directory: Path, name: str) -> None:
+        """Close the folder's connection to a server; its tools leave the next call."""
+        reply = await self._http.post(f"/mcp/{name}/disconnect", params=_in(directory))
+        reply.raise_for_status()
+
+    async def set_session_rules(
+        self, directory: Path, session_id: str, rules: list[dict[str, str]]
+    ) -> None:
+        """Replace the session's own permission rules; they apply from its next call.
+
+        A denied tool is also left out of what the model is offered.
+        """
+        reply = await self._http.patch(
+            f"/session/{session_id}", params=_in(directory), json={"permission": rules}
+        )
+        reply.raise_for_status()
+
+    def events(self, directory: Path) -> AsyncIterator[Event]:
+        """The folder's event stream, until it drops or falls silent."""
+        return read_events(self._http, directory)
+
+
+def _in(directory: Path) -> dict[str, str]:
+    """The query that routes a call to the folder's own opencode instance."""
+    return {"directory": str(directory)}

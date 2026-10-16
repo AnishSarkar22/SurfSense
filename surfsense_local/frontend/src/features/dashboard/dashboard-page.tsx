@@ -1,55 +1,81 @@
-import { useEffect, useState } from "react"
-import { toast } from "sonner"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { AgentApprovalsProvider } from "@/features/agent/agent-approvals"
 import {
   CircleAlertIcon,
   LayoutGridIcon,
   PlusIcon,
   SidebarRightIcon,
-  UnplugIcon,
+  PlugIcon,
   XIcon,
 } from "@/components/ui/icons"
 
+import { FeatureBadge } from "@/components/feature-badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import {
-  DETAIL_RAIL_WIDTH,
-  MAIN_RAIL_WIDTH,
-  SlideRail,
-} from "@/components/ui/slide-rail"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { CitationPanel } from "@/features/chat/citation-panel"
+import { consentPlaceholder } from "@/features/chat/model-issue"
+import { askEgress } from "@/features/egress/ask-egress"
+import { setDestinationEnabled } from "@/features/egress/api"
+import { ModelIssueNotice } from "@/features/chat/model-issue-notice"
+import {
+  useBlockAgentic,
+  useNewChatChoice,
+} from "@/features/chat/modes/new-chat-mode"
+import { NewChatModeProvider } from "@/features/chat/modes/new-chat-mode-provider"
+import { canSkipThinking } from "@/features/chat/thinking-preference"
 import { ThreadPanel } from "@/features/chat/thread-panel"
 import { useChatRuntime } from "@/features/chat/use-chat-runtime"
+import { useHelpMenuReport } from "@/features/feedback/help-menu-report"
 import type { ImportAccepted } from "@/features/migration/api"
 import { ImportBundleButton } from "@/features/migration/import-bundle"
+import { modelKey, type ModelSelection } from "@/features/models/selection/api"
 import {
-  getConnectionModels,
-  getProviders,
-  type ModelSelection,
-} from "@/features/model-selection/api"
+  checkAvailability,
+  type Availability,
+  type ModelIssue,
+} from "@/features/models/selection/availability"
 import {
   SettingsDialog,
   type SettingsSectionId,
 } from "@/features/settings/settings-dialog"
-import {
-  SourcesAddButton,
-  SourcesPanel,
-} from "@/features/sources/sources-panel"
+import { SourcesPanel } from "@/features/sources/sources-panel"
 import { useSources } from "@/features/sources/use-sources"
+import { getFileViewer } from "@/features/file-viewers/registry"
+import { SourcePreviewPanel } from "@/features/source-preview/source-preview-panel"
 import { ArtifactList } from "@/features/studio/artifact-list"
 import { ArtifactPanel } from "@/features/studio/artifact-panel"
+import { OpenArtifactContext } from "@/features/studio/open-artifact"
+import {
+  OFFICE_FORMATS,
+  OfficeOfferContext,
+} from "@/features/office-support/office-offer"
 import { StudioPanel } from "@/features/studio/studio-panel"
 import { useStudio } from "@/features/studio/use-studio"
 import { UpdateButton } from "@/features/updates/update-settings"
 import type { Workspace } from "@/features/workspaces/api"
 import { useWorkspaces } from "@/features/workspaces/use-workspaces"
+import { useStableCallback } from "@/hooks/use-stable-callback"
+import { intl } from "@/i18n/intl"
 import { WorkspaceRail } from "@/features/workspaces/workspace-rail"
-import { readRightPanelOpen, writeRightPanelOpen } from "./chrome-prefs"
-import { LeftSidebar } from "./left-sidebar"
+import type { PluginsStart } from "@/features/plugins/plugins-settings"
+import {
+  readRightPanelOpen,
+  readSourcePreview,
+  writeRightPanelOpen,
+  writeSourcePreview,
+} from "./chrome-prefs"
+import {
+  ColumnEdge,
+  DashboardColumns,
+  RightPanelRail,
+  SidebarColumn,
+} from "./dashboard-columns"
+import { LeftSidebar, type SidebarNavAction } from "./left-sidebar"
 import { RightPanel } from "./right-panel"
 import { SidebarFooter } from "./sidebar-footer"
 
@@ -57,6 +83,8 @@ import { SidebarFooter } from "./sidebar-footer"
 // Sources tab. Sources now live in the always-visible left sidebar, so the
 // same click just brings that list into view instead.
 const LEFT_SOURCES_ID = "workspace-left-sources"
+const LEFT_COLUMN_ID = "workspace-left-column"
+const RIGHT_PANEL_ID = "workspace-right-panel"
 
 type Inspect =
   | { kind: "citation"; chunkId: number }
@@ -67,29 +95,234 @@ function WorkspaceDashboard({
   workspace,
   selection,
   providerAvailable,
+  modelIssue,
+  needsConsent,
+  onModelIssueSettings,
+  onAllowModelIssue,
   onModelRequired,
   onModelSelected,
   onOpenLicense,
+  onOpenAudioSettings,
+  onOpenSpeechSettings,
+  onOpenOfficeSupport,
+  onOpenPlugins,
+  modelsVisited,
 }: {
   workspace: Workspace
   selection: ModelSelection | null
   providerAvailable: boolean
+  modelIssue: ModelIssue | null
+  needsConsent: boolean
+  onModelIssueSettings: () => void
+  onAllowModelIssue: () => void
   onModelRequired: () => void
   onModelSelected: (selection: ModelSelection) => void
   onOpenLicense: () => void
+  onOpenAudioSettings: () => void
+  onOpenSpeechSettings: () => void
+  onOpenOfficeSupport: () => void
+  onOpenPlugins: (start?: PluginsStart) => void
+  modelsVisited: number
 }) {
   const [inspect, setInspect] = useState<Inspect>(null)
   const [rightPanelOpen, setRightPanelOpen] = useState(readRightPanelOpen)
+  const [sourcePreviewId, setSourcePreviewId] = useState<number | null>(() =>
+    readSourcePreview(workspace.id)
+  )
   const sources = useSources(workspace.id)
-  const studio = useStudio(workspace.id)
+  // Which formats Studio offers is the server's answer to what is selected,
+  // so it has to be asked again when that changes. The chat model is named
+  // here directly; the image model is chosen inside the settings dialog and
+  // reported only by `modelsVisited`, which counts closing it.
+  const studio = useStudio(
+    workspace.id,
+    `${selection ? modelKey(selection) : "none"}:${modelsVisited}`
+  )
+  const selectedSourceTitles = useMemo(() => {
+    const titles = new Map(
+      sources.documents.map((document) => [document.id, document.title])
+    )
+    return sources.includedDocumentIds.map((id) => titles.get(id) ?? "")
+  }, [sources.documents, sources.includedDocumentIds])
+  const blockAgentic = useBlockAgentic()
+  // Bound to the model the chat was asked on: the picker stays open meanwhile.
+  const onAgenticGate = useCallback(
+    (gate: string) => {
+      if (selection) blockAgentic(selection, gate)
+    },
+    [blockAgentic, selection]
+  )
   const chat = useChatRuntime({
     workspaceId: workspace.id,
     canSend: providerAvailable,
     selectedDocumentIds: sources.includedDocumentIds,
+    selectedSourceTitles,
+    sourceScope: sources.sourceScope,
+    readsImages: selection?.reads_images === true,
+    canSkipThinking: canSkipThinking(selection),
+    newChatMode: useNewChatChoice(selection),
+    onAgenticGate,
     onModelRequired,
   })
+  const sourcePreview = sources.documents.find(
+    (document) => document.id === sourcePreviewId
+  )
+  const sourcePreviewOpen =
+    sourcePreview?.document_type === "FILE" &&
+    getFileViewer(sourcePreview.mime_type) !== null
+
+  useEffect(() => {
+    if (sourcePreviewId === null || sources.isLoading) return
+    if (
+      !sourcePreview ||
+      sourcePreview.document_type !== "FILE" ||
+      !getFileViewer(sourcePreview.mime_type)
+    ) {
+      writeSourcePreview(workspace.id, null)
+    }
+  }, [sourcePreview, sourcePreviewId, sources.isLoading, workspace.id])
+
+  const composerHold =
+    modelIssue && needsConsent ? consentPlaceholder(modelIssue) : undefined
 
   const closeInspect = () => setInspect(null)
+  const startNewChat = () => {
+    closeInspect()
+    chat.startNewChat()
+  }
+  const closeSourcePreview = () => {
+    setSourcePreviewId(null)
+    writeSourcePreview(workspace.id, null)
+  }
+  // Stable, like everything else the memoized sources panel takes: this page
+  // re-renders when a run starts, ends or changes state, and for a title, a
+  // thread switch, Settings and the other columns.
+  const openSpeechSettings = useStableCallback(() => onOpenSpeechSettings())
+  const toggleSourcePreview = useStableCallback((documentId: number) => {
+    const next = sourcePreviewId === documentId ? null : documentId
+    setSourcePreviewId(next)
+    writeSourcePreview(workspace.id, next)
+  })
+  const sourceUploads = useMemo(
+    () => ({
+      isUploading: sources.isUploading,
+      onUpload: sources.upload,
+      onUploadFolder: sources.uploadEntries,
+    }),
+    [sources.isUploading, sources.upload, sources.uploadEntries]
+  )
+  const sourceNotes = useMemo(
+    () => ({
+      write: sources.writeNote,
+      load: sources.loadNote,
+      edit: sources.editNote,
+    }),
+    [sources.writeNote, sources.loadNote, sources.editNote]
+  )
+  // Built once per change of what it shows, so the memoized sidebar skips
+  // every other render of this page.
+  const sourcesList = useMemo(
+    () => (
+      <aside
+        id={LEFT_SOURCES_ID}
+        aria-label={intl.formatMessage({
+          id: "dashboard_sources_aria",
+          defaultMessage: "Workspace sources",
+        })}
+        className="flex h-full min-h-0 min-w-0 flex-col"
+      >
+        <SourcesPanel
+          documents={sources.documents}
+          index={sources.index}
+          selectedDocumentIds={sources.includedDocumentIds}
+          folderTicks={sources.folderTicks}
+          highlightedDocumentId={null}
+          isLoading={sources.isLoading}
+          isDeleting={sources.isDeleting}
+          error={sources.error}
+          upload={sourceUploads}
+          onDropFiles={sources.isUploading ? undefined : sources.uploadEntries}
+          onOpen={sources.openOriginal}
+          onPreview={toggleSourcePreview}
+          onReveal={sources.revealOriginal}
+          onRetry={sources.retry}
+          onCancel={sources.cancel}
+          onDelete={sources.deleteOne}
+          onDeleteSelected={sources.deleteSelected}
+          onSelectionChange={sources.setDocumentIncluded}
+          onFolderSelectionChange={sources.setFolderIncluded}
+          onToggleAll={sources.toggleAllIncluded}
+          onRename={sources.rename}
+          folderActions={sources.folderActions}
+          notes={sourceNotes}
+          transcriptionPaces={sources.transcriptionPaces}
+          onOpenSpeechSettings={openSpeechSettings}
+        />
+      </aside>
+    ),
+    [
+      sources.documents,
+      sources.index,
+      sources.includedDocumentIds,
+      sources.folderTicks,
+      sources.isLoading,
+      sources.isDeleting,
+      sources.error,
+      sourceUploads,
+      sources.isUploading,
+      sources.uploadEntries,
+      sources.openOriginal,
+      toggleSourcePreview,
+      sources.revealOriginal,
+      sources.retry,
+      sources.cancel,
+      sources.deleteOne,
+      sources.deleteSelected,
+      sources.setDocumentIncluded,
+      sources.setFolderIncluded,
+      sources.toggleAllIncluded,
+      sources.rename,
+      sources.folderActions,
+      sourceNotes,
+      sources.transcriptionPaces,
+      openSpeechSettings,
+    ]
+  )
+  const sidebarFooter = useMemo(
+    () => <SidebarFooter onOpenLicense={onOpenLicense} />,
+    [onOpenLicense]
+  )
+  const sidebarActions = useMemo<SidebarNavAction[]>(
+    () => [
+      {
+        key: "plugins",
+        label: intl.formatMessage({
+          id: "dashboard_sidebar_plugins_button",
+          defaultMessage: "Plugins",
+        }),
+        icon: PlugIcon,
+        badge: <FeatureBadge stage="new" />,
+        onClick: () => onOpenPlugins(),
+      },
+    ],
+    [onOpenPlugins]
+  )
+  // The sidebar's callbacks keep one identity and call the latest chat.
+  const sidebarNewChat = useStableCallback(() => startNewChat())
+  const sidebarSelectThread = useStableCallback((threadId: number) => {
+    if (threadId !== chat.activeThreadId) closeInspect()
+    chat.selectThread(threadId)
+  })
+  const sidebarRenameThread = useStableCallback(
+    (threadId: number, title: string) => chat.rename(threadId, title)
+  )
+  const sidebarDeleteThread = useStableCallback(async (threadId: number) => {
+    if (threadId === chat.activeThreadId) closeInspect()
+    await chat.removeThread(threadId)
+  })
+  const sidebarTitleAnimationComplete = useStableCallback(() =>
+    chat.finishTitleAnimation()
+  )
   const toggleRightPanel = () => {
     setRightPanelOpen((open) => {
       const next = !open
@@ -97,193 +330,251 @@ function WorkspaceDashboard({
       return next
     })
   }
-  const openRightPanel = () => {
+  const openRightPanel = useCallback(() => {
     setRightPanelOpen(true)
     writeRightPanelOpen(true)
-  }
+  }, [])
+  // Stable: it is a context value, and a new one would re-render every agent
+  // step in the thread.
+  const openArtifact = useCallback(
+    (artifactId: number) => {
+      openRightPanel()
+      setInspect({ kind: "artifact", artifactId })
+    },
+    [openRightPanel]
+  )
+  // Stable for the same reason.
+  const officeOffer = useMemo(() => {
+    const office = new Set(
+      studio.artifacts
+        .filter((made) => OFFICE_FORMATS.has(made.format))
+        .map((made) => made.id)
+    )
+    return {
+      isOfficeFile: (artifactId: number) => office.has(artifactId),
+      openOfficeSupport: onOpenOfficeSupport,
+    }
+  }, [studio.artifacts, onOpenOfficeSupport])
+  // Stable too: every reply's citations are drawn with it.
+  const onCitation = useCallback(
+    (chunkId: number) => {
+      openRightPanel()
+      setInspect({ kind: "citation", chunkId })
+    },
+    [openRightPanel]
+  )
   return (
-    <>
-      <div className="titlebar-controls">
-        <div className="titlebar-controls-end">
-          <UpdateButton />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="pointer-events-auto size-6 aria-expanded:bg-transparent"
-                aria-expanded={rightPanelOpen}
-                aria-controls="workspace-right-panel"
-                aria-label={
-                  rightPanelOpen ? "Hide right panel" : "Show right panel"
+    <OfficeOfferContext.Provider value={officeOffer}>
+      <OpenArtifactContext.Provider value={openArtifact}>
+        <div className="titlebar-controls">
+          <div className="titlebar-controls-end">
+            <UpdateButton />
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="pointer-events-auto size-6 aria-expanded:bg-transparent"
+                    aria-expanded={rightPanelOpen}
+                    aria-controls={RIGHT_PANEL_ID}
+                    aria-label={
+                      rightPanelOpen
+                        ? intl.formatMessage({
+                            id: "dashboard_right_panel_hide_aria",
+                            defaultMessage: "Hide right panel",
+                          })
+                        : intl.formatMessage({
+                            id: "dashboard_right_panel_show_aria",
+                            defaultMessage: "Show right panel",
+                          })
+                    }
+                    onClick={toggleRightPanel}
+                  >
+                    <SidebarRightIcon />
+                  </Button>
                 }
-                onClick={toggleRightPanel}
-              >
-                <SidebarRightIcon />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" collisionPadding={8}>
-              {rightPanelOpen ? "Hide right panel" : "Show right panel"}
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </div>
-      <section className="my-2 mr-2 flex min-h-0 min-w-0 overflow-hidden rounded-[16px] border bg-background shadow-sm">
-        <div className="flex h-full min-h-0 w-68 min-w-58 shrink-0 flex-col">
-          <LeftSidebar
-            threads={chat.threads}
-            activeThreadId={chat.activeThreadId}
-            autoNamingThreadId={chat.autoNamingThreadId}
-            animatingTitleThreadId={chat.animatingTitleThreadId}
-            isLoadingThreads={chat.isLoadingThreads}
-            onNewChat={() => {
-              closeInspect()
-              chat.startNewChat()
-            }}
-            onSelectThread={(threadId) => {
-              if (threadId !== chat.activeThreadId) closeInspect()
-              chat.selectThread(threadId)
-            }}
-            onRenameThread={chat.rename}
-            onDeleteThread={async (threadId) => {
-              if (threadId === chat.activeThreadId) closeInspect()
-              await chat.removeThread(threadId)
-            }}
-            onTitleAnimationComplete={chat.finishTitleAnimation}
-            actions={[
-              {
-                key: "plugins",
-                label: "Plugins",
-                icon: UnplugIcon,
-                badge: "Coming soon",
-                // TODO: open the plugins panel once it exists.
-                onClick: () =>
-                  toast.info("Plugins are coming soon", {
-                    description:
-                      "Connect external tools to extend what SurfSense can do. We're still polishing this.",
-                  }),
-              },
-            ]}
-            sources={
-              <aside
-                id={LEFT_SOURCES_ID}
-                aria-label="Workspace sources"
-                className="flex h-full min-h-0 min-w-0 flex-col"
-              >
-                <SourcesPanel
-                  documents={sources.documents}
-                  selectedDocumentIds={sources.includedDocumentIds}
-                  highlightedDocumentId={null}
-                  isLoading={sources.isLoading}
-                  isDeleting={sources.isDeleting}
-                  error={sources.error}
-                  addAction={
-                    <SourcesAddButton
-                      isUploading={sources.isUploading}
-                      onUpload={(files) => void sources.upload(files)}
-                    />
-                  }
-                  onOpen={(id) => void sources.openOriginal(id)}
-                  onReveal={(id) => void sources.revealOriginal(id)}
-                  onRetry={(id) => void sources.retry(id)}
-                  onCancel={(id) => void sources.cancel(id)}
-                  onDelete={(id) => void sources.deleteOne(id)}
-                  onDeleteSelected={() => void sources.deleteSelected()}
-                  onSelectionChange={sources.setDocumentIncluded}
-                  onToggleAll={sources.toggleAllIncluded}
-                />
-              </aside>
-            }
-            footer={<SidebarFooter onOpenLicense={onOpenLicense} />}
-          />
-        </div>
-        <div className="flex min-h-0 min-w-[520px] flex-1 flex-col">
-          <ThreadPanel
-            runtime={chat.runtime}
-            thread={chat.activeThread}
-            view={chat.conversationView}
-            model={selection}
-            isLoading={chat.isLoadingMessages}
-            isRunning={chat.isRunning}
-            isUploading={sources.isUploading}
-            animateTitle={chat.activeThreadId === chat.animatingTitleThreadId}
-            providerAvailable={providerAvailable}
-            onCitation={(chunkId) => {
-              openRightPanel()
-              setInspect({ kind: "citation", chunkId })
-            }}
-            onModelSetup={onModelRequired}
-            onModelSelected={onModelSelected}
-            onRetry={chat.retry}
-            onUpload={(files) => void sources.upload(files)}
-            sourceCount={sources.includedDocumentIds.length}
-            onTitleAnimationComplete={chat.finishTitleAnimation}
-            autoNamingThreadId={chat.autoNamingThreadId}
-            onRename={chat.rename}
-            onDelete={async (threadId) => {
-              if (threadId === chat.activeThreadId) closeInspect()
-              await chat.removeThread(threadId)
-            }}
-          />
-        </div>
-        <SlideRail
-          open={rightPanelOpen}
-          side="end"
-          width={inspect ? DETAIL_RAIL_WIDTH : MAIN_RAIL_WIDTH}
-        >
-          <div id="workspace-right-panel" className="h-full min-h-0">
-            <RightPanel
-              inspect={
-                inspect?.kind === "citation" ? (
-                  <CitationPanel
-                    workspaceId={workspace.id}
-                    chunkId={inspect.chunkId}
-                    onClose={closeInspect}
-                    onOpen={(id) => void sources.openOriginal(id)}
-                  />
-                ) : inspect?.kind === "artifact" ? (
-                  <ArtifactPanel
-                    artifactId={inspect.artifactId}
-                    onClose={closeInspect}
-                  />
-                ) : null
-              }
-              studio={
-                <StudioPanel
-                  workspaceId={workspace.id}
-                  documents={sources.documents}
-                  selectedDocumentIds={sources.includedDocumentIds}
-                  onSelectionChange={sources.setDocumentIncluded}
-                  onToggleAll={sources.toggleAllIncluded}
-                  formats={studio.formats}
-                  isCreating={studio.isCreating}
-                  error={studio.error}
-                  onGenerate={studio.create}
-                />
-              }
-              artifacts={
-                <ArtifactList
-                  workspaceId={workspace.id}
-                  artifacts={studio.artifacts}
-                  formats={studio.formats}
-                  isLoading={studio.isLoading}
-                  onOpen={(artifactId) => {
-                    openRightPanel()
-                    setInspect({ kind: "artifact", artifactId })
-                  }}
-                  onRegenerate={(artifactId) =>
-                    void studio.regenerate(artifactId)
-                  }
-                  onCancel={(artifactId) => void studio.cancel(artifactId)}
-                  onDelete={(artifactId) => void studio.remove(artifactId)}
-                />
-              }
-            />
+              />
+              <TooltipContent side="bottom" collisionPadding={8}>
+                {rightPanelOpen
+                  ? intl.formatMessage({
+                      id: "dashboard_right_panel_hide_tooltip",
+                      defaultMessage: "Hide right panel",
+                    })
+                  : intl.formatMessage({
+                      id: "dashboard_right_panel_show_tooltip",
+                      defaultMessage: "Show right panel",
+                    })}
+              </TooltipContent>
+            </Tooltip>
           </div>
-        </SlideRail>
-      </section>
-    </>
+        </div>
+        {/* The widths live in here, so a drag of an edge renders the column
+          boxes and edges, not the sidebar, the thread or Studio. */}
+        <DashboardColumns
+          sidebarWide={sourcePreviewOpen}
+          rightPanelOpen={rightPanelOpen}
+          rightPanelWide={inspect !== null}
+        >
+          {/* A preview takes over the left column and widens it, as an
+            inspected artifact does the right one; the right panel stays put.
+            On a narrow window it gives way first, down to the sidebar's
+            minimum, before the right panel does: the chat keeps its own. */}
+          <SidebarColumn id={LEFT_COLUMN_ID}>
+            {sourcePreviewOpen && sourcePreview ? (
+              <SourcePreviewPanel
+                workspaceId={workspace.id}
+                document={sourcePreview}
+                onOpen={() => void sources.openOriginal(sourcePreview.id)}
+                onClose={closeSourcePreview}
+              />
+            ) : null}
+            {/* Hidden, not unmounted, so the sources list keeps its scroll. */}
+            <div
+              hidden={sourcePreviewOpen}
+              className="flex h-full min-h-0 flex-col"
+            >
+              <LeftSidebar
+                threads={chat.threads}
+                activeThreadId={chat.activeThreadId}
+                autoNamingThreadId={chat.autoNamingThreadId}
+                animatingTitleThreadId={chat.animatingTitleThreadId}
+                isLoadingThreads={chat.isLoadingThreads}
+                onNewChat={sidebarNewChat}
+                onSelectThread={sidebarSelectThread}
+                onRenameThread={sidebarRenameThread}
+                onDeleteThread={sidebarDeleteThread}
+                onTitleAnimationComplete={sidebarTitleAnimationComplete}
+                runStates={chat.runStates}
+                unreadThreadIds={chat.unreadThreadIds}
+                actions={sidebarActions}
+                sources={sourcesList}
+                footer={sidebarFooter}
+              />
+            </div>
+          </SidebarColumn>
+          <ColumnEdge
+            column="sidebar"
+            label={intl.formatMessage({
+              id: "dashboard_sidebar_resize_aria",
+              defaultMessage: "Resize sidebar",
+            })}
+            controls={LEFT_COLUMN_ID}
+          />
+          <div className="flex min-h-0 min-w-[520px] flex-1 flex-col">
+            <AgentApprovalsProvider
+              approvals={chat.approvals}
+              answer={chat.answerApproval}
+            >
+              <ThreadPanel
+                live={chat.liveThread}
+                thread={chat.activeThread}
+                view={chat.conversationView}
+                model={selection}
+                isLoading={chat.isLoadingMessages}
+                isRunning={chat.isRunning}
+                animateTitle={
+                  chat.activeThreadId === chat.animatingTitleThreadId
+                }
+                providerAvailable={providerAvailable}
+                notice={
+                  modelIssue ? (
+                    <ModelIssueNotice
+                      issue={modelIssue}
+                      onAllow={needsConsent ? onAllowModelIssue : undefined}
+                      onOpenSettings={onModelIssueSettings}
+                    />
+                  ) : null
+                }
+                blockedPlaceholder={composerHold}
+                onCitation={onCitation}
+                onModelSetup={onModelRequired}
+                onModelSelected={onModelSelected}
+                onRetry={chat.retry}
+                onNewChat={startNewChat}
+                sourceCount={sources.includedDocumentIds.length}
+                onUploadSources={(files) => void sources.upload(files)}
+                isUploadingSources={sources.isUploading}
+                onOpenPlugins={onOpenPlugins}
+                dictation={chat.dictation}
+                onOpenSpeechSettings={openSpeechSettings}
+                onTitleAnimationComplete={chat.finishTitleAnimation}
+                autoNamingThreadId={chat.autoNamingThreadId}
+                onRename={chat.rename}
+                onDelete={async (threadId) => {
+                  if (threadId === chat.activeThreadId) closeInspect()
+                  await chat.removeThread(threadId)
+                }}
+              />
+            </AgentApprovalsProvider>
+          </div>
+          {/* Collapsed, the rail has no edge to drag. */}
+          {rightPanelOpen ? (
+            <ColumnEdge
+              column="rightPanel"
+              label={intl.formatMessage({
+                id: "dashboard_right_panel_resize_aria",
+                defaultMessage: "Resize right panel",
+              })}
+              controls={RIGHT_PANEL_ID}
+            />
+          ) : null}
+          <RightPanelRail open={rightPanelOpen}>
+            <div id={RIGHT_PANEL_ID} className="h-full min-h-0">
+              <RightPanel
+                inspect={
+                  inspect?.kind === "citation" ? (
+                    <CitationPanel
+                      workspaceId={workspace.id}
+                      chunkId={inspect.chunkId}
+                      onClose={closeInspect}
+                      onOpen={(id) => void sources.openOriginal(id)}
+                    />
+                  ) : inspect?.kind === "artifact" ? (
+                    <ArtifactPanel
+                      artifactId={inspect.artifactId}
+                      artifacts={studio.artifacts}
+                      onOpenVersion={openArtifact}
+                      onRefine={studio.refine}
+                      onDecideAll={studio.decideAll}
+                      onClose={closeInspect}
+                    />
+                  ) : null
+                }
+                studio={
+                  <StudioPanel
+                    workspaceId={workspace.id}
+                    documents={sources.documents}
+                    selectedDocumentIds={sources.includedDocumentIds}
+                    sourceScope={sources.sourceScope}
+                    onSelectionChange={sources.setDocumentIncluded}
+                    onToggleAll={sources.toggleAllIncluded}
+                    formats={studio.formats}
+                    isCreating={studio.isCreating}
+                    error={studio.error}
+                    onGenerate={studio.create}
+                    onSetUpVoices={onOpenAudioSettings}
+                  />
+                }
+                artifacts={
+                  <ArtifactList
+                    workspaceId={workspace.id}
+                    artifacts={studio.artifacts}
+                    formats={studio.formats}
+                    isLoading={studio.isLoading}
+                    onOpen={openArtifact}
+                    onRegenerate={studio.regenerate}
+                    onCancel={studio.cancel}
+                    onDelete={studio.remove}
+                  />
+                }
+              />
+            </div>
+          </RightPanelRail>
+        </DashboardColumns>
+      </OpenArtifactContext.Provider>
+    </OfficeOfferContext.Provider>
   )
 }
 
@@ -302,17 +593,36 @@ function WorkspacesEmpty({
         <div className="mb-4 flex size-11 items-center justify-center rounded-xl bg-muted">
           <LayoutGridIcon className="size-5" />
         </div>
-        <h1 className="font-heading text-xl font-medium">No workspaces</h1>
+        <h1 className="font-heading text-xl font-medium">
+          {intl.formatMessage({
+            id: "dashboard_workspaces_empty",
+            defaultMessage: "No workspaces",
+          })}
+        </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          A workspace keeps a source library and its chats together.
+          {intl.formatMessage({
+            id: "dashboard_workspaces_empty_body",
+            defaultMessage:
+              "A workspace keeps a source library and its chats together.",
+          })}
         </p>
         <Button
           className="mt-5"
           disabled={isMutating}
-          onClick={() => void onCreate("My Workspace")}
+          onClick={() =>
+            void onCreate(
+              intl.formatMessage({
+                id: "dashboard_workspaces_default_name_label",
+                defaultMessage: "My Workspace",
+              })
+            )
+          }
         >
           <PlusIcon />
-          Create workspace
+          {intl.formatMessage({
+            id: "dashboard_workspaces_create_button",
+            defaultMessage: "Create workspace",
+          })}
         </Button>
         <div className="mt-3">
           <ImportBundleButton onImported={onImported} />
@@ -322,65 +632,119 @@ function WorkspacesEmpty({
   )
 }
 
-type ProviderStatus = "checking" | "available" | "unavailable"
-
 export function DashboardPage({
   selection,
-  initialProviderAvailable,
+  initialProviderAvailable = false,
+  initialAvailability,
   initialWorkspaces,
   onModelUnavailable = () => undefined,
   onModelSelected,
 }: {
   selection: ModelSelection | null
-  initialProviderAvailable: boolean
+  // Shorthand for an `available` or unchecked initial status.
+  initialProviderAvailable?: boolean
+  // What startup found, so this screen need not check the same model again.
+  initialAvailability?: Availability
   initialWorkspaces: Workspace[]
   onModelUnavailable?: () => void
   onModelSelected: (selection: ModelSelection) => void
 }) {
   const workspaces = useWorkspaces(initialWorkspaces)
-  const [providerStatus, setProviderStatus] = useState<ProviderStatus>(() =>
-    initialProviderAvailable ? "available" : "checking"
-  )
+  const initial: Availability =
+    initialAvailability ??
+    (initialProviderAvailable
+      ? { status: "available" }
+      : { status: "checking" })
+  // Tagged with the model it describes, so a newly chosen model reads as
+  // checking until its own answer arrives, never as the last one's.
+  const [checked, setChecked] = useState<{
+    key: string | null
+    availability: Availability
+  }>(() => ({
+    key: selection ? modelKey(selection) : null,
+    availability: initial,
+  }))
+  // Startup already checked this model; the first run here would repeat it.
+  const skipFirstCheck = useRef(initial.status !== "checking")
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Bumped when the settings dialog closes, because a model can be chosen in
+  // there without anything on this screen hearing about it: the image model is
+  // selected inside the catalog and never reaches `onModelSelected`.
+  const [modelsVisited, setModelsVisited] = useState(0)
   const [settingsSection, setSettingsSection] =
     useState<SettingsSectionId>("general")
+  // Bumped after egress is allowed from the notice, to check the model again.
+  const [consents, setConsents] = useState(0)
+
+  // Set while Settings opens on Office support's consent, from a thread's offer.
+  const [askOfficeConsent, setAskOfficeConsent] = useState(false)
 
   const openSettings = (section: SettingsSectionId) => {
     setSettingsSection(section)
     setSettingsOpen(true)
   }
+  const openOfficeSupport = useCallback(() => {
+    setAskOfficeConsent(true)
+    setSettingsSection("office-support")
+    setSettingsOpen(true)
+  }, [])
+  // Set while Settings opens on Plugins' Browse or Add custom plugin, from the composer.
+  const [pluginsStart, setPluginsStart] = useState<PluginsStart>()
+  const openPlugins = useCallback((start?: PluginsStart) => {
+    setPluginsStart(start)
+    setSettingsSection("plugins")
+    setSettingsOpen(true)
+  }, [])
+  // The menu has Settings to go to here, once a workspace renders it;
+  // otherwise it opens the dialog.
+  useHelpMenuReport(
+    () => openSettings("report-issue"),
+    Boolean(workspaces.activeWorkspace)
+  )
 
+  // Checked when the model changes, when settings close (a key entered again,
+  // egress switched, a connection edited) and after egress is allowed.
   useEffect(() => {
-    if (!selection) {
+    if (!selection) return
+    if (skipFirstCheck.current) {
+      skipFirstCheck.current = false
       return
     }
+    const key = modelKey(selection)
     const controller = new AbortController()
-    const availability =
-      selection.provider === "openai_compatible" &&
-      selection.connection_id !== null
-        ? getConnectionModels(selection.connection_id, controller.signal).then(
-            (models) => models.some((model) => model.name === selection.name)
-          )
-        : getProviders(controller.signal).then((providers) =>
-            providers.some(
-              (provider) =>
-                provider.name === selection.provider && provider.healthy
-            )
-          )
-    void availability
-      .then((available) => {
-        if (controller.signal.aborted) return
-        setProviderStatus(available ? "available" : "unavailable")
-      })
-      .catch(() => {
-        if (controller.signal.aborted) return
-        setProviderStatus("unavailable")
-      })
+    void checkAvailability(selection, controller.signal).then(
+      (availability) => {
+        if (!controller.signal.aborted) setChecked({ key, availability })
+      }
+    )
     return () => controller.abort()
-  }, [selection])
+  }, [selection, modelsVisited, consents])
 
+  const availability: Availability =
+    selection && checked.key === modelKey(selection)
+      ? checked.availability
+      : { status: "checking" }
+  const issue =
+    availability.status === "needs-consent" ||
+    availability.status === "unusable"
+      ? availability.issue
+      : null
+  // A model gone from its list is set up again from scratch.
+  const usableSelection = availability.status === "gone" ? null : selection
   const providerAvailable =
-    selection !== null && providerStatus !== "unavailable"
+    usableSelection !== null && availability.status !== "unusable"
+
+  const allowModelIssue = () => {
+    const destination = issue?.destination
+    if (!destination) return
+    void askEgress({
+      destination,
+      host: issue.host ?? "",
+      allow: () => setDestinationEnabled(destination, true),
+    }).then((allowed) => {
+      if (allowed) setConsents((count) => count + 1)
+    })
+  }
 
   const onImported = async (accepted: ImportAccepted) => {
     const first = accepted.workspaces[0]
@@ -398,54 +762,93 @@ export function DashboardPage({
   }
 
   return (
-    <main className="relative grid h-full min-w-[1168px] grid-cols-[56px_minmax(0,1fr)] overflow-hidden bg-app-shell">
-      <WorkspaceRail
-        workspaces={workspaces.workspaces}
-        activeWorkspaceId={workspaces.activeWorkspace.id}
-        isMutating={workspaces.isMutating}
-        onSelect={workspaces.select}
-        onCreate={workspaces.create}
-        onRename={workspaces.rename}
-        onDelete={workspaces.remove}
-        onOpenSettings={() => openSettings("general")}
-      />
-      <WorkspaceDashboard
-        key={workspaces.activeWorkspace.id}
-        workspace={workspaces.activeWorkspace}
-        selection={selection}
-        providerAvailable={providerAvailable}
-        onModelRequired={() => openSettings("models")}
-        onModelSelected={onModelSelected}
-        onOpenLicense={() => openSettings("license")}
-      />
-      <SettingsDialog
-        open={settingsOpen}
-        section={settingsSection}
-        onOpenChange={setSettingsOpen}
-        onSectionChange={setSettingsSection}
-        onModelUnavailable={onModelUnavailable}
-        onModelSelected={onModelSelected}
-        onImported={onImported}
-      />
-      {workspaces.error ? (
-        <Alert
-          variant="destructive"
-          className="absolute top-4 left-1/2 z-40 w-auto max-w-lg -translate-x-1/2 shadow-lg"
-        >
-          <CircleAlertIcon />
-          <AlertTitle>Workspace action failed</AlertTitle>
-          <AlertDescription>{workspaces.error}</AlertDescription>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="absolute top-1 right-1"
-            aria-label="Dismiss workspace error"
-            onClick={workspaces.clearError}
+    // Above the workspace, so a mode picked for the next chat holds across them.
+    <NewChatModeProvider>
+      <main className="relative grid h-full min-w-[1168px] grid-cols-[56px_minmax(0,1fr)] overflow-hidden bg-app-shell">
+        <WorkspaceRail
+          workspaces={workspaces.workspaces}
+          activeWorkspaceId={workspaces.activeWorkspace.id}
+          isMutating={workspaces.isMutating}
+          onSelect={workspaces.select}
+          onCreate={workspaces.create}
+          onRename={workspaces.rename}
+          onDelete={workspaces.remove}
+          onOpenSettings={() => openSettings("general")}
+        />
+        <WorkspaceDashboard
+          key={workspaces.activeWorkspace.id}
+          workspace={workspaces.activeWorkspace}
+          selection={usableSelection}
+          providerAvailable={providerAvailable}
+          modelIssue={issue}
+          needsConsent={availability.status === "needs-consent"}
+          onAllowModelIssue={allowModelIssue}
+          onModelIssueSettings={() =>
+            openSettings(
+              availability.status === "needs-consent"
+                ? "network"
+                : "chat-models"
+            )
+          }
+          onModelRequired={() => openSettings("chat-models")}
+          onModelSelected={onModelSelected}
+          onOpenLicense={() => openSettings("license")}
+          onOpenAudioSettings={() => openSettings("audio-models")}
+          onOpenSpeechSettings={() => openSettings("speech-models")}
+          onOpenOfficeSupport={openOfficeSupport}
+          onOpenPlugins={openPlugins}
+          modelsVisited={modelsVisited}
+        />
+        <SettingsDialog
+          open={settingsOpen}
+          section={settingsSection}
+          askOfficeConsent={askOfficeConsent}
+          pluginsStart={pluginsStart}
+          onOpenChange={(open) => {
+            setSettingsOpen(open)
+            if (!open) {
+              setModelsVisited((seen) => seen + 1)
+              setAskOfficeConsent(false)
+              setPluginsStart(undefined)
+            }
+          }}
+          onSectionChange={(next) => {
+            setSettingsSection(next)
+            setAskOfficeConsent(false)
+            setPluginsStart(undefined)
+          }}
+          onModelUnavailable={onModelUnavailable}
+          onModelSelected={onModelSelected}
+          onImported={onImported}
+        />
+        {workspaces.error ? (
+          <Alert
+            variant="destructive"
+            className="absolute top-4 left-1/2 z-40 w-auto max-w-lg -translate-x-1/2 shadow-lg"
           >
-            <XIcon />
-          </Button>
-        </Alert>
-      ) : null}
-    </main>
+            <CircleAlertIcon />
+            <AlertTitle>
+              {intl.formatMessage({
+                id: "dashboard_workspace_error_title",
+                defaultMessage: "Workspace action failed",
+              })}
+            </AlertTitle>
+            <AlertDescription>{workspaces.error}</AlertDescription>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="absolute top-1 right-1"
+              aria-label={intl.formatMessage({
+                id: "dashboard_workspace_error_dismiss_aria",
+                defaultMessage: "Dismiss workspace error",
+              })}
+              onClick={workspaces.clearError}
+            >
+              <XIcon />
+            </Button>
+          </Alert>
+        ) : null}
+      </main>
+    </NewChatModeProvider>
   )
 }

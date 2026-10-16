@@ -1,9 +1,21 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any, Self
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    JsonValue,
+    ModelWrapValidatorHandler,
+    PositiveInt,
+    StringConstraints,
+    model_validator,
+)
 
-from modules.documents.models import DocumentStatus, DocumentType
+from modules.documents.models import Document, DocumentStatus, DocumentType
+from modules.documents.recordings.transcription_read import (
+    TranscriptionRead,
+    transcription_read,
+)
 
 DocumentTitle = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
@@ -13,8 +25,13 @@ DocumentTitle = Annotated[
 class NoteCreate(BaseModel):
     """A document the user writes directly, with no file behind it."""
 
+    model_config = ConfigDict(extra="forbid")
+
     title: DocumentTitle
     content: str
+    document_metadata: dict[str, JsonValue] | None = None
+    # The folder to file it in; the top of the Library when absent.
+    folder_id: PositiveInt | None = None
 
 
 class DocumentUpdate(BaseModel):
@@ -32,16 +49,34 @@ class DocumentRead(BaseModel):
     id: int
     title: str
     document_type: DocumentType
+    mime_type: str | None
     status: DocumentStatus
     error_message: str | None
+    # None only for an unfiled artifact, or a source the SET NULL backstop
+    # unfiled, which the tree shows at the top of the Library.
+    folder_id: int | None
     created_at: datetime
     updated_at: datetime
+    # Only for a recording: null for every other source.
+    transcription: TranscriptionRead | None = None
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _with_transcription(
+        cls, value: Any, handler: ModelWrapValidatorHandler[Self]
+    ) -> Self:
+        # Read off the row and the job's progress file, never stored as a column.
+        read = handler(value)
+        if isinstance(value, Document):
+            read.transcription = transcription_read(value)
+        return read
 
 
 class DocumentDetail(DocumentRead):
     """One document, including the text that was extracted from it."""
 
     content: str | None
+    document_metadata: dict[str, JsonValue] | None
 
 
 class ChunkRead(BaseModel):
@@ -69,10 +104,11 @@ class DocumentByChunkRead(BaseModel):
 
 
 class DuplicateRead(BaseModel):
-    """A file already held in this workspace, byte for byte."""
+    """A file already held in the folder it was added to, byte for byte."""
 
     filename: str
     document_id: int
+    folder_id: int | None
 
 
 class RejectedUploadRead(BaseModel):

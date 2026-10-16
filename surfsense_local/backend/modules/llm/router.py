@@ -1,43 +1,70 @@
-import json
-from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from typing import Annotated
 
-import httpx
-from fastapi import APIRouter, HTTPException, Response, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from api.dependencies import SessionDep, transact
+from modules.artifacts.local_image_demand import local_image_demand
 from modules.documents.models import Document, DocumentStatus, DocumentType
-from modules.egress import service as egress
-from modules.llm.activity import ModelBusyError, model_activity, model_key
+from modules.embedding.active import active_index
+from modules.events.dependencies import EventBrokerDep
+from modules.llm.activity import (
+    ModelBusyError,
+    ModelFileHeldError,
+    model_activity,
+    model_key,
+)
+from modules.llm.capability import capability_of
+from modules.llm.capability.read import capability_read
+from modules.llm.catalog.local.dependencies import LocalCatalogDep
+from modules.llm.catalog.local.engines.engine import LocalEngine
+from modules.llm.catalog.local.install_jobs.router import router as install_jobs_router
+from modules.llm.catalog.local.router import router as local_catalog_router
+from modules.llm.catalog.remote.router import router as remote_catalog_router
 from modules.llm.connections.router import router as connections_router
-from modules.llm.dependencies import ProviderDep, StoreDep
-from modules.llm.models import ModelRole, OnboardingCompletion, SelectedModel
-from modules.llm.providers import get_provider, provider_names
-from modules.llm.providers.protocols import ModelStore
+from modules.llm.dependencies import ProviderDep
+from modules.llm.local_image_state import local_image_state
+from modules.llm.model_type import ModelType
+from modules.llm.models import OnboardingCompletion, SelectedModel
+from modules.llm.providers import get_provider, llamacpp, provider_names
 from modules.llm.providers.sdcpp import provider as sdcpp
-from modules.llm.recommendations.catalog import clean_runtime_name
-from modules.llm.recommendations.dependencies import CatalogServiceDep
-from modules.llm.recommendations.router import router as recommendations_router
+from modules.llm.reads_images import (
+    connection_catalog_provider,
+    selection_reads_images,
+)
+from modules.llm.residency import warm_selected
 from modules.llm.schemas import (
-    CatalogEntryRead,
-    LocalImageCatalogRead,
-    LocalImageModelRead,
     LocalImageRuntimeRead,
+    LocalImageStateRead,
     ModelDeleteRead,
     ModelRead,
+    OnboardingComplete,
     OnboardingStatusRead,
     ProviderRead,
-    PullRequest,
+    RuntimeFileRead,
     SelectionRead,
     SelectionWrite,
 )
+from modules.llm.selectable import SLOTS, selectable_for
 from modules.llm.selection import choose_model, complete_onboarding
+from modules.llm.subscriptions.chatgpt.router import router as chatgpt_router
+from modules.llm.transcription.language_router import router as language_router
+from modules.llm.transcription.router import router as transcription_router
+from modules.llm.voices.router import router as voices_router
+from shared.config import get_llm_settings
 
 router = APIRouter(prefix="/llm", tags=["llm"])
-router.include_router(recommendations_router)
+router.include_router(local_catalog_router)
+router.include_router(install_jobs_router)
+router.include_router(remote_catalog_router)
+# Before the connections router, so `chatgpt` is never read as a connection id.
+router.include_router(chatgpt_router)
 router.include_router(connections_router)
+router.include_router(voices_router)
+router.include_router(language_router)
+router.include_router(transcription_router)
 
 
 @router.get(
@@ -56,8 +83,10 @@ def read_onboarding_status(session: SessionDep) -> OnboardingStatusRead:
     response_model=OnboardingStatusRead,
     summary="Complete model onboarding",
 )
-def mark_onboarding_complete(session: SessionDep) -> OnboardingStatusRead:
-    complete_onboarding(session)
+def mark_onboarding_complete(
+    session: SessionDep, payload: Annotated[OnboardingComplete | None, Body()] = None
+) -> OnboardingStatusRead:
+    complete_onboarding(session, payload.embedding_model if payload else None)
     return OnboardingStatusRead(completed=True)
 
 
@@ -68,7 +97,10 @@ async def list_providers() -> list[ProviderRead]:
         ProviderRead(
             name=provider.name,
             healthy=await provider.health(),
-            can_download=isinstance(provider, ModelStore),
+            # Downloading is a catalog capability now, not a runtime one: the
+            # local runtime's models install through POST /llm/install, and a
+            # remote endpoint's cannot be installed at all.
+            can_download=provider.name == llamacpp.PROVIDER,
             requires_key=getattr(provider, "requires_key", False),
             configured=True,
         )
@@ -82,78 +114,112 @@ async def list_providers() -> list[ProviderRead]:
     response_model=list[ModelRead],
     summary="List installed models",
 )
-async def list_models(
-    provider: ProviderDep, catalog_service: CatalogServiceDep
-) -> list[ModelRead]:
-    scan = await catalog_service.advisor_catalog()
-    display_names = {
-        model.ollama_name: model.display_name
-        for model in scan.models
-        if model.ollama_name
-    }
+async def list_models(provider: ProviderDep) -> list[ModelRead]:
+    """The runtime reports files by their real names, so there is nothing to
+    clean up: the previous runtime's registry tags needed tidying, these do not."""
     return [
         ModelRead(
             name=model.name,
             installed=model.installed,
             capabilities=list(model.capabilities),
-            display_name=(
-                model.display_name
-                or display_names.get(model.name)
-                or clean_runtime_name(model.name)
-            ),
+            display_name=model.display_name or model.name,
+            types=list(model.types),
+            selectable_for=slots,
+            capability_level=capability_of(model.name, None).level
+            if provider.name == llamacpp.PROVIDER and ModelType.TEXT_GEN in slots
+            else None,
         )
         for model in await provider.models()
+        for slots in [selectable_for(model.types, model.known)]
     ]
 
 
 @router.delete(
-    "/providers/{provider}/models/{model_name:path}",
+    "/models/{model_name:path}",
     response_model=ModelDeleteRead,
     summary="Delete an installed local generation model",
 )
 async def delete_model(
     model_name: str,
-    store: StoreDep,
-    service: CatalogServiceDep,
+    service: LocalCatalogDep,
     session: SessionDep,
 ) -> ModelDeleteRead:
-    installed = next(
-        (model for model in await store.models() if model.name == model_name),
-        None,
-    )
-    if installed is None:
+    # Inventory from disk, not from the runtime. Asking the router first meant a
+    # dead router made models undeletable, which is backwards: one reason to
+    # delete a model is that things are broken, and removing a file needs
+    # nothing running.
+    engine = service.engine_to_delete_from(model_name)
+    if engine is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"model not found: {model_name}")
-    if "completion" not in installed.capabilities:
+    if engine.bundled(model_name):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"model does not support generation: {model_name}",
+            f"{model_name} comes with SurfSense and cannot be deleted",
+        )
+    if await transact(session, _embeds_the_library, model_name):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{model_name} made every vector in the library and cannot be deleted",
         )
     if await transact(session, _studio_running):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "a model cannot be deleted while Studio is generating",
         )
-    install_lock = service.install_lock(store.name)
+    install_lock = service.install_lock()
     if install_lock.locked():
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            f"{store.name} is currently installing a model",
+            "a model is already being installed",
         )
     await install_lock.acquire()
 
     try:
         try:
-            async with model_activity.deleting(model_key(store.name, model_name)):
-                await store.delete(model_name)
+            async with model_activity.deleting(model_key(engine.provider, model_name)):
+                # Every part of a split build and its projector, from the
+                # install record, and whatever the engine settles after.
+                service.remove(model_name, engine=engine.name)
+        except ModelFileHeldError as error:
+            # Only sd-server is stopped by an empty slot. The others keep their
+            # selection until the delete works, and are told to let go.
+            if engine.server_follows_selection:
+                await _clear_selections(session, engine, model_name)
+            await engine.release(model_name)
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"{model_name} is still in use, so it is being stopped. "
+                "Delete it again in a few seconds.",
+            ) from error
         except ModelBusyError as error:
             raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+        except FileNotFoundError as error:
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND, f"model not found: {model_name}"
+            ) from error
     finally:
         install_lock.release()
 
-    selection_cleared = await transact(
-        session, _clear_selection, store.name, model_name
-    )
+    selection_cleared = await _clear_selections(session, engine, model_name)
     return ModelDeleteRead(name=model_name, selection_cleared=selection_cleared)
+
+
+async def _clear_selections(
+    session: SessionDep, engine: LocalEngine, model_name: str
+) -> bool:
+    """Empty every slot of the engine's that named the model."""
+    selection_cleared = False
+    for model_type in engine.model_types:
+        cleared = await transact(
+            session, _clear_selection, engine.provider, model_name, model_type
+        )
+        selection_cleared = selection_cleared or cleared
+    return selection_cleared
+
+
+def _embeds_the_library(session: Session, model_name: str) -> bool:
+    active = active_index(session)
+    return active is not None and active.spec.id == model_name
 
 
 def _studio_running(session: Session) -> bool:
@@ -172,9 +238,14 @@ def _studio_running(session: Session) -> bool:
     )
 
 
-def _clear_selection(session: Session, provider: str, model_name: str) -> bool:
-    """Drop the generation selection if it named the model just deleted."""
-    selected = session.get(SelectedModel, ModelRole.GENERATION)
+def _clear_selection(
+    session: Session,
+    provider: str,
+    model_name: str,
+    model_type: ModelType = ModelType.TEXT_GEN,
+) -> bool:
+    """Drop the selection if it named the model just deleted."""
+    selected = session.get(SelectedModel, model_type)
     cleared = (
         selected is not None
         and selected.provider == provider
@@ -186,203 +257,118 @@ def _clear_selection(session: Session, provider: str, model_name: str) -> bool:
 
 
 @router.get(
-    "/providers/{provider}/catalog",
-    response_model=list[CatalogEntryRead],
-    summary="List models on offer to download",
-)
-async def list_catalog(provider: ProviderDep) -> list[CatalogEntryRead]:
-    if not isinstance(provider, ModelStore):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, f"{provider.name} has no catalog to download"
-        )
-
-    installed = {model.name for model in await provider.models()}
-    return [
-        CatalogEntryRead(
-            name=entry.name,
-            label=entry.label,
-            size_gb=entry.size_gb,
-            installed=entry.name in installed,
-        )
-        for entry in provider.catalog()
-    ]
-
-
-@router.get(
-    "/image/local",
-    response_model=LocalImageCatalogRead,
-    summary="The bundled image models and their state",
-)
-async def read_local_image_models(session: SessionDep) -> LocalImageCatalogRead:
-    chosen = await transact(session, _chosen_image_model)
-    selected = chosen.name if chosen and chosen.provider == sdcpp.PROVIDER else None
-    return LocalImageCatalogRead(
-        provider=sdcpp.PROVIDER,
-        offered=sdcpp.offered(),
-        # Electron starts sd-server once weights land, so a model reads as
-        # installed a few seconds before it is ready to answer.
-        ready=selected is not None and await _image_server_healthy(),
-        models=[
-            LocalImageModelRead(
-                name=model.name,
-                label=model.label,
-                detail=model.detail,
-                size_bytes=model.size_bytes,
-                installed=sdcpp.installed(model),
-                selected=model.name == selected,
-            )
-            for model in sdcpp.CATALOG
-        ],
-    )
-
-
-@router.get(
     "/image/local/runtime",
     response_model=LocalImageRuntimeRead,
     summary="The image model sd-server should be running",
 )
-def read_local_image_runtime(session: SessionDep) -> LocalImageRuntimeRead:
-    chosen = _chosen_image_model(session)
-    model = (
-        sdcpp.find(chosen.name)
+def read_local_image_runtime(
+    session: SessionDep, service: LocalCatalogDep
+) -> LocalImageRuntimeRead:
+    wanted = local_image_demand(session, datetime.now(UTC))
+    chosen = session.get(SelectedModel, wanted) if wanted is not None else None
+    image = (
+        service.sdcpp.installed_image(chosen.name)
         if chosen is not None and chosen.provider == sdcpp.PROVIDER
         else None
     )
-    if model is None or not sdcpp.installed(model):
-        return LocalImageRuntimeRead(file=None, args=[])
-    return LocalImageRuntimeRead(file=model.file, args=list(model.args))
-
-
-@router.delete(
-    "/image/local/{name}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete one downloaded image model",
-)
-async def delete_local_image_model(name: str, session: SessionDep) -> Response:
-    model = sdcpp.find(name)
-    if model is None:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND, f"unknown image model: {name}"
-        )
-    chosen = await transact(session, _chosen_image_model)
-    if chosen is not None and chosen.provider == sdcpp.PROVIDER and chosen.name == name:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"{model.label} is in use; choose another image model first",
-        )
-    sdcpp.remove(model)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post(
-    "/image/local/{name}/install",
-    summary="Download one bundled image model, streaming progress",
-)
-async def install_local_image_model(
-    name: str, session: SessionDep
-) -> StreamingResponse:
-    if not sdcpp.offered():
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "this build has no local image support",
-        )
-    model = sdcpp.find(name)
-    if model is None:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND, f"unknown image model: {name}"
-        )
-    await transact(session, egress.require, egress.IMAGE_MODEL_PULL)
-
-    async def progress() -> AsyncIterator[bytes]:
-        async for step in sdcpp.install(model):
-            line = {
-                "status": step.status,
-                "completed": step.completed,
-                "total": step.total,
-            }
-            yield (json.dumps(line) + "\n").encode()
-
-    return StreamingResponse(progress(), media_type="application/x-ndjson")
-
-
-def _chosen_image_model(session: Session) -> SelectedModel | None:
-    return session.get(SelectedModel, ModelRole.IMAGE_GENERATION)
-
-
-async def _image_server_healthy() -> bool:
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            reply = await client.get(f"{sdcpp.base_url()}/models")
-            return reply.status_code == 200
-    except httpx.HTTPError:
-        return False
-
-
-@router.post(
-    "/providers/{provider}/pull",
-    summary="Download a model, streaming progress",
-)
-async def pull_model(
-    store: StoreDep,
-    payload: PullRequest,
-    service: CatalogServiceDep,
-    session: SessionDep,
-) -> StreamingResponse:
-    await transact(
-        session,
-        egress.require,
-        egress.OLLAMA_PULL,
-        egress.ollama_pull_host(payload.name),
+    if image is None:
+        return LocalImageRuntimeRead(files=[], args=[])
+    return LocalImageRuntimeRead(
+        files=[RuntimeFileRead(flag=flag, path=path) for flag, path in image.files],
+        args=list(image.args),
     )
-    lock = service.install_lock(store.name)
-    if lock.locked():
+
+
+def _slot(model_type: ModelType) -> ModelType:
+    """The embedder is fixed with the index at onboarding, never selected."""
+    if model_type not in SLOTS:
         raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"{store.name} is already installing a model",
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "the embedding model is chosen during onboarding, not selected",
         )
-    await lock.acquire()
+    return model_type
 
-    async def progress() -> AsyncIterator[bytes]:
-        try:
-            async for step in store.pull(payload.name):
-                line = {
-                    "status": step.status,
-                    "completed": step.completed,
-                    "total": step.total,
-                }
-                yield (json.dumps(line) + "\n").encode()
-        finally:
-            lock.release()
 
-    return StreamingResponse(progress(), media_type="application/x-ndjson")
+SlotDep = Annotated[ModelType, Depends(_slot)]
 
 
 @router.get(
-    "/selection/{role}",
-    response_model=SelectionRead,
-    summary="Read the model chosen for a role",
+    "/image/local/state",
+    response_model=LocalImageStateRead,
+    summary="Whether the chosen local image model is running, without starting it",
 )
-def read_selection(role: ModelRole, session: SessionDep) -> SelectedModel:
-    selected = session.get(SelectedModel, role)
-    if selected is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"no model chosen for {role}")
+async def read_local_image_state(
+    session: SessionDep,
+    service: LocalCatalogDep,
+    model_type: ModelType = ModelType.IMAGE_GEN,
+) -> LocalImageStateRead:
+    return LocalImageStateRead(
+        state=await local_image_state(session, service, model_type)
+    )
 
+
+@router.get(
+    "/selection/{model_type}",
+    response_model=SelectionRead,
+    summary="Read the model chosen for a model type",
+)
+async def read_selection(model_type: SlotDep, session: SessionDep) -> SelectionRead:
+    return await _selection_read(
+        session, await transact(session, _chosen_or_404, model_type)
+    )
+
+
+def _chosen_or_404(session: Session, model_type: ModelType) -> SelectedModel:
+    selected = session.get(SelectedModel, model_type)
+    if selected is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, f"no model chosen for {model_type}"
+        )
     return selected
 
 
 @router.put(
-    "/selection/{role}",
+    "/selection/{model_type}",
     response_model=SelectionRead,
-    summary="Choose the model for a role",
+    summary="Choose the model for a model type",
 )
 async def set_selection(
-    role: ModelRole, payload: SelectionWrite, session: SessionDep
-) -> SelectedModel:
-    return await choose_model(
+    model_type: SlotDep,
+    payload: SelectionWrite,
+    session: SessionDep,
+    background: BackgroundTasks,
+    broker: EventBrokerDep,
+) -> SelectionRead:
+    chosen = await choose_model(
         session,
-        role,
+        model_type,
         payload.provider,
         payload.name,
         connection_id=payload.connection_id,
         allow_unlisted=payload.allow_unlisted,
+        broker=broker,
     )
+    # After the response, never during it: the load blocks until the model is
+    # resident, which is the tens of seconds this exists to move somewhere the
+    # user is not waiting. Choosing a model is the moment they have said they
+    # are about to use it, and `--models-max 1` means the load is happening
+    # either way — the only question is whether it happens now or on their
+    # first question.
+    background.add_task(warm_selected, chosen, get_llm_settings().llamacpp_base_url)
+    return await _selection_read(session, chosen)
+
+
+async def _selection_read(session: Session, selected: SelectedModel) -> SelectionRead:
+    read, catalog_provider = await transact(session, _read_with_provider, selected)
+    read.reads_images = await selection_reads_images(selected, catalog_provider)
+    return read
+
+
+def _read_with_provider(
+    session: Session, selected: SelectedModel
+) -> tuple[SelectionRead, str | None]:
+    read = SelectionRead.model_validate(selected)
+    catalog_provider = connection_catalog_provider(session, selected)
+    if selected.model_type is ModelType.TEXT_GEN:
+        read.capability = capability_read(selected, catalog_provider)
+    return read, catalog_provider

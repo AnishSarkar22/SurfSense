@@ -2,11 +2,21 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from modules.documents.models import Document, DocumentStatus
+from modules.documents.models import Document, DocumentStatus, DocumentType
+from modules.documents.tasks import PRIORITY_BULK, ingest_document
+from modules.embedding.active import require_active_index
 from shared.config import get_storage_settings
 from shared.db import create_db_engine, create_session_factory
-from worker.ingestion import chunking, embedding, indexing, parsing
-from worker.jobs import JobCancelledError, begin_job, finish_job, raise_if_cancelled
+from worker.ingestion import chunking, indexing, parsing
+from worker.ingestion.audio.failures import RecordingFailedError
+from worker.jobs import (
+    JobCancelledError,
+    JobYieldedError,
+    begin_job,
+    finish_job,
+    pause_job,
+    raise_if_cancelled,
+)
 from worker.notify import notify_document_updates
 
 logger = logging.getLogger(__name__)
@@ -37,20 +47,31 @@ def _ingest(session: Session, document: Document) -> None:
     notify_document_updates(document)
 
     try:
+        index = require_active_index(session)
+        session.commit()  # the read took the write lock; drop it before parsing
         markdown = parsing.markdown_for(document)
         raise_if_cancelled(session, document)
         passages = chunking.chunk(markdown)
-        texts = [passage.text for passage in passages]
-        vectors = embedding.embed(texts) if texts else []
+        vectors = indexing.embed_passages(index, passages)
         raise_if_cancelled(session, document)
-        indexing.replace_chunks(session, document, passages, vectors)
+        indexing.replace_chunks(session, document, index, passages, vectors)
 
-        document.content = markdown
-        if not finish_job(session, document, DocumentStatus.READY):
+        # A file's text is what ingest extracted; a note's is the user's, only
+        # read here, so writing it back would undo an edit made mid-ingest.
+        produced = (
+            {"content": markdown} if document.document_type is DocumentType.FILE else {}
+        )
+        if not finish_job(session, document, DocumentStatus.READY, **produced):
             return
         notify_document_updates(document)
     except JobCancelledError:
         session.rollback()
+    except JobYieldedError:
+        # A recording gives the queue up and finishes later from its checkpoint.
+        session.rollback()
+        if pause_job(session, document):
+            ingest_document(document.id, priority=PRIORITY_BULK)
+            notify_document_updates(document)
     except Exception as failure:
         session.rollback()
         document = session.get(Document, document.id)
@@ -60,8 +81,15 @@ def _ingest(session: Session, document: Document) -> None:
             session,
             document,
             DocumentStatus.FAILED,
-            f"{type(failure).__name__}: {failure}"[:MESSAGE_CHARS],
+            _reason(failure)[:MESSAGE_CHARS],
         ):
             return
         notify_document_updates(document)
         raise  # Huey retries; a later success clears the message.
+
+
+def _reason(failure: Exception) -> str:
+    # A recording's failures are sentences written for the person.
+    if isinstance(failure, RecordingFailedError):
+        return str(failure)
+    return f"{type(failure).__name__}: {failure}"

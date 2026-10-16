@@ -1,14 +1,20 @@
+import contextlib
 import json
 import time
 from collections.abc import Iterator
 
+import httpx
 import pytest
 from sqlalchemy import Engine, text
 from sqlalchemy.orm import Session
 
 from modules.artifacts.models import Artifact, ArtifactFileRole
 from modules.documents.models import Document, DocumentStatus, DocumentType
+from modules.llm.catalog.local.manifest import load_local_manifest
+from modules.llm.providers.audiocpp.memory import NotEnoughMemoryError
+from modules.llm.providers.audiocpp.speech import AudioCppSpeech, VoicedModel
 from modules.llm.providers.openai_compatible import NonRetryableImageError
+from modules.llm.providers.openai_compatible.speech import NonRetryableSpeechError
 from modules.llm.providers.protocols import (
     GeneratedImage,
     SpokenTurn,
@@ -20,8 +26,6 @@ from modules.workspaces.models import Workspace
 from shared.config import get_storage_settings
 from shared.db import create_session_factory
 from worker.studio import run
-from worker.studio.office.docx import docx
-from worker.studio.office.pdf import pdf
 from worker.studio.office.pptx import pptx
 from worker.studio.office.xlsx import xlsx
 from worker.studio.shared import persist
@@ -93,17 +97,16 @@ def make_artifact(
 
 def _capture_model(monkeypatch: pytest.MonkeyPatch, *replies: str) -> list[str]:
     """Stub the generation model to answer `replies` in turn (the last one repeats),
-    recording each system prompt.
+    recording each prompt a builder wrote: its system prompt, and what it sends
+    after the sources.
 
     Every builder and office format assembles its real prompt and calls
     `run_model`, so recording here lets a test assert the user's focus reached it.
     """
     seen: list[str] = []
 
-    def fake(
-        _session: object, system: str, _sources: object, **_retry: object
-    ) -> str:
-        seen.append(system)
+    def fake(_session: object, system: str, _sources: object, **_retry: object) -> str:
+        seen.append(f"{system}\n\n{_retry.get('after_sources') or ''}")
         return replies[min(len(seen), len(replies)) - 1]
 
     monkeypatch.setattr("worker.studio.shared.generate.run_model", fake)
@@ -145,7 +148,7 @@ def _one_file(artifact: Artifact, mime: str, magic: bytes) -> None:
 def test_summary_becomes_a_searchable_markdown_body(
     session: Session, stub_model: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Summary: the model's markdown is the body, indexed for search, with no file."""
+    """Markdown: the model's markdown is the body, indexed for search, and the file."""
     seen = _capture_model(
         monkeypatch,
         "# Cassini\n\nThe orbiter reached Saturn in 2004, carrying Huygens.",
@@ -159,7 +162,7 @@ def test_summary_becomes_a_searchable_markdown_body(
         artifact.document.error_message
     )
     assert artifact.document.title == "Cassini"
-    assert artifact.files == []
+    _one_file(artifact, "text/markdown", b"# Cassini")
     assert "the arrival date" in seen[0]  # the user's focus reached the model
     keyword = session.scalar(
         text("SELECT count(*) FROM chunks_fts WHERE chunks_fts MATCH 'Huygens'")
@@ -272,66 +275,24 @@ def test_quiz_becomes_a_question_file_and_a_question_list_body(
     assert "arrival facts" in seen[0]
 
 
-# --- Office: the model writes library code the runner executes to a real file. ---
-
-_DOCX_CODE = (
-    "from io import BytesIO\n"
-    "from docx import Document\n"
-    "d = Document()\n"
-    "d.add_heading('Cassini', 0)\n"
-    "d.add_paragraph('Reached Saturn in 2004.')\n"
-    "buf = BytesIO()\n"
-    "d.save(buf)\n"
-    "output_bytes = buf.getvalue()\n"
-)
+# --- Office: the model writes a script the script runner runs to a real file.
+# Word and PDF take their own paths (tests/integration/artifacts/test_studio_documents.py). ---
 
 _PPTX_CODE = (
-    "from io import BytesIO\n"
+    "import os\n"
     "from pptx import Presentation\n"
     "p = Presentation()\n"
     "p.slides.add_slide(p.slide_layouts[6])\n"
-    "buf = BytesIO()\n"
-    "p.save(buf)\n"
-    "output_bytes = buf.getvalue()\n"
+    "p.save(os.environ['OUTPUT_PATH'])\n"
 )
 
 _XLSX_CODE = (
-    "from io import BytesIO\n"
+    "import os\n"
     "import xlsxwriter\n"
-    "buf = BytesIO()\n"
-    "wb = xlsxwriter.Workbook(buf)\n"
+    "wb = xlsxwriter.Workbook(os.environ['OUTPUT_PATH'])\n"
     "wb.add_worksheet().write(0, 0, 'Cassini')\n"
     "wb.close()\n"
-    "output_bytes = buf.getvalue()\n"
 )
-
-_PDF_CODE = (
-    "from io import BytesIO\n"
-    "from reportlab.pdfgen import canvas\n"
-    "buf = BytesIO()\n"
-    "c = canvas.Canvas(buf)\n"
-    "c.drawString(72, 720, 'Cassini')\n"
-    "c.showPage()\n"
-    "c.save()\n"
-    "output_bytes = buf.getvalue()\n"
-)
-
-
-def test_docx_runs_generated_python_docx_code(
-    session: Session, stub_model: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Document: the model's python-docx code runs to a real .docx (a zip)."""
-    seen = _capture_model(monkeypatch, _DOCX_CODE)
-    artifact = make_artifact(session, fmt="docx", prompt="a one-page brief")
-
-    run(artifact.id)
-
-    session.expire_all()
-    assert artifact.document.status is DocumentStatus.READY, (
-        artifact.document.error_message
-    )
-    _one_file(artifact, docx.mime, b"PK\x03\x04")
-    assert "a one-page brief" in seen[0]
 
 
 def test_pptx_runs_generated_python_pptx_code(
@@ -368,23 +329,6 @@ def test_xlsx_runs_generated_xlsxwriter_code(
     assert "one column" in seen[0]
 
 
-def test_pdf_runs_generated_reportlab_code(
-    session: Session, stub_model: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """PDF: the model's ReportLab code runs to a real .pdf."""
-    seen = _capture_model(monkeypatch, _PDF_CODE)
-    artifact = make_artifact(session, fmt="pdf", prompt="a cover page")
-
-    run(artifact.id)
-
-    session.expire_all()
-    assert artifact.document.status is DocumentStatus.READY, (
-        artifact.document.error_message
-    )
-    _one_file(artifact, pdf.mime, b"%PDF")
-    assert "a cover page" in seen[0]
-
-
 # --- Media: audio synthesised offline, images drawn over a BYO key. ---
 
 
@@ -400,20 +344,28 @@ def test_podcast_plans_drafts_and_voices_the_reviewed_brief(
         '{"turns": [{"speaker": 2, "text": "Remarkable."}]}',
     )
     spoken: list[SpokenTurn] = []
+    languages: list[str] = []
 
     class FakeVoice:
         def voices(self) -> list[Voice]:
             return [
-                Voice("af_heart", "Heart", "en-US"),
-                Voice("am_adam", "Adam", "en-US"),
+                Voice("af_heart", "Heart", "female", ("en-US",)),
+                Voice("am_adam", "Adam", "male", ("en-US",)),
             ]
 
-        async def synthesize(self, turns: list[SpokenTurn]) -> SynthesizedAudio:
+        async def check_memory(self) -> None:
+            pass
+
+        async def synthesize(
+            self, turns: list[SpokenTurn], language: str
+        ) -> SynthesizedAudio:
             spoken.extend(turns)
+            languages.append(language)
             return SynthesizedAudio(b"RIFF" + b"\x00" * 40, "audio/wav")
 
+    # The audio model is resolved by the job, like every type a format declares.
     monkeypatch.setattr(
-        "worker.studio.media.audio.podcast.pipeline.resolve_text_to_speech", FakeVoice
+        "worker.studio.job.resolve_text_to_speech", lambda _session: FakeVoice()
     )
     brief = {
         "language": "en-US",
@@ -437,7 +389,176 @@ def test_podcast_plans_drafts_and_voices_the_reviewed_brief(
     _one_file(artifact, "audio/wav", b"RIFF")
     assert len(seen) == 3 and "keep it short" in seen[0] and "Ada (host)" in seen[1]
     assert [turn.voice for turn in spoken] == ["am_adam", "af_heart"]
+    assert languages == ["en-US"]
     assert "**Bea:** Remarkable." in artifact.document.content
+
+
+SHORT = "Voicing needs about 3.5 GB free; this computer has 1.1 GB."
+BRIEF = {
+    "language": "en-US",
+    "speakers": [
+        {"name": "Ada", "role": "host", "voice": "am_adam"},
+        {"name": "Bea", "role": "expert", "voice": "af_heart"},
+    ],
+}
+
+
+class ShortOfMemory:
+    """A voice engine on a machine that cannot hold the model while voicing."""
+
+    def voices(self) -> list[Voice]:
+        return [
+            Voice("af_heart", "Heart", "female", ("en-US",)),
+            Voice("am_adam", "Adam", "male", ("en-US",)),
+        ]
+
+    async def check_memory(self) -> None:
+        raise NotEnoughMemoryError(SHORT)
+
+    async def synthesize(self, turns: list[SpokenTurn], language: str):
+        raise AssertionError("voicing was reached")
+
+
+def test_a_podcast_short_of_memory_refuses_before_any_drafting(
+    session: Session, stub_model: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Drafting takes minutes of the chat model; a machine that cannot voice
+    the result hears so first."""
+    seen = _capture_model(monkeypatch, '{"title": "T", "segments": []}')
+    monkeypatch.setattr(
+        "worker.studio.job.resolve_text_to_speech", lambda _session: ShortOfMemory()
+    )
+    artifact = make_artifact(session, fmt="podcast", options=BRIEF)
+
+    run(artifact.id)
+
+    session.expire_all()
+    assert artifact.document.status is DocumentStatus.FAILED
+    assert artifact.document.error_message == SHORT
+    assert seen == []
+
+
+class ShortOfMemoryAtVoicing(ShortOfMemory):
+    """Memory that was there before drafting and is gone by voicing."""
+
+    async def check_memory(self) -> None:
+        pass
+
+    async def synthesize(self, turns: list[SpokenTurn], language: str):
+        raise NotEnoughMemoryError(SHORT)
+
+
+def test_a_memory_refusal_is_not_retried(
+    session: Session, stub_model: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry would draft the whole episode again and refuse again."""
+    _capture_model(
+        monkeypatch,
+        '{"title": "T", "segments": [{"title": "One"}]}',
+        '{"turns": [{"speaker": 1, "text": "Hi."}, {"speaker": 2, "text": "Hello."}]}',
+    )
+    monkeypatch.setattr(
+        "worker.studio.job.resolve_text_to_speech",
+        lambda _session: ShortOfMemoryAtVoicing(),
+    )
+    artifact = make_artifact(session, fmt="podcast", options=BRIEF)
+
+    run(artifact.id)  # returning, not raising, is what spares a Huey retry
+
+    session.expire_all()
+    assert artifact.document.status is DocumentStatus.FAILED
+    assert artifact.document.error_message == SHORT
+
+
+class RefusingServer(ShortOfMemoryAtVoicing):
+    async def synthesize(self, turns: list[SpokenTurn], language: str):
+        raise NonRetryableSpeechError("the server could not voice turn 1 of 2: bad key")
+
+
+def test_a_servers_voicing_refusal_is_not_retried(
+    session: Session, stub_model: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retry would draft and bill the whole episode again."""
+    _capture_model(
+        monkeypatch,
+        '{"title": "T", "segments": [{"title": "One"}]}',
+        '{"turns": [{"speaker": 1, "text": "Hi."}, {"speaker": 2, "text": "Hello."}]}',
+    )
+    monkeypatch.setattr(
+        "worker.studio.job.resolve_text_to_speech", lambda _session: RefusingServer()
+    )
+    artifact = make_artifact(session, fmt="podcast", options=BRIEF)
+
+    run(artifact.id)  # returning, not raising, is what spares a Huey retry
+
+    session.expire_all()
+    assert artifact.document.status is DocumentStatus.FAILED
+    assert "bad key" in artifact.document.error_message
+
+
+def test_a_podcast_cancelled_while_voicing_stops_at_the_next_turn(
+    session: Session, stub_model: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Voicing is the longest step: a cancel after the first line must not voice
+    the rest, and the artifact lands cancelled with no file."""
+    _capture_model(
+        monkeypatch,
+        '{"title": "T", "segments": [{"title": "One"}]}',
+        '{"turns": [{"speaker": 1, "text": "One."}, {"speaker": 2, "text": "Two."},'
+        ' {"speaker": 1, "text": "Three."}]}',
+    )
+    artifact = make_artifact(session, fmt="podcast", options=BRIEF)
+    voiced: list[str] = []
+
+    def audio_server(request: httpx.Request) -> httpx.Response:
+        if request.url.path != "/v1/audio/speech":
+            return httpx.Response(200, json={})
+        voiced.append(json.loads(request.content)["input"])
+        # The user presses Cancel while the first line is being voiced.
+        with create_session_factory(session.get_bind())() as other:
+            other.get(Document, artifact.document_id).status = DocumentStatus.CANCELLED
+            other.commit()
+        return httpx.Response(200, content=b"RIFF")
+
+    kokoro = next(m for m in load_local_manifest().models if m.id == "kokoro-82m")
+    voice = AudioCppSpeech(
+        VoicedModel("kokoro-82m", kokoro.audio),
+        base_url="http://audio",
+        give_up_text_runtime=contextlib.nullcontext,
+        transport=httpx.MockTransport(audio_server),
+        available=lambda: 64 * 2**30,
+    )
+    monkeypatch.setattr(
+        "worker.studio.job.resolve_text_to_speech", lambda _session: voice
+    )
+
+    run(artifact.id)
+
+    session.expire_all()
+    assert voiced == ["One."]
+    assert artifact.document.status is DocumentStatus.CANCELLED
+    assert artifact.files == []
+
+
+def test_a_podcast_without_an_audio_model_never_calls_the_chat_model(
+    session: Session, stub_model: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every model a format declares is resolved first, so a missing voice
+    fails before any chat tokens are spent."""
+    seen = _capture_model(monkeypatch, '{"title": "T", "segments": []}')
+    brief = {
+        "language": "en-US",
+        "speakers": [{"name": "Ada", "role": "host", "voice": "af_heart"}],
+    }
+    artifact = make_artifact(session, fmt="podcast", options=brief)
+
+    with pytest.raises(RuntimeError, match="no audio model selected"):
+        run(artifact.id)
+
+    session.expire_all()
+    assert artifact.document.status is DocumentStatus.FAILED
+    assert artifact.document.error_message == "no audio model selected"
+    assert seen == []
 
 
 def test_image_draws_a_png_over_the_selected_connection(

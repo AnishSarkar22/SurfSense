@@ -19,6 +19,12 @@ class StorageSettings(BaseSettings):
         return Path(override) if override else self.data_dir / "models"
 
     @property
+    def embedding_models_dir(self) -> Path:
+        """Downloaded embedders, one folder each. Not `models_dir`, which a
+        packaged app ships read-only."""
+        return self.data_dir / "embeddings"
+
+    @property
     def database_path(self) -> Path:
         return self.data_dir / "surfsense.db"
 
@@ -48,26 +54,59 @@ class StorageSettings(BaseSettings):
         """Where one artifact's rendered blobs live, keyed by id like documents."""
         return self.workspace_dir(workspace_id) / "artifacts" / str(artifact_id)
 
+    def agent_working_dir(self, workspace_id: int) -> Path:
+        """The workspace's agent folder: its threads' folders and their text cache.
 
-class SearchSettings(BaseSettings):
-    """The index's shape, which both ingest and search have to agree on."""
+        Before each thread had its own, every thread worked here; such a thread
+        is legacy, and only its history is still read.
+        """
+        return self.workspace_dir(workspace_id) / "agent"
 
-    model_config = SettingsConfigDict(env_prefix="SURFSENSE_LOCAL_")
+    def agent_threads_dir(self, workspace_id: int) -> Path:
+        return self.agent_working_dir(workspace_id) / "threads"
 
-    # Schema, not preference: a vec0 table declares its width at creation.
-    # 384 is bge-small-en-v1.5, the bundled default.
-    embedding_dimension: int = 384
+    def thread_working_dir(self, workspace_id: int, thread_id: int) -> Path:
+        """The folder one agent thread works in: its sources and its outputs."""
+        return self.agent_threads_dir(workspace_id) / str(thread_id)
+
+    def agent_text_dir(self, workspace_id: int) -> Path:
+        """One file per source text version, hard-linked into each thread that uses it."""
+        return self.agent_working_dir(workspace_id) / "text"
+
+    @property
+    def agent_dir(self) -> Path:
+        """Electron watches here for opencode's configuration and keeps opencode's home."""
+        return self.data_dir / "agent"
+
+    @property
+    def plugin_registry_dir(self) -> Path:
+        """The last verified copy of the third-party registry, and its icons.
+
+        Beside `plugins/`, not in it, where a plugin with the id `registry` would collide.
+        """
+        return self.data_dir / "plugin-registry"
+
+    def plugin_dir(self, plugin_id: str, version: str) -> Path:
+        """Where one installed version of a plugin lives."""
+        return self.data_dir / "plugins" / plugin_id / version
+
+    def plugin_data_dir(self, plugin_id: str) -> Path:
+        """A plugin's own files, which outlive the versions that wrote them."""
+        return self.data_dir / "plugins" / plugin_id / "data"
 
 
 class LLMSettings(BaseSettings):
-    """The generation runtime. Electron starts Ollama and passes its address."""
+    """The generation runtime. Electron starts llama-server and passes its address."""
 
     model_config = SettingsConfigDict(env_prefix="SURFSENSE_LOCAL_")
 
-    # Dev fallback for a bare `ollama serve`. The packaged app never hits this:
-    # Electron runs Ollama on a port it chose and sets the env var.
-    ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_models_dir: Path | None = None
+    # llama-server in router mode. Electron picks the port, points the router at
+    # the models directory, and passes the staged library directory: the probe
+    # has to run from there, because ggml scans the running executable's own
+    # directory for backends and silently finds none anywhere else.
+    llamacpp_base_url: str = "http://127.0.0.1:8080"
+    llamacpp_models_dir: Path | None = None
+    llamacpp_library_dir: Path | None = None
 
     # The bundled sd-server, same arrangement: Electron picks the port and only
     # runs it once its model is downloaded. Absent models_dir means the host has
@@ -75,25 +114,68 @@ class LLMSettings(BaseSettings):
     image_base_url: str = "http://127.0.0.1:1234"
     image_models_dir: Path | None = None
 
-    # The packaged app passes an absolute resource path. Development resolves
-    # the command from PATH and degrades recommendations when it is absent.
-    llmfit_path: Path = Path("llmfit")
-    llmfit_expected_version: str = "1.1.11"
-    llmfit_timeout_seconds: float = 30.0
-    llmfit_max_context: int = 8192
-    # ponytail: calibration constant; replace with measured peak app overhead.
-    recommendation_reserve_gb: float = 2.0
+    # The bundled audio.cpp server's folder, where its models and the
+    # `server.json` Electron starts it from live. Absent means the host has no
+    # audio.cpp build, and local audio models are not offered.
+    audio_base_url: str = "http://127.0.0.1:8082"
+    audio_models_dir: Path | None = None
+    # The eSpeak-ng staged beside the server, which the API names in server.json
+    # for the families that do not read it from the server's environment.
+    audio_espeak_library: Path | None = None
+    audio_espeak_data: Path | None = None
+
+    # The same audio.cpp build run again for speech recognition. Electron tells
+    # the API alone, and workers reach it through the API; absent where no
+    # audio.cpp is staged.
+    transcription_base_url: str | None = None
+
+
+class AgentSettings(BaseSettings):
+    """Where opencode will listen and its password, chosen by Electron at boot.
+
+    Both unset where no opencode is staged, and then the agent is not offered.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="SURFSENSE_LOCAL_")
+
+    opencode_url: str | None = None
+    opencode_password: str | None = None
+    # Where opencode's proxy variables point: the API tunnels a ready plugin's host there.
+    plugin_proxy_port: int | None = None
+    # A developer's switch: SURFSENSE_LOCAL_AGENT_UNTESTED_MODELS=1 makes Agentic the
+    # default for every model the user has not picked a mode for, and lifts the
+    # window floor; a stated no on tool calls, or no opencode, still keeps it out.
+    agent_untested_models: bool = False
+
+    def has_opencode(self) -> bool:
+        """Whether Electron runs an opencode beside this API: it passes both only then."""
+        return bool(self.opencode_url and self.opencode_password)
+
+
+class PluginHostSettings(BaseSettings):
+    """A developer's switch: SURFSENSE_LOCAL_PLUGIN_HOST_URL points SurfSense's own
+    plugins, and the license key, at a plugin host run locally instead."""
+
+    model_config = SettingsConfigDict(env_prefix="SURFSENSE_LOCAL_")
+
+    plugin_host_url: str | None = None
+
+
+@lru_cache
+def get_plugin_host_settings() -> PluginHostSettings:
+    return PluginHostSettings()
+
+
+@lru_cache
+def get_agent_settings() -> AgentSettings:
+    """Cached so the environment is parsed once, not per turn."""
+    return AgentSettings()
 
 
 @lru_cache
 def get_storage_settings() -> StorageSettings:
     """Cached so the environment is parsed once, not per dependency call."""
     return StorageSettings()
-
-
-@lru_cache
-def get_search_settings() -> SearchSettings:
-    return SearchSettings()
 
 
 @lru_cache

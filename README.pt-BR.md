@@ -1,290 +1,118 @@
-﻿<a href="https://www.surfsense.com/"><img width="1584" height="396" alt="SurfSense, a alternativa open source ao NotebookLM para pesquisa na web aberta" src="https://github.com/user-attachments/assets/9361ef58-1753-4b6e-b275-5020d8847261" /></a>
-
-
-
-<div align="center">
-<a href="https://discord.gg/ejRNvftDp9">
-<img src="https://img.shields.io/discord/1359368468260192417" alt="Discord">
-</a>
-<a href="https://www.reddit.com/r/SurfSense/">
-<img src="https://img.shields.io/reddit/subreddit-subscribers/SurfSense?style=social" alt="Reddit">
-</a>
-</div>
+<!--
+  O aviso de encerramento tem prazo: remova-o em 18 de outubro de 2026,
+  junto com o mesmo aviso no README.md.
+  Este arquivo acompanha o README.md seção por seção.
+  Justificativa: plans/community-local/seo/06-repo-readme.md
+-->
 
 <div align="center">
 
-[English](README.md) | [Español](README.es.md) | [Português](README.pt-BR.md) | [हिन्दी](README.hi.md) | [简体中文](README.zh-CN.md)
+[![Stars](https://img.shields.io/github/stars/MODSetter/SurfSense?style=social)](https://github.com/MODSetter/SurfSense/stargazers)
+[![Latest release](https://img.shields.io/github/v/release/MODSetter/SurfSense?sort=semver)](https://github.com/MODSetter/SurfSense/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Discord](https://img.shields.io/discord/1359368468260192417?label=Discord)](https://discord.gg/ejRNvftDp9)
 
+  <a href="https://www.surfsense.com/"><img alt="SurfSense, a alternativa open source ao NotebookLM, isolada da rede" src="surfsense_web/public/homepage/banner.png" /></a>
+
+  <h1>SurfSense</h1>
+
+  <p>
+    <b>A alternativa open source ao NotebookLM, isolada da rede.</b>
+    <br />
+    O agente de IA que pesquisa, transforma e edita seus documentos, na sua máquina.
+  </p>
+
+  <p>
+    <a href="https://www.surfsense.com/downloads"><b>Baixar</b></a> ·
+    <a href="#o-que-ele-faz-com-cada-formato">Formatos</a> ·
+    <a href="#início-rápido">Início rápido</a> ·
+    <a href="#como-ele-se-compara">Comparativo</a> ·
+    <a href="#plugins">Plugins</a> ·
+    <a href="https://www.surfsense.com/pricing">Preços</a> ·
+    <a href="https://discord.gg/ejRNvftDp9">Discord</a>
+  </p>
+
+  <a href="https://trendshift.io/repositories/13606" target="_blank"><img src="https://trendshift.io/api/badge/repositories/13606" alt="MODSetter/SurfSense | Trendshift" width="250" height="55" /></a>
+
+  <p>
+    <a href="README.md">English</a> | <a href="README.ar.md">العربية</a> | <a href="README.de.md">Deutsch</a> | <a href="README.es.md">Español</a> | <a href="README.fr.md">Français</a> | <a href="README.hi.md">हिन्दी</a> | <a href="README.ja.md">日本語</a> | <a href="README.ko.md">한국어</a> | Português | <a href="README.ru.md">Русский</a> | <a href="README.zh-CN.md">简体中文</a>
+  </p>
 </div>
-<div align="center">
-<a href="https://trendshift.io/repositories/13606" target="_blank"><img src="https://trendshift.io/api/badge/repositories/13606" alt="MODSetter%2FSurfSense | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</div>
 
-# SurfSense: A Alternativa Open Source ao NotebookLM para Pesquisa na Web Aberta
+https://github.com/user-attachments/assets/88326b9d-e763-46db-9635-75f9df9e8682
 
-O SurfSense é a **alternativa open source ao NotebookLM para agentes de IA**, uma plataforma de pesquisa na web aberta com conectores de dados ao vivo. Seus agentes pesquisam a web ao vivo com dados estruturados do **Reddit, YouTube, Instagram, TikTok, Amazon, Walmart, Google Maps, Google Search, Indeed e de qualquer página da web aberta**, por meio de uma única **API REST** ou de um **servidor MCP**. Agentes agendados ou acionados por eventos transformam o que encontram em relatórios e alertas, e uma base de conhecimento integrada mantém cada descoberta pesquisável, com citações.
+O SurfSense é um aplicativo de desktop gratuito e open source para os documentos que você não pode enviar para a nuvem. É um agente de IA no estilo do NotebookLM, focado em privacidade, que pesquisa, transforma e edita seus documentos na sua máquina. O índice fica no seu disco, você escolhe o modelo, local ou remoto, e não há conta para criar.
+
+| Plataforma | Download |
+|---|---|
+| **Windows** x64 | [SurfSense-Setup.exe](https://github.com/MODSetter/SurfSense/releases/latest/download/SurfSense-Setup.exe) |
+| **macOS** Apple Silicon | [SurfSense-arm64.dmg](https://github.com/MODSetter/SurfSense/releases/latest/download/SurfSense-arm64.dmg) |
+| **Linux** x64 | [AppImage](https://github.com/MODSetter/SurfSense/releases/latest/download/SurfSense.AppImage) · [deb](https://github.com/MODSetter/SurfSense/releases/latest/download/SurfSense.deb) |
 
 > [!NOTE]
-> **📢 Um recado para nossos usuários que buscavam uma alternativa ao NotebookLM**
->
-> Nos últimos meses, construímos o SurfSense como o melhor agente de pesquisa geral para o seu próprio conhecimento, e esse capítulo nos rendeu uma comunidade da qual temos muito orgulho. Ferramentas agênticas como Claude, OpenCode, Hermes e OpenClaw já provaram que os agentes são o futuro, e raciocinar sobre um índice estático está se tornando algo que todo agente capaz faz nativamente. O que ainda falta aos agentes são **dados ao vivo dos lugares onde as respostas realmente vivem, e os fluxos de trabalho em torno deles**. É para lá que estamos direcionando toda a nossa energia: dar aos agentes as primitivas para pesquisar a web aberta.
->
-> **Nada do que você usa vai deixar de existir.** Sua base de conhecimento, o chat com citações, os relatórios, os podcasts, as apresentações, as automações e os chats colaborativos continuam funcionando, e a auto-hospedagem segue gratuita e open source. Leia o anúncio completo no [nosso changelog](https://www.surfsense.com/changelog).
-
-## Sumário
-
-- [Por que os agentes precisam do SurfSense](#por-que-os-agentes-precisam-do-surfsense)
-- [Conectores de dados ao vivo](#conectores-de-dados-ao-vivo)
-- [Início rápido](#início-rápido)
-- [Tudo o mais que vem na caixa](#tudo-o-mais-que-vem-na-caixa)
-- [Como o SurfSense se compara](#como-o-surfsense-se-compara)
-- [Roadmap](#roadmap)
-- [Contribua](#contribua)
-
-## Por que os agentes precisam do SurfSense
-
-Pergunte a qualquer agente capaz "o que o Reddit está dizendo sobre este produto desde o lançamento?" ou "do que os reviews destes dez lugares realmente reclamam?" e ele não terá nenhum lugar confiável para procurar. As APIs oficiais das plataformas têm limites de requisições, preços voltados para empresas ou simplesmente não existem; a infraestrutura de scraping é frágil; e controlar um navegador com um LLM queima minutos e tokens por página. O SurfSense, em vez disso, dá aos agentes as primitivas:
-
-- **Uma única superfície tipada para onde quer que os dados estejam.** Cada conector é um endpoint REST que retorna JSON estruturado — posts, comentários, transcrições, reviews, SERPs, páginas. Sem roleta de limites de requisição, sem parsing de HTML, sem loop de navegador.
-- **Um servidor MCP** que expõe cada conector como uma ferramenta nativa (`surfsense_reddit_scrape`, `surfsense_google_search` e outras) para o Claude, o Cursor ou qualquer framework de agentes.
-- **Um harness de agentes**, não apenas dados brutos: novas tentativas, saída estruturada e medição de créditos já vêm prontos, então os agentes vão de uma pergunta a um relatório com citações sem que você precise construir a infraestrutura.
-- **Open source e auto-hospedável**, para que sua pesquisa permaneça na sua própria infraestrutura.
-
-## Conectores de dados ao vivo
-
-| Conector | O que seus agentes recebem | Saiba mais |
-|---|---|---|
-| **Reddit** | Posts, comentários e fluxos de subreddits sem os limites de requisição da API oficial | [Reddit Scraper API](https://www.surfsense.com/reddit) |
-| **YouTube** | Vídeos, transcrições e threads de comentários em escala | [YouTube Scraper API](https://www.surfsense.com/youtube) |
-| **Instagram** | Perfis, posts e reels públicos sem a Graph API | [Instagram Scraper API](https://www.surfsense.com/instagram) |
-| **TikTok** | Vídeos, comentários, hashtags e perfis sem aprovação da Research API | [TikTok Scraper API](https://www.surfsense.com/tiktok) |
-| **Google Maps** | Estabelecimentos, avaliações e reviews para pesquisa de negócios locais | [Google Maps Scraper API](https://www.surfsense.com/google-maps) |
-| **Google Search** | SERPs ao vivo para pesquisa e monitoramento de buscas | [Google Search API](https://www.surfsense.com/google-search) |
-| **Indeed** | Vagas públicas com salários e descrições completas, por busca ou empresa | [Indeed Scraper API](https://www.surfsense.com/indeed) |
-| **Amazon** | Dados públicos de produtos: preços, avaliações, ofertas, vendedores e rankings de mais vendidos | [Amazon Product API](https://www.surfsense.com/amazon) |
-| **Walmart** | Dados públicos de produtos mais o histórico completo de avaliações: preços, notas, vendedores e variantes | [Walmart Product & Review API](https://www.surfsense.com/walmart) |
-| **Web Crawl** (rastreamento web) | Qualquer página da web aberta como conteúdo limpo e estruturado | [Web Crawling API](https://www.surfsense.com/web-crawl) |
-| **Conectores MCP externos** | Traga qualquer servidor MCP para seus agentes, com OAuth em um clique para Notion, Slack, Jira e outros | [External MCP Connectors](https://www.surfsense.com/external-mcp-connectors) |
-
-O catálogo de conectores está crescendo para além das plataformas sociais e da busca; cada nova fonte chega como um endpoint tipado na mesma API e no mesmo servidor MCP.
-
-A cobrança é por uso: os conectores cobram por item efetivamente retornado, os rastreamentos por página obtida com sucesso, e chamadas com falha nunca são cobradas. Instalações auto-hospedadas rodam com a cobrança desativada. Veja os [preços](https://www.surfsense.com/pricing).
+> **Usava o app web hospedado?** Exporte seus workspaces antes de 18 de outubro de 2026 e importe-os aqui. Veja [a página de encerramento](https://www.surfsense.com/sunset).
 
 ## Início rápido
 
-### Chame um conector a partir do código
+1. Instale o SurfSense e faça a configuração inicial.
+2. Solte seus arquivos ou pastas nas suas fontes.
+3. Peça ao agente para pesquisar nos seus arquivos, extrair conteúdo deles ou editá-los.
 
-Cada conector é um endpoint REST que você pode chamar de qualquer linguagem com a sua chave de API do SurfSense:
+## O que ele faz com cada formato
 
-```bash
-curl -X POST "$SURFSENSE_API_URL/workspaces/$WORKSPACE_ID/scrapers/reddit/scrape" \
-  -H "Authorization: Bearer $SURFSENSE_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "search_queries": ["your brand"],
-    "community": "SaaS",
-    "sort": "top",
-    "time_filter": "week"
-  }'
-```
+| Formato | Pesquisar (respostas com citações) | Criar | Editar (em uma cópia) | Transformar |
+|---|---|---|---|---|
+| **PDF** | ✓ inclusive páginas digitalizadas³ | ✓ | Preencher e achatar formulários; carimbar marcas d'água, números de página, cabeçalhos e rodapés | Mesclar, dividir, extrair, girar e reordenar páginas |
+| **Word** `.docx` | ✓ | ✓ ou a partir do seu próprio `.docx` como modelo | ✓ corpo do texto, como alterações controladas e comentários | Para PDF¹ |
+| **Excel** `.xlsx` | ✓ o agente também lê as fórmulas | ✓ com fórmulas e gráficos nativos | ✓ valores das células e fórmulas | Analisar com pandas e gerar gráficos dos resultados |
+| **PowerPoint** `.pptx` | ✓ | ✓ ou a partir do seu próprio `.pptx` como modelo | Substituir texto nos slides e nas anotações; excluir ou duplicar slides | Para PDF¹ |
+| **CSV** | ✓ | — | — | Analisar com pandas e gerar gráficos dos resultados |
+| **Imagens** PNG, JPEG, TIFF, BMP, WebP | ✓ texto lido por OCR³ | Imagens e infográficos² | — | Inserir em novos documentos |
+| **Markdown**, texto simples | ✓ | ✓ Markdown | — | — |
+| **HTML** | ✓ | ✓ página web | — | — |
+| **Podcast** (áudio) | — | ✓ com transcrição; por padrão, a voz é gerada na sua máquina | — | — |
+| **Mapas mentais, flashcards, quizzes** | — | ✓ no aplicativo | — | — |
 
-Cada [página de conector](https://www.surfsense.com/connectors) tem exemplos prontos para copiar e colar em Python, JavaScript, Go, PHP, Ruby, Java e C#.
+<sub>¹ Com o suporte ao Office (LibreOffice) ativado em Configurações; ele nunca vem no instalador. ² Precisa de um modelo de imagem, local ou remoto; nenhum é escolhido por padrão. ³ O OCR lê escrita latina, chinesa e japonesa.</sub>
 
-### Entregue as ferramentas aos seus agentes via MCP
+Edições, conversões e ferramentas de PDF sempre geram um arquivo novo; o seu original nunca é alterado. Hoje, PDF, Word e Excel são os formatos com mais recursos, e o suporte aos demais formatos continua melhorando.
 
-Adicione o servidor MCP do SurfSense ao Claude, ao Cursor ou ao seu próprio framework de agentes:
+## Plugins
 
-```json
-{
-  "mcpServers": {
-    "surfsense": {
-      "url": "https://mcp.surfsense.com/mcp",
-      "headers": { "Authorization": "Bearer ${SURFSENSE_API_KEY}" }
-    }
-  }
-}
-```
+Conecte-os em **Configurações › Plugins**.
 
-Seu agente agora pode chamar cada conector como uma ferramenta nativa. Veja a página do [servidor MCP do SurfSense](https://www.surfsense.com/mcp-server) para a lista completa de ferramentas, ou execute o servidor localmente a partir de [`surfsense_mcp`](./surfsense_mcp).
+**Da SurfSense.** Eles leem páginas públicas sem usar suas próprias contas e precisam de uma licença do SurfSense: [baixe o aplicativo](https://www.surfsense.com/downloads) e informe seu e-mail nele para receber uma licença gratuita de 30 dias.
 
-### Use a nuvem
+| Plugin | O que faz |
+|---|---|
+| **Google Search** | Pesquisar no Google e ler os resultados, os anúncios e as perguntas relacionadas |
+| **Web Crawl** | Ler uma página web ou rastrear um site inteiro e transformá-lo em texto limpo |
+| **YouTube** | Ler vídeos, canais e comentários do YouTube |
+| **TikTok** | Ler vídeos e comentários do TikTok, pesquisar usuários e ver o que está em alta |
+| **Google Maps** | Encontrar lugares no Google Maps e ler as avaliações deles |
+| **Amazon** | Ler produtos e resultados de pesquisa da Amazon |
+| **Walmart** | Ler produtos, resultados de pesquisa e avaliações do Walmart |
+| **Indeed** | Ler vagas de emprego no Indeed |
 
-Acesse [surfsense.com](https://www.surfsense.com), faça login e peça ao agente dados da web ao vivo em linguagem natural. Contas novas começam com US$ 5 de crédito gratuito e sem assinatura.
+**De terceiros.** Servidores MCP do [registro de plugins](plugins/registry), como DeepWiki e Notion, ou qualquer servidor que você adicione por URL. Não precisam de licença e ficam desativados até você permitir.
 
-### Auto-hospede gratuitamente
+## Como ele se compara
 
-Rode a plataforma inteira, conectores, agentes, automações e o servidor MCP na sua própria infraestrutura. Instalações auto-hospedadas vêm com a cobrança desativada, então scraping, rastreamento e execuções de agentes são limitados apenas pelo seu hardware e pelas chaves de modelo que você trouxer.
+| | NotebookLM (agora Gemini Notebook) | SurfSense |
+|---|---|---|
+| Roda offline / isolado da rede | Não | **Sim** |
+| Seus documentos saem da sua máquina | Sim | **Não**, a menos que você escolha um modelo remoto |
+| Pode editar seus arquivos | Não | **Sim** |
+| Open source | Não | **Apache-2.0** |
+| Modelos | Apenas Gemini | Qualquer API compatível com a OpenAI, ou uma local |
 
-**Pré-requisitos:** o [Docker Desktop](https://www.docker.com/products/docker-desktop/) precisa estar instalado e em execução.
+## Comunidade
 
-Para Linux/macOS:
+- [Discord](https://discord.gg/ejRNvftDp9) para ajuda, [Issues](https://github.com/MODSetter/SurfSense/issues) para bugs e [Discussions](https://github.com/MODSetter/SurfSense/discussions) para ideias.
+- **Como contribuir:** os PRs vão para `dev`; veja o [CONTRIBUTING.md](CONTRIBUTING.md) e [`surfsense_local/`](./surfsense_local) para o ciclo de desenvolvimento. Em [`docs/`](docs/README.md) está explicado como ele funciona.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/MODSetter/SurfSense/main/docker/scripts/install.sh | bash
-```
+<a href="https://github.com/MODSetter/SurfSense/graphs/contributors"><img src="https://contrib.rocks/image?repo=MODSetter/SurfSense" alt="Pessoas que contribuem com o SurfSense" /></a>
 
-Para Windows:
+## Licença
 
-```bash
-irm https://raw.githubusercontent.com/MODSetter/SurfSense/main/docker/scripts/install.ps1 | iex
-```
-
-O script de instalação configura o [Watchtower](https://github.com/nicholas-fedor/watchtower) automaticamente para atualizações automáticas diárias. Para pular essa etapa, adicione a flag `--no-watchtower`. Para Docker Compose, instalação manual e outras opções de implantação, consulte a [documentação](https://www.surfsense.com/docs/legacy/).
-
-## Tudo o mais que vem na caixa
-
-O workspace de pesquisa que fez do SurfSense a principal alternativa open source ao NotebookLM continua aqui, e tudo o que seus agentes coletam chega até ele.
-
-**Base de conhecimento**
-
-- Envie PDFs, documentos do Office, imagens e áudio, ou sincronize **Google Drive, OneDrive e Dropbox**. Mais de 50 formatos de arquivo suportados.
-- Busca híbrida semântica e de texto completo, com respostas citadas no estilo Perplexity.
-- Organização de arquivos por IA que classifica automaticamente os documentos por origem, data e tópico.
-
-<p align="center"><img src="surfsense_web/public/homepage/hero_tutorial/BQnaGif_compressed.gif" alt="Converse com seus PDFs e documentos" /></p>
-
-**Estúdio de entregáveis**
-
-- Artefatos de IA para download, incluindo relatórios, currículos, documentos, planilhas e apresentações.
-- Podcasts de IA com dois apresentadores a partir de qualquer documento ou pasta em menos de 20 segundos.
-- Apresentações de slides editáveis, resumos em vídeo narrados e geração de imagens por IA.
-
-<p align="center"><img src="surfsense_web/public/homepage/hero_tutorial/ReportGenGif_compressed.gif" alt="Gerador de Relatórios com IA" /></p>
-
-**Automações**
-
-- Execute turnos completos de agente de forma agendada ou em resposta a eventos, descritos em linguagem natural, com os resultados gravados no Notion, Slack, Linear e Jira.
-
-**Colaboração em equipe**
-
-- Chats de IA colaborativos em tempo real, com comentários e menções.
-- RBAC com os papéis de Owner, Admin, Editor e Viewer.
-
-<p align="center"><img src="surfsense_web/public/homepage/hero_realtime/RealTimeChatGif.gif" alt="Chat de IA colaborativo" /></p>
-
-**Aplicativo desktop**
-
-Assistência de IA nativa em todos os aplicativos do seu computador. Baixe na [versão mais recente](https://github.com/MODSetter/SurfSense/releases/latest).
-
-- **General Assist**: abra o SurfSense a partir de qualquer aplicativo com um atalho global.
-- **Quick Assist**: selecione texto em qualquer lugar e peça à IA para explicar, reescrever ou agir sobre ele.
-- **Screenshot Assist**: capture qualquer região da tela e faça perguntas à IA sobre ela.
-- **Watch Local Folder** (monitorar pasta local): sincronize automaticamente uma pasta local com a sua base de conhecimento. Aponte para o seu cofre do Obsidian para manter suas notas pesquisáveis.
-
-<p align="center"><img src="surfsense_web/public/homepage/hero_tutorial/quick_assist.gif" alt="Quick Assist" /></p>
-
-**Sem dependência de fornecedor**
-
-- Mais de 100 LLMs via especificação da OpenAI e LiteLLM, incluindo GPT-5.5, Claude Sonnet 5 e Gemini 3.1 Pro.
-- Mais de 6.000 modelos de embedding e todos os principais rerankers.
-- Suporte completo a LLMs locais e privados (vLLM, Ollama), para que seus dados continuem sendo seus.
-
-## Exemplo do Agente de Vídeo
-
-https://github.com/user-attachments/assets/012a7ffa-6f76-4f06-9dda-7632b470057a
-
-## Exemplo do Agente de Podcast
-
-https://github.com/user-attachments/assets/a0a16566-6967-4374-ac51-9b3e07fbecd7
-
-## Como colaborar em tempo real (Beta)
-
-1. Vá até a página Manage Members e crie um convite.
-
-   <p align="center"><img src="https://github.com/user-attachments/assets/40ed7683-5aa6-48a0-a3df-00575528c392" alt="Convidar membros" /></p>
-
-2. Um colega entra e aquele workspace passa a ser compartilhado.
-
-   <p align="center"><img src="https://github.com/user-attachments/assets/ea4e1057-4d2b-4fd2-9ca0-cd19286a285e" alt="Fluxo de entrada por convite" /></p>
-
-3. Torne um chat compartilhado e trabalhem nele juntos em tempo real, com comentários para marcar colegas.
-
-   <p align="center"><img src="surfsense_web/public/homepage/hero_realtime/RealTimeCommentsFlow.gif" alt="Comentários em tempo real" /></p>
-
-## Como o SurfSense se compara
-
-O SurfSense é o único produto open source que combina um workspace de pesquisa no estilo NotebookLM para pessoas com primitivas de dados ao vivo para agentes. Veja como isso se compara a cada classe de ferramenta.
-
-**vs agentes de navegador (Browserbase, Browser Use).** Agentes de navegador controlam um navegador real com um LLM no loop — a ferramenta certa quando a tarefa exige clicar, fazer login ou preencher formulários. Mas a maior parte da pesquisa é recuperação somente leitura, e para recuperação o loop de LLM no navegador custa minutos e milhares de tokens por página. Uma chamada de conector do SurfSense é uma única requisição HTTP: segundos, determinística e zero tokens gastos decidindo onde clicar.
-
-**vs APIs de scraping (Firecrawl).** APIs de scraping são ótimas para transformar uma página genérica em markdown, mas um bloco de markdown ainda deixa o seu agente extraindo estrutura da prosa, e elas se degradam em plataformas protegidas contra bots como Reddit, TikTok e Instagram. Os conectores do SurfSense retornam itens estruturados nativos de cada plataforma — posts, comentários, transcrições, reviews — e cobram apenas pelos itens efetivamente retornados; chamadas com falha nunca são cobradas.
-
-**vs APIs de busca (Exa, Tavily, Parallel).** APIs de busca respondem a partir de um índice da web, o que é a ferramenta certa para "encontre páginas sobre X". Elas não conseguem trazer os comentários de uma thread do Reddit, as reações no TikTok, as transcrições do YouTube ou os reviews do Google Maps — os lugares onde a resposta muitas vezes realmente vive.
-
-**vs marketplaces de scrapers (Apify).** Marketplaces oferecem milhares de actors da comunidade, cada um com seu próprio schema, qualidade e preço. O SurfSense é uma única API tipada e um único servidor MCP, com um harness de agentes e um workspace de pesquisa por trás, e é open source.
-
-### SurfSense vs Google NotebookLM
-
-Ainda nos comparando como alternativa ao NotebookLM? Aqui está o comparativo honesto.
-
-| Recurso | Google NotebookLM | SurfSense |
-|---------|-------------------|-----------|
-| **Dados da web ao vivo para agentes** | Não | Conectores de Reddit, YouTube, Instagram, TikTok, Amazon, Walmart, Google Maps, Google Search, Indeed e rastreamento web via API REST e MCP |
-| **Servidor MCP** | Não | Cada conector exposto como ferramenta nativa de agente, além de servidores MCP próprios com apps OAuth em um clique |
-| **Fontes por Notebook** | 50 (gratuito) a 600 (Ultra, US$ 249,99/mês) | Ilimitadas |
-| **Número de Notebooks** | 100 (gratuito) a 500 (planos pagos) | Ilimitado |
-| **Limite de tamanho por fonte** | 500.000 palavras / 200 MB por fonte | Sem limite |
-| **Preços** | Plano gratuito; Pro US$ 19,99/mês, Ultra US$ 249,99/mês | Gratuito e open source para auto-hospedar; a nuvem é paga por uso, com US$ 5 de crédito gratuito |
-| **Suporte a LLMs** | Apenas Google Gemini | Mais de 100 LLMs via especificação da OpenAI e LiteLLM |
-| **Modelos de embedding** | Apenas Google | Mais de 6.000 modelos de embedding, todos os principais rerankers |
-| **LLMs locais / privados** | Não disponível | Suporte completo (vLLM, Ollama), seus dados continuam sendo seus |
-| **Auto-hospedável** | Não | Sim, com uma linha de Docker ou Docker Compose completo |
-| **Open source** | Não | Sim |
-| **Fontes da base de conhecimento** | Google Drive, YouTube, sites | Upload de arquivos, Google Drive, OneDrive, Dropbox, sincronização de pasta local e páginas rastreadas |
-| **Formatos de arquivo suportados** | PDFs, Docs, Slides, Sheets, CSV, Word, EPUB, imagens, URLs, YouTube | Mais de 50 formatos: documentos, imagens, vídeos via LlamaCloud, Unstructured ou Docling (local) |
-| **Busca** | Busca semântica | Híbrida semântica + texto completo, com índices hierárquicos e fusão de rankings recíprocos |
-| **Respostas com citações** | Sim | Sim, respostas citadas no estilo Perplexity |
-| **Arquitetura agêntica** | Não | Sim, com [LangChain Deep Agents](https://docs.langchain.com/oss/python/deepagents/overview), incluindo planejamento, subagentes e acesso ao sistema de arquivos |
-| **Automações e agentes de IA** | Não | Fluxos agendados, gatilhos por eventos e automações sem código criadas via chat, com gravação no Notion, Slack, Linear e Jira |
-| **Multiplayer em tempo real** | Notebooks compartilhados com papéis Viewer/Editor (sem chat em tempo real) | RBAC com papéis Owner / Admin / Editor / Viewer, chat em tempo real e threads de comentários |
-| **Geração de vídeo** | Video Overviews cinematográficos via Veo 3 (apenas Ultra) | Disponível (o NotebookLM é melhor aqui, em melhoria contínua) |
-| **Geração de apresentações** | Slides mais bonitos, porém não editáveis | Apresentações editáveis baseadas em slides |
-| **Geração de podcasts** | Audio Overviews com apresentadores e idiomas personalizáveis | Disponível com vários provedores de TTS (o NotebookLM é melhor aqui, em melhoria contínua) |
-| **Aplicativo desktop** | Não | App nativo com General Assist, Quick Assist, Screenshot Assist e sincronização de pasta local |
-
-## Pedidos de recursos e futuro
-
-**O SurfSense está em desenvolvimento ativo.** Embora ainda não esteja pronto para produção, você pode nos ajudar a acelerar o processo.
-
-Entre no [Discord do SurfSense](https://discord.gg/ejRNvftDp9) e ajude a moldar o futuro do SurfSense!
-
-## Roadmap
-
-Fique por dentro do nosso progresso de desenvolvimento e dos próximos recursos. Confira nosso roadmap público e contribua com suas ideias ou feedback:
-
-**Discussão do roadmap:** [SurfSense 2026 Roadmap](https://github.com/MODSetter/SurfSense/discussions/565)
-
-**Quadro Kanban:** [SurfSense Project Board](https://github.com/users/MODSetter/projects/3)
-
-## Contribua
-
-Todas as contribuições são bem-vindas, de estrelas e relatos de bugs a melhorias no backend. Veja o [CONTRIBUTING.md](CONTRIBUTING.md) para começar.
-
-Obrigado a todos os nossos Surfers:
-
-<a href="https://github.com/MODSetter/SurfSense/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=MODSetter/SurfSense" />
-</a>
-
-## Histórico de estrelas
-
-<a href="https://www.star-history.com/#MODSetter/SurfSense&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=MODSetter/SurfSense&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=MODSetter/SurfSense&type=Date" />
-   <img alt="Gráfico do histórico de estrelas" src="https://api.star-history.com/svg?repos=MODSetter/SurfSense&type=Date" />
- </picture>
-</a>
-
----
----
-<p align="center">
-    <img 
-      src="https://github.com/user-attachments/assets/329c9bc2-6005-4aed-a629-700b5ae296b4" 
-      alt="Catalyst Project" 
-      width="200"
-    />
-</p>
-
----
----
+Apache-2.0. Veja o arquivo [LICENSE](LICENSE).

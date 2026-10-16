@@ -5,7 +5,7 @@ directories:
   buildResources: build
 
 # The asar carries only the main + preload bundles. The renderer SPA, the two
-# frozen Python binaries, and the Ollama server ride alongside in resources/,
+# frozen Python binaries, and llama-server ride alongside in resources/,
 # where the main process spawns them by path (sidecars/) and loads the SPA from
 # disk (index.ts).
 files:
@@ -25,30 +25,64 @@ extraResources:
   # build:parser). First PDF stays offline; the worker is not blocked on Hub.
   - from: ../backend/models
     to: models
-  # The Ollama server (fetch-ollama.mjs stages it here). Models are pulled by the
-  # user post-install into the writable data dir, not shipped.
-  - from: ollama
-    to: ollama
-  # Pinned hardware advisor (fetch-llmfit.mjs verifies and stages it atomically).
-  - from: llmfit
-    to: llmfit
-  # stable-diffusion.cpp's sd-server for local image generation (fetch-sdcpp.mjs).
+  # llama-server in router mode (fetch-llamacpp.mjs verifies a pinned build and
+  # SHA-256, then prunes 24 executables to one plus its libraries). The GPU
+  # backend is Vulkan everywhere off Apple Silicon; no CUDA payload ships.
+  # Weights are downloaded post-install into the writable data dir, never bundled.
+  - from: llamacpp
+    to: llamacpp
+  # stable-diffusion.cpp's sd-server for local image generation (scripts/sdcpp/).
   # Empty on hosts with no prebuilt binary; the sidecar then simply does not start.
   - from: sdcpp
     to: sdcpp
+  # audio.cpp's server for podcast voices, with the eSpeak-ng it phonemises
+  # through (scripts/audiocpp/). The default voice rides in the models pack
+  # above (build:voice); every other voice model is downloaded.
+  - from: audiocpp
+    to: audiocpp
+  # opencode's server for the agent, and the ripgrep it greps with
+  # (scripts/opencode/). Pinned by version and SHA-256; it starts only once the
+  # API writes its configuration. Staged for every build; one made with
+  # SURFSENSE_LOCAL_OPENCODE_ENABLED=0 stages nothing, and electron-builder
+  # warns that the folder is missing and skips it.
+  - from: opencode
+    to: opencode
+  # Third-party licence notices for everything above (build:notices,
+  # scripts/notices/). The generators' fragments stay behind.
+  - from: licenses
+    to: licenses
+    filter:
+      - THIRD_PARTY_NOTICES.*
+
+# Runs the packaged opencode once it is signed, before any installer is made and
+# so before a tag's build uploads one (scripts/opencode/after-sign.mjs).
+afterSign: ./scripts/opencode/after-sign.mjs
 
 # The legacy 0.0.x desktop lives in the same repo and its updater reads
-# latest*.yml; this app publishes stable*.yml so the two feeds never cross.
+# latest*.yml; this app publishes stable*.yml. Both manifests now sit on the
+# same release (see legacy-update-bridge in release-local.yml), so the channel
+# is the only thing keeping either app from parsing the other's.
 publish:
   provider: github
   owner: MODSetter
   repo: SurfSense
   channel: stable
 
+# Artifact names carry no version, so `/releases/latest/download/<name>` is a
+# permalink the README and the site can hardcode. electron-updater is fine with
+# it: the manifests name the file, and a cached download is validated by sha512
+# before it is ever installed.
+#
+# ponytail: the arch stays on the Mac names because the /downloads grid and the
+# license mail label assets by suffix (`-arm64.dmg`); dropping it there would
+# fall through to the raw filename. Windows and Linux ship one arch each, so
+# they leave it out — add `${arch}` back on the day a second one appears, or the
+# two builds overwrite each other.
 linux:
   target: [AppImage, deb]
+  artifactName: "${productName}.${ext}"
   category: Office
-  icon: build/icon.png
+  icon: build/icons/packaged/icon.png
   executableName: surfsense-local
   desktop:
     entry:
@@ -57,18 +91,38 @@ linux:
       Categories: Office;Utility;
       StartupWMClass: SurfSense
 
+# llama.cpp's GPU backend opens libvulkan.so.1 from the host. Recommended, not
+# depended on: without it the app still runs, on the CPU. Setting `recommends`
+# replaces electron-builder's list, so its default stays first. `depends` is left
+# unset to keep electron-builder's GTK, NSS and X libraries.
+deb:
+  recommends:
+    - libappindicator3-1
+    - libvulkan1
+
 win:
   target: [nsis]
-  icon: build/icon.ico
+  artifactName: "${productName}-Setup.${ext}"
+  icon: build/icons/packaged/icon.ico
 
 
 mac:
   target: [dmg, zip]
   category: public.app-category.productivity
-  icon: build/icon.icns
-  artifactName: "${productName}-${version}-${arch}.${ext}"
+  icon: build/icons/packaged/icon.icns
+  artifactName: "${productName}-${arch}.${ext}"
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # The microphone prompt's sentence; askForMediaAccess needs one, and Electron's
+  # own says only that the app needs the microphone.
+  extendInfo:
+    NSMicrophoneUsageDescription: "SurfSense turns your speech into text on this computer."
+  # opencode arrives Developer ID signed by its vendor, with the hardened
+  # runtime, a timestamp and the five entitlements Bun needs. Re-signing it would
+  # swap those for ours, which lack disable-executable-page-protection. rg
+  # arrives only ad-hoc signed, so it is signed with the app.
+  signIgnore:
+    - "/Contents/Resources/opencode/opencode$"
   notarize: true

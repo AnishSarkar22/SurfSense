@@ -7,9 +7,11 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from modules.documents.models import Document, DocumentType
+from modules.source_scope.resolve import ResolvedScope
+from modules.source_scope.schemas import ScopeCounts
 from modules.workspaces.models import Workspace
 from shared.db import create_session_factory
-from shared.search import retrieve
+from shared.search import CANDIDATES, retrieve
 from worker.ingestion import run
 
 pytestmark = pytest.mark.integration
@@ -72,8 +74,9 @@ def test_a_paraphrase_finds_its_document_through_meaning(
 
     hits = retrieve(session, workspace_id, "a cat napping in sunlight")
 
-    # Every content word is absent from the corpus, so the keyword leg is empty
-    # and only meaning can have found it.
+    # Not a quiet keyword leg: "a" and "in" match the cooking note, which ranks
+    # first on BM25. A match covering one term of five has to stay weak enough
+    # for meaning to win, or every question carries its stopwords' documents.
     assert hits[0].document_id == ids["cat"]
 
 
@@ -126,6 +129,67 @@ def test_retrieval_stays_within_the_workspace(
         assert all(hit.document_id != theirs for hit in hits)
 
 
+def test_a_hindi_question_finds_the_note_that_answers_it(
+    engine: Engine, real_model: object
+) -> None:
+    """One word apart, so only the keyword leg can choose between them.
+
+    bge-small is English-only and these three lines differ by a single noun, so
+    meaning leaves them near-tied and term coverage has to break it. Cut at its
+    virama `स्कैनर` is `स` + `नर`, which the index does not hold, and the leg
+    that should decide abstains.
+    """
+    notes = {
+        "scanner": "स्कैनर की बैटरी आठ घंटे चलती है।",
+        "printer": "प्रिंटर की बैटरी आठ घंटे चलती है।",
+        "camera": "कैमरा की बैटरी आठ घंटे चलती है।",
+    }
+    with create_session_factory(engine)() as session:
+        workspace = Workspace(name="नोट्स")
+        session.add(workspace)
+        session.flush()
+        ids = {
+            topic: _ingest(session, workspace.id, content)
+            for topic, content in notes.items()
+        }
+
+        hits = retrieve(session, workspace.id, "स्कैनर की बैटरी कितने घंटे चलती है?")
+
+        assert hits[0].document_id == ids["scanner"]
+
+
+def test_a_crowded_neighbour_workspace_does_not_reorder_mine(
+    engine: Engine, real_model: object
+) -> None:
+    """Another workspace's documents must not decide what mine ranks first.
+
+    A neighbour holding `CANDIDATES` closer chunks once left my own notes out
+    of the semantic leg, which took the global nearest before filtering. Scored
+    as cosine zero rather than unmeasured, the note that merely carries more of
+    the query's words won.
+    """
+    query = "a cat napping in sunlight"
+    with create_session_factory(engine)() as session:
+        mine = Workspace(name="Mine")
+        neighbour = Workspace(name="Neighbour")
+        session.add_all([mine, neighbour])
+        session.flush()
+        # Closer to the query than anything of mine can be, and enough of them
+        # to leave no room.
+        for _ in range(CANDIDATES):
+            _ingest(session, neighbour.id, query)
+        # Two words of the query against three, so coverage alone prefers the
+        # invoice; meaning is the only thing that puts the dozing cat first.
+        dozing = _ingest(session, mine.id, "The feline dozed in the warm sunlight.")
+        _ingest(
+            session, mine.id, "Invoice: a crate of tinned cat food shipped in bulk."
+        )
+
+        hits = retrieve(session, mine.id, query)
+
+        assert hits[0].document_id == dozing
+
+
 def test_an_empty_workspace_returns_nothing(engine: Engine, real_model: object) -> None:
     """A workspace with no documents ranks nothing, and does not error."""
     with create_session_factory(engine)() as session:
@@ -146,3 +210,53 @@ def test_an_empty_document_selection_returns_nothing(engine: Engine) -> None:
     """An explicit empty selection short-circuits before loading the model."""
     with create_session_factory(engine)() as session:
         assert retrieve(session, 1, "anything", document_ids=[]) == []
+
+
+def test_the_semantic_leg_reaches_my_notes_past_a_crowded_neighbour(
+    engine: Engine, real_model: object
+) -> None:
+    """The nearest chunks are taken within the workspace, not across every one.
+
+    The neighbour holds more near chunks than the leg proposes, and my note
+    shares no word with the question, so only meaning can find it.
+    """
+    query = "a cat napping in sunlight"
+    with create_session_factory(engine)() as session:
+        mine = Workspace(name="Mine")
+        neighbour = Workspace(name="Neighbour")
+        session.add_all([mine, neighbour])
+        session.flush()
+        for _ in range(CANDIDATES):
+            _ingest(session, neighbour.id, query)
+        cat = _ingest(session, mine.id, DOCS["cat"])
+
+        hits = retrieve(session, mine.id, query)
+
+        assert [hit.document_id for hit in hits] == [cat]
+
+
+def test_a_narrow_scope_in_a_big_library_finds_a_paraphrase(
+    engine: Engine, real_model: object
+) -> None:
+    """A one-document scope still gets semantic candidates from that document."""
+    query = "a cat napping in sunlight"
+    with create_session_factory(engine)() as session:
+        workspace = Workspace(name="Library")
+        session.add(workspace)
+        session.flush()
+        for _ in range(CANDIDATES + 5):
+            _ingest(session, workspace.id, query)
+        cat = _ingest(session, workspace.id, DOCS["cat"])
+        scope = ResolvedScope(ids=[cat], counts=ScopeCounts(ready=1))
+
+        hits = retrieve(session, workspace.id, query, scope=scope)
+
+        assert [hit.document_id for hit in hits] == [cat]
+
+
+def test_an_empty_scope_returns_nothing(engine: Engine) -> None:
+    """A scope with nothing ready short-circuits before loading the model."""
+    with create_session_factory(engine)() as session:
+        empty = ResolvedScope(ids=[], counts=ScopeCounts())
+
+        assert retrieve(session, 1, "anything", scope=empty) == []

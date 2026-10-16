@@ -4,6 +4,7 @@ import type { ApiError } from "./api"
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   vi.resetModules()
 })
 
@@ -30,32 +31,48 @@ describe("api base url", () => {
   it("stays relative in a bare browser so the dev proxy applies", async () => {
     expect(await callHealthWith(undefined)).toBe("/health")
   })
+
+  it("falls back to VITE_API_BASE without the Electron bridge", async () => {
+    vi.stubEnv("VITE_API_BASE", "/api")
+    expect(await callHealthWith(undefined)).toBe("/api/health")
+  })
+
+  it("prefers the packaged apiUrl over VITE_API_BASE", async () => {
+    vi.stubEnv("VITE_API_BASE", "/api")
+    expect(await callHealthWith({ apiUrl: "http://127.0.0.1:9999" })).toBe(
+      "http://127.0.0.1:9999/health"
+    )
+  })
+
+  it("builds media and download links from VITE_API_BASE", async () => {
+    vi.stubEnv("VITE_API_BASE", "/api")
+    vi.stubGlobal("window", {})
+    vi.resetModules()
+    const { apiUrl } = await import("./api")
+    expect(apiUrl("/documents/1/file")).toBe("/api/documents/1/file")
+  })
 })
 
 describe("api errors", () => {
-  it("preserves structured disk-space details", async () => {
+  it("carries a structured detail's message and code", async () => {
     vi.stubGlobal("window", {})
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         Response.json(
-          {
-            detail: {
-              message: "insufficient disk space",
-              required: 5_000_000_000,
-              available: 2_000_000_000,
-            },
-          },
-          { status: 507 }
+          { detail: { message: "Needs an audio model.", code: "needs_audio" } },
+          { status: 409 }
         )
       )
     )
     vi.resetModules()
     const { request } = await import("./api")
 
-    await expect(request("/llm/install")).rejects.toThrow(
-      "insufficient disk space (5.0 GB required, 2.0 GB available)"
-    )
+    await expect(request("/artifacts")).rejects.toMatchObject({
+      message: "Needs an audio model.",
+      code: "needs_audio",
+      status: 409,
+    })
   })
 })
 
@@ -66,8 +83,8 @@ describe("egress prompt", () => {
         detail: {
           code: "egress_disabled",
           message: "off",
-          destination: "ollama_pull",
-          host: "registry.ollama.ai",
+          destination: "model_download",
+          host: "huggingface.co",
         },
       },
       { status: 403 }
@@ -91,7 +108,7 @@ describe("egress prompt", () => {
     )
     setEgressPrompt(prompt)
 
-    const response = await request("/llm/providers/ollama/pull", {
+    const response = await request("/llm/installs", {
       method: "POST",
     })
 
@@ -99,7 +116,7 @@ describe("egress prompt", () => {
     expect(prompt).toHaveBeenCalledTimes(1)
     expect(prompt.mock.calls[0]?.[0]).toMatchObject({
       code: "egress_disabled",
-      detail: { destination: "ollama_pull", host: "registry.ollama.ai" },
+      detail: { destination: "model_download", host: "huggingface.co" },
     })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
@@ -110,7 +127,7 @@ describe("egress prompt", () => {
     setEgressPrompt(async () => false)
 
     await expect(
-      request("/llm/providers/ollama/pull", { method: "POST" })
+      request("/llm/installs", { method: "POST" })
     ).rejects.toMatchObject({ code: "egress_disabled" })
     expect(fetch).toHaveBeenCalledTimes(1)
   })

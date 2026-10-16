@@ -16,9 +16,10 @@ from sqlalchemy import (
     create_engine,
     event,
 )
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from shared.sqlite import enable_wal
+from shared.sqlite import enable_wal, require_load_extension
 
 # SQLite is the only backend that lets constraints stay unnamed, and Alembic's
 # batch mode cannot drop what it cannot name. Retrofitting this later would not
@@ -69,8 +70,13 @@ def import_models() -> None:
     import modules.chunks.models
     import modules.documents.models
     import modules.egress.models
+    import modules.embedding.models
+    import modules.folders.models
     import modules.license.models
     import modules.llm.models
+    import modules.plugins.bundles.models
+    import modules.plugins.installed.models
+    import modules.source_roots.models
     import modules.workspaces.models
 
 
@@ -90,7 +96,9 @@ def _apply_pragmas(dbapi_connection: Any, _record: Any) -> None:
     # pysqlite otherwise autocommits DDL, stranding a migration that dies midway.
     dbapi_connection.isolation_level = None
 
-    # Not built into SQLite: without it vec0 does not exist.
+    # Not built into SQLite: without it vec0 does not exist. python.org macOS
+    # builds omit the method itself, so check before calling it.
+    require_load_extension(dbapi_connection)
     dbapi_connection.enable_load_extension(True)
     sqlite_vec.load(dbapi_connection)
     dbapi_connection.enable_load_extension(False)
@@ -128,6 +136,11 @@ def _begin(connection: Connection) -> None:
     # price is that no transaction may stay open across a slow call (a model,
     # a probe, a stream), which is what the guard above and transact() enforce.
     connection.exec_driver_sql("BEGIN IMMEDIATE")
+
+
+def is_locked(error: OperationalError) -> bool:
+    """Whether another connection held the write lock past the busy wait."""
+    return "database is locked" in str(error.orig)
 
 
 def create_db_engine(path: Path) -> Engine:

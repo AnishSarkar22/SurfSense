@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
@@ -9,6 +11,11 @@ _ACTIVE = (DocumentStatus.PENDING, DocumentStatus.PROCESSING)
 
 class JobCancelledError(Exception):
     """The user stopped this job; the worker must exit without a Huey retry."""
+
+
+class JobYieldedError(Exception):
+    """The job gave the queue to other work and will finish later, from its
+    checkpoint: not a failure, and no Huey retry."""
 
 
 def cancel_ingest_job(session: Session, document: Document) -> bool:
@@ -54,6 +61,49 @@ def begin_job(session: Session, document: Document) -> bool:
     return True
 
 
+def pause_job(session: Session, document: Document) -> bool:
+    """Back to pending, so the job can queue again behind other work. False
+    when a cancel won; the startup sweep leaves a pending row alone."""
+    result = session.execute(
+        update(Document)
+        .where(
+            Document.id == document.id,
+            Document.status == DocumentStatus.PROCESSING,
+        )
+        .values(status=DocumentStatus.PENDING)
+    )
+    session.commit()
+    if result.rowcount == 0:
+        return False
+    session.refresh(document)
+    session.commit()
+    return True
+
+
+def merge_metadata(
+    session: Session, document: Document, key: str, value: Any | None
+) -> None:
+    """Set one key of the row's metadata, or remove it for None. Read and
+    written in one transaction, so every other key stays as last written."""
+    session.commit()
+    session.refresh(document, attribute_names=["document_metadata"])
+    metadata = {
+        name: kept
+        for name, kept in (document.document_metadata or {}).items()
+        if name != key
+    }
+    if value is not None:
+        metadata[key] = value
+    session.execute(
+        update(Document)
+        .where(Document.id == document.id)
+        .values(document_metadata=metadata)
+    )
+    session.commit()
+    session.refresh(document, attribute_names=["document_metadata"])
+    session.commit()
+
+
 def raise_if_cancelled(session: Session, document: Document) -> None:
     session.commit()
     session.refresh(document, attribute_names=["status"])
@@ -68,20 +118,20 @@ def finish_job(
     document: Document,
     status: DocumentStatus,
     error_message: str | None = None,
+    **produced: str,
 ) -> bool:
-    """Write a terminal status unless cancel won the race. Returns whether we wrote."""
+    """Write a terminal status unless cancel won the race. Returns whether we wrote.
+
+    Only the columns the job `produced` are written beside it, never the row as
+    `begin_job` read it: a rename or a note edit committed meanwhile must stand.
+    """
     result = session.execute(
         update(Document)
         .where(
             Document.id == document.id,
             Document.status != DocumentStatus.CANCELLED,
         )
-        .values(
-            status=status,
-            error_message=error_message,
-            content=document.content,
-            title=document.title,
-        )
+        .values(status=status, error_message=error_message, **produced)
     )
     if result.rowcount == 0:
         session.rollback()

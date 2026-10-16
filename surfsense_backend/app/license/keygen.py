@@ -2,7 +2,7 @@
 
 Keygen is the system of record for licenses: there is no license table, so
 every lookup here is a filter over license ``metadata``. See
-``plans/community-local/portal/01-license-routes.md``.
+``docs/architecture/license/portal.md``.
 """
 
 from __future__ import annotations
@@ -227,11 +227,10 @@ async def list_licenses(
 ) -> list[dict[str, Any]]:
     """List licenses matching every given metadata filter.
 
-    Keygen camelCases metadata keys in filter queries, so callers must pass
-    ``checkoutSessionId``, not ``checkout_session_id``. A wrong key returns an
-    empty list rather than an error, which reads as "no license exists" and
-    would issue a duplicate -- which is why this is stated here and covered by
-    the live contract test.
+    Keygen snake-cases metadata keys on write and in filters, so case cannot
+    miss: ``checkoutSessionId`` and ``checkout_session_id`` are one key. A key
+    with a different word returns an empty list rather than an error, which
+    reads as "no license exists" and would issue a duplicate.
     """
     params: dict[str, str] = {"limit": str(limit)}
     for key, value in (metadata or {}).items():

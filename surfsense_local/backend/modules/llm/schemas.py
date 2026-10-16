@@ -2,10 +2,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from modules.llm.capability.level import Level
+from modules.llm.capability.schemas import CapabilityRead
 from modules.llm.connections.service import CapabilitySource
-from modules.llm.models import ModelRole
+from modules.llm.image_server_state import ImageServerState
+from modules.llm.model_type import ModelType
 from modules.llm.profile import Tier
-from modules.llm.recommendations.types import FitLevel
 
 
 class ProviderRead(BaseModel):
@@ -27,26 +29,16 @@ class ModelRead(BaseModel):
     installed: bool
     capabilities: list[str]
     display_name: str | None = None
+    types: list[ModelType] = []
+    # The slots it can fill, by the one rule selection and every picker share.
+    selectable_for: list[ModelType] = []
+    # Its measured level, for a model that can fill the chat slot.
+    capability_level: Level | None = None
 
 
 class ModelDeleteRead(BaseModel):
     name: str
     selection_cleared: bool
-
-
-class CatalogEntryRead(BaseModel):
-    """A model on offer to download, with its size."""
-
-    name: str
-    label: str
-    size_gb: float
-    installed: bool
-
-
-class PullRequest(BaseModel):
-    """The one model to fetch, by its provider name."""
-
-    name: str
 
 
 class ConnectionWrite(BaseModel):
@@ -55,6 +47,8 @@ class ConnectionWrite(BaseModel):
     base_url: str = Field(min_length=1, max_length=2048)
     api_key: str | None = Field(default=None, max_length=4096)
     allow_unverified: bool = False
+    # A manifest provider id, or `custom` for an endpoint the manifest does not list.
+    catalog_provider: str = Field(default="custom", min_length=1, max_length=100)
 
 
 class ConnectionRead(BaseModel):
@@ -62,7 +56,15 @@ class ConnectionRead(BaseModel):
     label: str
     provider: str
     base_url: str
+    catalog_provider: str
     has_api_key: bool
+    # `api_key`, or `chatgpt` for a connection signed in with a ChatGPT account.
+    auth_kind: str = "api_key"
+    # Only for `chatgpt`: whether it holds tokens, and whose.
+    signed_in: bool = False
+    account_email: str | None = None
+    # The slots this connection can fill; decided here, never in the renderer.
+    serves: list[ModelType] = []
     created_at: datetime
     updated_at: datetime
 
@@ -71,33 +73,37 @@ class ConnectionModelRead(BaseModel):
     connection_id: int
     connection_label: str
     name: str
-    capabilities: list[str]
+    types: list[ModelType]
     capability_source: CapabilitySource
+    # Decided here, never in the renderer, so every picker offers the same set.
+    selectable_for: list[ModelType]
+    reads_images: bool
+    # Set when the manifest says this model cannot be called through the
+    # provider the connection names; the row stays, filling no slot.
+    unusable_reason: str | None = None
+    # Its measured level, for a model that can fill the chat slot.
+    capability_level: Level | None = None
 
 
-class LocalImageModelRead(BaseModel):
-    name: str
-    label: str
-    detail: str
-    size_bytes: int
-    installed: bool
-    selected: bool
+class RuntimeFileRead(BaseModel):
+    """One file sd-server is started on, and the flag that names it."""
 
-
-class LocalImageCatalogRead(BaseModel):
-    """What this build can generate locally, and which model holds the role."""
-
-    provider: str
-    offered: bool
-    ready: bool
-    models: list[LocalImageModelRead]
+    flag: str
+    # Inside the images folder, which Electron resolves.
+    path: str
 
 
 class LocalImageRuntimeRead(BaseModel):
-    """What Electron should have sd-server running, or nulls for nothing."""
+    """What Electron should have sd-server running; no files for nothing."""
 
-    file: str | None
+    files: list[RuntimeFileRead]
     args: list[str]
+
+
+class LocalImageStateRead(BaseModel):
+    """What the screen may say about the chosen local image model's server."""
+
+    state: ImageServerState
 
 
 class ModelTestWrite(BaseModel):
@@ -105,6 +111,8 @@ class ModelTestWrite(BaseModel):
 
     model: str = Field(min_length=1, max_length=512)
     prompt: str | None = Field(default=None, max_length=2000)
+    # A speech test's voice; the first reviewed one when omitted, if any.
+    voice: str | None = Field(default=None, max_length=100)
 
 
 class ChatTestRead(BaseModel):
@@ -112,7 +120,7 @@ class ChatTestRead(BaseModel):
 
 
 class SelectionWrite(BaseModel):
-    """The choice a client makes for a role."""
+    """The choice a client makes for a model type."""
 
     provider: str
     connection_id: int | None = None
@@ -121,92 +129,29 @@ class SelectionWrite(BaseModel):
 
 
 class SelectionRead(BaseModel):
-    """The model currently answering for a role."""
+    """The model currently chosen for a model type."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    role: ModelRole
+    model_type: ModelType
     provider: str
     connection_id: int | None
     name: str
     tier: Tier
     updated_at: datetime
+    # Whether the composer offers images; worked out per read, never stored.
+    reads_images: bool = False
+    # The text model's measured level and agent trial; None for other slots.
+    capability: CapabilityRead | None = None
 
 
 class OnboardingStatusRead(BaseModel):
     completed: bool
 
 
-class RecommendationWarningRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    code: str
-    message: str
-
-
-class SystemProfileRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    cpu_name: str | None
-    cpu_cores: int | None
-    total_ram_gb: float | None
-    available_ram_gb: float | None
-    has_gpu: bool
-    gpu_name: str | None
-    gpu_vram_gb: float | None
-    gpu_count: int
-    backend: str | None
-    unified_memory: bool
-
-
-class RecommendationSystemRead(BaseModel):
-    hardware: SystemProfileRead | None
-    llmfit_version: str | None
-    estimates_available: bool
-    warnings: list[RecommendationWarningRead]
-
-
-class RecommendationRowRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    catalog_id: str
-    canonical_id: str
-    family: str
-    label: str
-    publisher: str | None
-    parameter_count: str | None
-    fit: FitLevel
-    score: float | None
-    memory_required_gb: float | None
-    disk_size_gb: float | None
-    estimated_tps: float | None
-    prefill_tps: float | None
-    ttft_ms: float | None
-    effective_context_length: int | None
-    estimate_confidence: str | None
-    license: str | None
-    runtime: str
-    runtime_model: str
-    quantization: str | None
-    installed: bool
-    selected: bool
-    can_install: bool
-    can_delete: bool
-    warnings: list[str]
-
-
-class RecommendationCatalogRead(BaseModel):
-    hardware: SystemProfileRead | None
-    llmfit_version: str | None
-    curated: list[RecommendationRowRead]
-    explore: list[RecommendationRowRead]
-    installed: list[RecommendationRowRead]
-    # False when served without running the hardware scan (no cache existed
-    # yet and none was requested) — `curated`/`installed` are still fully
-    # populated, only `explore` and curated fit badges are scan-derived.
-    scanned: bool
-    warnings: list[RecommendationWarningRead]
-    runtime_status: dict[str, bool]
+class OnboardingComplete(BaseModel):
+    # A curated embedder already downloaded; none means the bundled one.
+    embedding_model: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class InstallRequest(BaseModel):

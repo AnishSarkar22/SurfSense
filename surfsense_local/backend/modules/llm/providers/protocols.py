@@ -1,18 +1,45 @@
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol
 
-from modules.llm.providers.types import CatalogEntry, DownloadProgress, Message, Model
+from modules.llm.providers.types import Delta, Message, Model
 
 
 class Generator(Protocol):
-    """Anything that can answer. Ollama today, other backends later."""
+    """Anything that can answer. llama.cpp locally, or a remote endpoint."""
 
     name: str
 
     async def health(self) -> bool: ...
 
     async def models(self) -> list[Model]: ...
+
+    async def context_tokens(self, model: str) -> int | None:
+        """The window this model was loaded with, or None when it is not known.
+
+        None is a fact, not a zero: a remote endpoint this app does not run
+        rarely states its window at all, and callers that budget a prompt from
+        this must treat that as "unknown" rather than "narrow".
+        """
+        ...
+
+    async def sees_images(self, model: str) -> bool | None:
+        """Whether this model takes images, or None when it cannot be told.
+
+        None is not no: a caller refusing images on it would hide them behind a
+        hiccup, while the runtime still refuses what it cannot take.
+        """
+        ...
+
+    async def token_count(self, model: str, text: str) -> int | None:
+        """This text's exact cost by the model's own tokenizer, or None.
+
+        None on anything short of a clean count: no such endpoint, a transient
+        failure, or a model this generator does not run. A caller pricing a
+        prompt from this must fall back to an estimate rather than treat None
+        as zero tokens.
+        """
+        ...
 
     def chat(
         self,
@@ -22,7 +49,29 @@ class Generator(Protocol):
         max_tokens: int | None = None,
         temperature: float | None = None,
         reasoning: bool | None = None,
-    ) -> AsyncIterator[str]: ...
+        json_schema: dict | None = None,
+        conversation: str | None = None,
+    ) -> AsyncIterator[str]:
+        """The answer text alone; a thinking model's trace is left out.
+
+        `conversation` names the requests that share a prompt's start, so an
+        endpoint that routes by it sends them to the cache that holds it.
+        """
+        ...
+
+    def chat_deltas(
+        self,
+        model: str,
+        messages: list[Message],
+        *,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+        reasoning: bool | None = None,
+        json_schema: dict | None = None,
+        conversation: str | None = None,
+    ) -> AsyncIterator[Delta]:
+        """The reply as it streams, with the trace marked apart from the answer."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -39,7 +88,11 @@ class ImageGenerator(Protocol):
 class Voice:
     id: str
     label: str
-    language: str  # BCP-47, e.g. "en-US", "pt-BR"
+    # None where the source does not say: OpenAI documents none for its voices.
+    gender: Literal["female", "male"] | None
+    # The languages this voice speaks, as the model's entry names them: one for
+    # a Kokoro voice, every one the model speaks for a Supertonic voice.
+    languages: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -57,27 +110,34 @@ class SynthesizedAudio:
 
 
 class TextToSpeech(Protocol):
-    """Anything that voices a script. Kokoro on this CPU today, hosted APIs later."""
+    """Anything that voices a script: audio.cpp here, or a server's /audio/speech."""
 
-    def voices(self) -> list[Voice]: ...
+    async def check_memory(self) -> None:
+        """Raise, with the sentence a person reads, when voicing cannot fit."""
+        ...
 
-    async def synthesize(self, turns: list[SpokenTurn]) -> SynthesizedAudio: ...
+    async def synthesize(
+        self, turns: list[SpokenTurn], language: str
+    ) -> SynthesizedAudio: ...
 
 
-@runtime_checkable
-class ModelStore(Protocol):
-    """Only runtimes that keep models on disk can fetch them.
+class TranscriptionUnavailableError(Exception):
+    """The recogniser could not be reached, or failed; the message says how."""
 
-    Checked with isinstance, so a remote API that cannot download simply does
-    not satisfy it and the download UI is hidden without naming a provider.
-    """
 
-    name: str
+class Transcriber(Protocol):
+    """Anything that writes speech down: audio.cpp's server here, transcribe.cpp
+    as the fallback. One model at a time; callers order the requests."""
 
-    async def models(self) -> list[Model]: ...
+    async def transcribe(self, model: str, wav: bytes, language: str | None) -> str:
+        """The text as the model wrote it. `wav` is 16 kHz mono s16; `language`
+        a locale the model's family takes, or None to let it detect."""
+        ...
 
-    def catalog(self) -> list[CatalogEntry]: ...
+    async def is_loaded(self, model: str) -> bool:
+        """Whether `model` is resident, so a request would not load it."""
+        ...
 
-    def pull(self, name: str) -> AsyncIterator[DownloadProgress]: ...
-
-    async def delete(self, name: str) -> None: ...
+    async def unload(self, model: str) -> None:
+        """Give `model`'s memory back; best effort."""
+        ...

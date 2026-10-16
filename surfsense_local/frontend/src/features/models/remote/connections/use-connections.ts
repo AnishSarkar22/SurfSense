@@ -1,0 +1,44 @@
+import { useMutation, useQuery } from "@tanstack/react-query"
+
+import type { ModelType } from "../../model-type"
+import { MODELS_QUERY_KEY, useRefreshModels } from "../../models-query"
+import { deleteConnection, getConnections } from "./api"
+
+export const connectionsQueryKey = [
+  ...MODELS_QUERY_KEY,
+  "remote",
+  "connections",
+] as const
+
+export function useConnections() {
+  return useQuery({
+    queryKey: connectionsQueryKey,
+    queryFn: ({ signal }) => getConnections(signal),
+  })
+}
+
+/**
+ * The connections that can fill `modelType`, by the backend's `serves`; none
+ * for a step with no slot. The same query, so every list stays in step.
+ */
+export function useConnectionsServing(modelType: ModelType | null) {
+  return useQuery({
+    queryKey: connectionsQueryKey,
+    queryFn: ({ signal }) => getConnections(signal),
+    select: (connections) =>
+      modelType
+        ? connections.filter((connection) =>
+            connection.serves.includes(modelType)
+          )
+        : [],
+  })
+}
+
+/** Removing a server clears every slot it filled, whichever section asked. */
+export function useDeleteConnection() {
+  const refresh = useRefreshModels()
+  return useMutation({
+    mutationFn: (id: number) => deleteConnection(id),
+    onSuccess: () => refresh(),
+  })
+}

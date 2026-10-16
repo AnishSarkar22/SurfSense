@@ -13,6 +13,19 @@ _HEADER = (
     "source. Cite a chunk with its [n]."
 )
 
+# Replaces the tier instruction when nothing was retrieved: its citation rules
+# cannot apply, and Qwen3 1.7B obeyed them by inventing a [1] in the chat eval.
+_NO_SOURCES = (
+    "Nothing in the user's knowledge base matched this question, so there are "
+    "no sources to work from.\n\n"
+    "- Start with one sentence saying the knowledge base does not cover this.\n"
+    "- Then, if the answer is general knowledge, give it in the same reply. "
+    "Never guess details about the user's own documents, products or people.\n"
+    "- Respond in the same language as the question.\n"
+    "- Label fenced code blocks with their language, such as python, "
+    "typescript, sql, or bash."
+)
+
 # A chunk that contains these could otherwise close a source early and forge its
 # own, so its angle brackets are defanged before it goes between the tags.
 _TAGS = re.compile(
@@ -38,18 +51,33 @@ class Citation:
     title: str = ""
 
 
-def build_context(hits: list[Hit], tier: Tier) -> tuple[str, list[Citation]]:
-    """The grounding system message and the citations its ids point at.
+@dataclass(frozen=True)
+class TurnGrounding:
+    """What one turn is answered from.
+
+    The instruction is the system message and the excerpts ride with the
+    question: llama-server reuses a prompt only up to its first changed token,
+    and what is retrieved changes with every question.
+    """
+
+    instruction: str
+    # None when nothing matched; the instruction then says so instead.
+    excerpts: str | None
+    citations: list[Citation]
+
+
+def build_context(hits: list[Hit], tier: Tier) -> TurnGrounding:
+    """The instruction, this turn's excerpts and the citations their ids point at.
 
     Hits become `[n]`-labelled excerpts grouped by document. The model cites
     `[n]`; resolve_citations rewrites those to `[citation:<chunk_id>]`. No hits
-    leaves the instruction alone.
+    sends an instruction with nothing to cite, the same for every tier.
     """
+    if not hits:
+        return TurnGrounding(_NO_SOURCES, None, [])
     # The model copies a visible [n]; the server rewrites it to
     # [citation:<chunk_id>] for the renderer.
     instruction = prompting.load(__package__, tier)
-    if not hits:
-        return instruction, []
 
     citations: list[Citation] = []
     grouped: dict[int, list[tuple[Citation, Hit]]] = defaultdict(list)
@@ -79,12 +107,12 @@ def build_context(hits: list[Hit], tier: Tier) -> tuple[str, list[Citation]]:
         lines.append("</document>")
         documents.append("\n".join(lines))
 
-    context = (
-        f"{instruction}\n\n<retrieved_context>\n{_HEADER}\n"
+    excerpts = (
+        f"<retrieved_context>\n{_HEADER}\n"
         + "\n".join(documents)
         + "\n</retrieved_context>"
     )
-    return context, citations
+    return TurnGrounding(instruction, excerpts, citations)
 
 
 def resolve_citations(

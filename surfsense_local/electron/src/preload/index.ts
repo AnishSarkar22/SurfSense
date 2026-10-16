@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron"
 
+import type { MicrophoneAccess } from "../main/microphone/system-access.ts"
+
 // main passes the API base URL via additionalArguments; read it back off argv
 const FLAG = "--surfsense-api-url="
 const arg = process.argv.find((a) => a.startsWith(FLAG))
@@ -11,6 +13,24 @@ let systemTheme = ipcRenderer.sendSync("theme:get-system") as "dark" | "light"
 ipcRenderer.on("theme:system-changed", (_event, theme: unknown) => {
   if (theme === "dark" || theme === "light") systemTheme = theme
 })
+
+// main owns the interface language; the sync read gives the page its language
+// before first paint, and "locale:changed" keeps it live.
+let locale = ipcRenderer.sendSync("locale:get") as string
+ipcRenderer.on("locale:changed", (_event, next: unknown) => {
+  if (typeof next === "string") locale = next
+})
+
+type SidecarCrash = { name: string; code: number | null }
+
+function isSidecarCrash(value: unknown): value is SidecarCrash {
+  if (typeof value !== "object" || value === null) return false
+  const crash = value as Record<string, unknown>
+  return (
+    typeof crash.name === "string" &&
+    (typeof crash.code === "number" || crash.code === null)
+  )
+}
 
 // the renderer talks HTTP to this base and never sees Node or the sidecars
 contextBridge.exposeInMainWorld("surfsense", {
@@ -32,6 +52,12 @@ contextBridge.exposeInMainWorld("surfsense", {
       ipcRenderer.on("updates:state", wrapped)
       return () => ipcRenderer.removeListener("updates:state", wrapped)
     },
+    onCheckRequested: (listener: () => void) => {
+      const wrapped = () => listener()
+      ipcRenderer.on("updates:check-requested", wrapped)
+      return () =>
+        ipcRenderer.removeListener("updates:check-requested", wrapped)
+    },
   },
   setTitleBarOverlay: (overlay: {
     color: string
@@ -39,6 +65,60 @@ contextBridge.exposeInMainWorld("surfsense", {
   }): Promise<void> => ipcRenderer.invoke("shell:titlebar-overlay", overlay),
   openExternal: (url: string): Promise<void> =>
     ipcRenderer.invoke("shell:open-external", url),
+  // A content link the user confirmed in the link popup: any https page.
+  openConfirmedLink: (url: string): Promise<void> =>
+    ipcRenderer.invoke("shell:open-confirmed-link", url),
+  // A listed plugin's homepage or privacy policy, named by its id.
+  openPluginPage: (
+    pluginId: string,
+    page: "homepage" | "privacy_policy"
+  ): Promise<void> =>
+    ipcRenderer.invoke("shell:open-plugin-page", pluginId, page),
+  about: {
+    details: () => ipcRenderer.invoke("about:details"),
+  },
+  sessionLog: {
+    read: (): Promise<string[]> => ipcRenderer.invoke("session-log:read"),
+  },
+  // The system's switch for SurfSense's microphone; the page's own permission is main's.
+  microphone: {
+    status: (): Promise<MicrophoneAccess> =>
+      ipcRenderer.invoke("microphone:status"),
+    // macOS shows its prompt the first time; call it before getUserMedia.
+    request: (): Promise<MicrophoneAccess> =>
+      ipcRenderer.invoke("microphone:request"),
+    openSettings: (): Promise<boolean> =>
+      ipcRenderer.invoke("microphone:open-settings"),
+  },
+  sidecars: {
+    onCrash: (listener: (crash: SidecarCrash) => void): (() => void) => {
+      const wrapped = (_event: unknown, crash: unknown) => {
+        if (isSidecarCrash(crash)) listener(crash)
+      }
+      ipcRenderer.on("sidecar:crashed", wrapped)
+      return () => ipcRenderer.removeListener("sidecar:crashed", wrapped)
+    },
+  },
+  help: {
+    onReportIssue: (listener: () => void): (() => void) => {
+      const wrapped = () => listener()
+      ipcRenderer.on("help:report-issue", wrapped)
+      return () => ipcRenderer.removeListener("help:report-issue", wrapped)
+    },
+  },
+  locale: {
+    get: (): string => locale,
+    preference: (): Promise<string> => ipcRenderer.invoke("locale:preference"),
+    set: (preference: string): Promise<void> =>
+      ipcRenderer.invoke("locale:set", preference),
+    onChange: (listener: (locale: string) => void): (() => void) => {
+      const wrapped = (_event: unknown, next: unknown) => {
+        if (typeof next === "string") listener(next)
+      }
+      ipcRenderer.on("locale:changed", wrapped)
+      return () => ipcRenderer.removeListener("locale:changed", wrapped)
+    },
+  },
   theme: {
     set: (theme: "dark" | "light" | "system"): Promise<void> =>
       ipcRenderer.invoke("theme:set", theme),

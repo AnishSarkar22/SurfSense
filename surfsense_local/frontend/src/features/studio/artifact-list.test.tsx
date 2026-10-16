@@ -17,10 +17,15 @@ const artifact: Artifact = {
   error_message: null,
   created_at: "2026-09-06T00:00:00Z",
   updated_at: "2026-09-06T00:00:00Z",
+  version: null,
+  spec_kind: null,
+  refinable: false,
 }
 
-function renderList(props: Partial<Parameters<typeof ArtifactList>[0]> = {}) {
-  return render(
+type ListProps = Partial<Parameters<typeof ArtifactList>[0]>
+
+function list(props: ListProps = {}) {
+  return (
     <TooltipProvider>
       <ArtifactList
         workspaceId={1}
@@ -33,6 +38,10 @@ function renderList(props: Partial<Parameters<typeof ArtifactList>[0]> = {}) {
       />
     </TooltipProvider>
   )
+}
+
+function renderList(props: ListProps = {}) {
+  return render(list(props))
 }
 
 afterEach(cleanup)
@@ -103,6 +112,29 @@ describe("artifact list", () => {
     expect(onOpen).toHaveBeenCalledWith(12)
   })
 
+  it("shows a cut-off title in full on hover and still opens it", async () => {
+    const title = "Board meeting summary with every action item and owner"
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+    renderList({ artifacts: [{ ...artifact, title }], onOpen })
+
+    const row = screen.getByRole("button", { name: title })
+    // jsdom lays nothing out: the widths of a title its row cuts off.
+    Object.defineProperty(row, "scrollWidth", {
+      configurable: true,
+      value: 320,
+    })
+    Object.defineProperty(row, "clientWidth", {
+      configurable: true,
+      value: 120,
+    })
+    await user.hover(row)
+
+    expect((await screen.findByRole("tooltip")).textContent).toBe(title)
+    await user.click(row)
+    expect(onOpen).toHaveBeenCalledWith(12)
+  })
+
   it("shows a spinner while an artifact is generating", () => {
     renderList({
       artifacts: [{ ...artifact, status: "pending" }],
@@ -143,14 +175,10 @@ describe("artifact list", () => {
     await user.hover(retryIcon)
     // The real error is reserved for Ctrl/Cmd+hover — see the test below.
     expect(
-      await screen.findByRole("tooltip", {
-        name: "Generation failed. Retry again.",
-      })
+      await screen.findByText("Generation failed. Retry again.")
     ).toBeTruthy()
     expect(
-      screen.queryByRole("tooltip", {
-        name: "ConnectError: All connection attempts failed",
-      })
+      screen.queryByText("ConnectError: All connection attempts failed")
     ).toBeNull()
     const failed = screen.getByRole("button", { name: "Flashcards" })
     expect((failed as HTMLButtonElement).disabled).toBe(true)
@@ -166,7 +194,9 @@ describe("artifact list", () => {
     await user.click(
       screen.getByRole("button", { name: "Actions for Weekly summary" })
     )
-    await user.click(screen.getByRole("menuitem", { name: "Regenerate" }))
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Regenerate" })
+    )
     expect(onRegenerate).toHaveBeenCalledWith(12)
   })
 
@@ -181,10 +211,11 @@ describe("artifact list", () => {
     await user.click(
       screen.getByRole("button", { name: "Actions for Weekly summary" })
     )
+    const cancel = await screen.findByRole("menuitem", { name: "Cancel" })
     expect(
       screen.queryByRole("menuitem", { name: /Regenerate|Retry/ })
     ).toBeNull()
-    await user.click(screen.getByRole("menuitem", { name: "Cancel" }))
+    await user.click(cancel)
     expect(onCancel).toHaveBeenCalledWith(12)
   })
 
@@ -196,7 +227,7 @@ describe("artifact list", () => {
     await user.click(
       screen.getByRole("button", { name: "Actions for Weekly summary" })
     )
-    await user.click(screen.getByRole("menuitem", { name: "Delete" }))
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }))
     expect(onDelete).not.toHaveBeenCalled()
     await user.click(screen.getByRole("button", { name: "Delete artifact" }))
     expect(onDelete).toHaveBeenCalledWith(12)
@@ -218,9 +249,10 @@ describe("artifact list", () => {
     await user.click(
       screen.getByRole("button", { name: "Actions for Weekly summary" })
     )
-    expect(screen.queryByRole("menuitem", { name: "Open" })).toBeNull()
     // The same route as Regenerate, named for what a failed row needs.
-    await user.click(screen.getByRole("menuitem", { name: "Retry" }))
+    const retry = await screen.findByRole("menuitem", { name: "Retry" })
+    expect(screen.queryByRole("menuitem", { name: "Open" })).toBeNull()
+    await user.click(retry)
     expect(onRegenerate).toHaveBeenCalledTimes(2)
   })
 
@@ -234,9 +266,7 @@ describe("artifact list", () => {
       "Generation failed. Retry Weekly summary"
     )
     await user.hover(retryIcon)
-    const generic = await screen.findByRole("tooltip", {
-      name: "Generation failed. Retry again.",
-    })
+    const generic = await screen.findByText("Generation failed. Retry again.")
     expect(generic.getAttribute("data-side")).toBe("top")
   })
 
@@ -249,12 +279,12 @@ describe("artifact list", () => {
     // Hovering the title, not the icon, proves this covers the whole row.
     const title = screen.getByRole("button", { name: "Weekly summary" })
     await user.hover(title)
-    expect(screen.queryByRole("tooltip", { name: "boom" })).toBeNull()
+    expect(screen.queryByText("boom")).toBeNull()
 
     window.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Control", ctrlKey: true })
     )
-    const real = await screen.findByRole("tooltip", { name: "boom" })
+    const real = await screen.findByText("boom")
     expect(real.getAttribute("data-side")).toBe("top")
 
     window.dispatchEvent(
@@ -263,9 +293,77 @@ describe("artifact list", () => {
     // Radix keeps the node mounted with data-state="closed" through its exit
     // animation, which jsdom never finishes — so wait for it to go rather
     // than asserting synchronously.
-    await waitFor(() =>
-      expect(screen.queryByRole("tooltip", { name: "boom" })).toBeNull()
-    )
+    await waitFor(() => expect(screen.queryByText("boom")).toBeNull())
+  })
+
+  it("reveals the real error when Ctrl/Cmd was held before the row was hovered", async () => {
+    const user = userEvent.setup()
+    renderList({
+      artifacts: [{ ...artifact, status: "failed", error_message: "boom" }],
+    })
+
+    await user.keyboard("{Control>}")
+    await user.hover(screen.getByRole("button", { name: "Weekly summary" }))
+    const real = await screen.findByText("boom")
+    expect(real.getAttribute("data-side")).toBe("top")
+
+    await user.keyboard("{/Control}")
+    await waitFor(() => expect(screen.queryByText("boom")).toBeNull())
+  })
+
+  it("keeps the real error closed for a press that ended before the row failed", async () => {
+    const generating = { ...artifact, status: "processing" as const }
+    const failed = {
+      ...artifact,
+      status: "failed" as const,
+      error_message: "boom",
+    }
+    const user = userEvent.setup()
+    const { rerender } = render(list({ artifacts: [generating] }))
+
+    await user.keyboard("{Control>}")
+    await user.hover(screen.getByRole("button", { name: "Weekly summary" }))
+    await user.keyboard("{/Control}")
+    rerender(list({ artifacts: [failed] }))
+    expect(screen.queryByText("boom")).toBeNull()
+
+    // The row still answers a fresh press.
+    await user.keyboard("{Control>}")
+    expect(await screen.findByText("boom")).toBeTruthy()
+    await user.keyboard("{/Control}")
+  })
+
+  it("listens for Ctrl/Cmd only while a failed row is hovered", async () => {
+    const added = vi.spyOn(window, "addEventListener")
+    const removed = vi.spyOn(window, "removeEventListener")
+    const keydownListeners = () =>
+      added.mock.calls.filter(([type]) => type === "keydown").length -
+      removed.mock.calls.filter(([type]) => type === "keydown").length
+    const user = userEvent.setup()
+    renderList({
+      artifacts: [
+        artifact,
+        {
+          ...artifact,
+          id: 13,
+          document_id: 5,
+          title: "Failed summary",
+          status: "failed",
+          error_message: "boom",
+        },
+      ],
+    })
+    const before = keydownListeners()
+
+    await user.hover(screen.getByRole("button", { name: "Weekly summary" }))
+    expect(keydownListeners()).toBe(before)
+    await user.hover(screen.getByRole("button", { name: "Failed summary" }))
+    expect(keydownListeners()).toBe(before + 1)
+    await user.unhover(screen.getByRole("button", { name: "Failed summary" }))
+    expect(keydownListeners()).toBe(before)
+
+    added.mockRestore()
+    removed.mockRestore()
   })
 
   describe("type filter", () => {
@@ -303,7 +401,7 @@ describe("artifact list", () => {
 
       await user.click(screen.getByLabelText("Filter artifacts"))
       expect(
-        screen.getByRole("menuitemcheckbox", { name: /podcast/i })
+        await screen.findByRole("menuitemcheckbox", { name: /podcast/i })
       ).toBeTruthy()
       expect(screen.getByText("(2)")).toBeTruthy()
       // Only the types on hand: nothing here was generated as an image.
@@ -312,7 +410,7 @@ describe("artifact list", () => {
       ).toBeNull()
 
       await user.click(
-        screen.getByRole("menuitemcheckbox", { name: /podcast/i })
+        await screen.findByRole("menuitemcheckbox", { name: /podcast/i })
       )
       expect(
         screen.queryByRole("button", { name: "Weekly summary" })
@@ -328,19 +426,21 @@ describe("artifact list", () => {
 
       await user.click(screen.getByLabelText("Filter artifacts"))
       await user.click(
-        screen.getByRole("menuitemcheckbox", { name: /podcast/i })
+        await screen.findByRole("menuitemcheckbox", { name: /podcast/i })
       )
       expect(screen.getByLabelText("Filter artifacts (1 active)")).toBeTruthy()
 
       await user.click(
-        screen.getByRole("menuitemcheckbox", { name: /summary/i })
+        await screen.findByRole("menuitemcheckbox", { name: /markdown/i })
       )
       expect(
         screen.getByRole("button", { name: "Weekly summary" })
       ).toBeTruthy()
       expect(screen.getByRole("button", { name: "Episode one" })).toBeTruthy()
 
-      await user.click(screen.getByRole("menuitem", { name: "Clear filter" }))
+      await user.click(
+        await screen.findByRole("menuitem", { name: "Clear filter" })
+      )
       expect(screen.getByLabelText("Filter artifacts")).toBeTruthy()
       expect(
         screen.getByRole("button", { name: "Weekly summary" })
@@ -374,7 +474,7 @@ describe("artifact list", () => {
 
       await user.click(screen.getByLabelText("Filter artifacts"))
       await user.click(
-        screen.getByRole("menuitemcheckbox", { name: /podcast/i })
+        await screen.findByRole("menuitemcheckbox", { name: /podcast/i })
       )
       unmount()
 
@@ -391,5 +491,273 @@ describe("artifact list", () => {
       ).toBeTruthy()
       expect(screen.getByRole("button", { name: "Episode one" })).toBeTruthy()
     })
+  })
+})
+
+describe("artifact list versions", () => {
+  // A document the agent made and edited twice: each version is an artifact
+  // of its own, newest first as the API lists them.
+  function proposal(id: number, number: number, extra: Partial<Artifact> = {}) {
+    return {
+      ...artifact,
+      id,
+      format: "docx",
+      title: "Client proposal",
+      created_at: `2026-10-0${number}T00:00:00Z`,
+      version: { root_id: 30, number, parent_id: number > 1 ? id - 1 : null },
+      spec_kind: "python",
+      refinable: false,
+      ...extra,
+    } satisfies Artifact
+  }
+  const [v1, v2, v3] = [proposal(30, 1), proposal(31, 2), proposal(32, 3)]
+
+  it("lists a document once, as its newest version with that version’s number", async () => {
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+    renderList({ artifacts: [v3, artifact, v2, v1], onOpen })
+
+    const rows = screen.getAllByRole("listitem")
+    expect(rows).toHaveLength(2)
+    expect(rows[0].textContent).toContain("Client proposal")
+    expect(rows[0].textContent).toContain("v3")
+    expect(rows[1].textContent).not.toMatch(/v\d/)
+    await user.click(screen.getByRole("button", { name: "Client proposal" }))
+    expect(onOpen).toHaveBeenCalledWith(32)
+  })
+
+  it("opens the newest finished version while the next one is generating", async () => {
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+    const v4 = proposal(33, 4, { status: "pending" })
+    renderList({ artifacts: [v4, v3, v2, v1], onOpen })
+
+    expect(
+      screen.getByRole("status", { name: "Processing Client proposal" })
+    ).toBeTruthy()
+    expect(screen.getByText("v4")).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Client proposal" }))
+    expect(onOpen).toHaveBeenCalledWith(32)
+  })
+
+  it("counts a document once in the type filter", async () => {
+    const user = userEvent.setup()
+    renderList({ artifacts: [v3, artifact, v2, v1] })
+
+    await user.click(screen.getByLabelText("Filter artifacts"))
+    expect(
+      await screen.findByRole("menuitemcheckbox", { name: /word \(1\)/i })
+    ).toBeTruthy()
+  })
+
+  it("deletes every version of a document after confirm", async () => {
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    renderList({ artifacts: [v3, v2, v1], onDelete })
+
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Client proposal" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }))
+    expect(
+      screen.getByText(
+        "This permanently deletes all 3 versions of Client proposal and their generated files."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Delete artifact" }))
+    expect(onDelete.mock.calls.map(([id]) => id)).toEqual([30, 31, 32])
+  })
+
+  it("deletes a version made while the delete dialog is open", async () => {
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    const { rerender } = renderList({ artifacts: [v3, v2, v1], onDelete })
+
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Client proposal" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }))
+    const v4 = proposal(33, 4, { status: "pending" })
+    rerender(list({ artifacts: [v4, v3, v2, v1], onDelete }))
+
+    expect(
+      screen.getByText(
+        "This permanently deletes all 4 versions of Client proposal and their generated files."
+      )
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Delete artifact" }))
+    expect(onDelete.mock.calls.map(([id]) => id)).toEqual([30, 31, 32, 33])
+  })
+
+  it("will not delete once a version starts generating while the dialog is open", async () => {
+    const onDelete = vi.fn()
+    const user = userEvent.setup()
+    const { rerender } = renderList({ artifacts: [v3, v2, v1], onDelete })
+
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Client proposal" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Delete" }))
+    const v4 = proposal(33, 4, { status: "processing" })
+    rerender(list({ artifacts: [v4, v3, v2, v1], onDelete }))
+
+    await user.click(screen.getByRole("button", { name: "Delete artifact" }))
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it("shows a document as its newest ready version when a later edit fails", async () => {
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+    const v4 = proposal(33, 4, {
+      status: "failed",
+      error_message: "Script error: AttributeError: boom",
+    })
+    renderList({ artifacts: [v4, v3, v2, v1], onOpen })
+
+    const row = screen.getByRole("listitem")
+    expect(screen.getByText("v3")).toBeTruthy()
+    expect(row.textContent).not.toContain("v4")
+    expect(
+      screen.queryByLabelText("Generation failed for Client proposal")
+    ).toBeNull()
+    const hint = screen.getByLabelText("Latest edit failed (v4). Showing v3.")
+    await user.hover(hint)
+    expect(
+      await screen.findByText("Latest edit failed (v4). Showing v3.", {
+        selector: "[data-side]",
+      })
+    ).toBeTruthy()
+    await user.click(screen.getByRole("button", { name: "Client proposal" }))
+    expect(onOpen).toHaveBeenCalledWith(32)
+  })
+
+  it("offers no retry for an edit its script failed, which would fail the same way", async () => {
+    const onRegenerate = vi.fn()
+    const user = userEvent.setup()
+    const v4 = proposal(33, 4, {
+      status: "failed",
+      error_message: "Script error: AttributeError: boom",
+    })
+    renderList({ artifacts: [v4, v3, v2, v1], onRegenerate })
+
+    expect(screen.queryByLabelText(/Retry Client proposal/)).toBeNull()
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Client proposal" })
+    )
+    expect(await screen.findByRole("menuitem", { name: "Open" })).toBeTruthy()
+    expect(screen.queryByRole("menuitem", { name: /Retry/ })).toBeNull()
+  })
+
+  it("retries an edit that failed outside its script", async () => {
+    const onRegenerate = vi.fn()
+    const user = userEvent.setup()
+    const v4 = proposal(33, 4, {
+      status: "failed",
+      error_message: "interrupted when the app closed",
+    })
+    renderList({ artifacts: [v4, v3, v2, v1], onRegenerate })
+
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Client proposal" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Retry v4" }))
+    expect(onRegenerate).toHaveBeenCalledExactlyOnceWith(33)
+  })
+
+  it("retries a script the app's closing interrupted, which would run again", async () => {
+    const onRegenerate = vi.fn()
+    const user = userEvent.setup()
+    const interrupted = proposal(30, 1, {
+      status: "failed",
+      error_message: "interrupted when the app closed",
+    })
+    renderList({ artifacts: [interrupted], onRegenerate })
+
+    await user.click(
+      screen.getByLabelText("Generation failed. Retry Client proposal")
+    )
+    expect(onRegenerate).toHaveBeenCalledExactlyOnceWith(30)
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Client proposal" })
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Retry" }))
+    expect(onRegenerate).toHaveBeenCalledTimes(2)
+  })
+
+  it("explains a failed script on hover or focus when no version is ready", async () => {
+    const user = userEvent.setup()
+    const failed = proposal(30, 1, {
+      status: "failed",
+      error_message: "Script error: AttributeError: boom",
+    })
+    renderList({ artifacts: [failed] })
+
+    expect(screen.queryByLabelText(/Retry Client proposal/)).toBeNull()
+    const alert = screen.getByLabelText("Generation failed for Client proposal")
+    expect(alert.tabIndex).toBe(0)
+    await user.hover(alert)
+    expect(
+      await screen.findByText(
+        "The document script failed. Ask the agent to fix it."
+      )
+    ).toBeTruthy()
+  })
+
+  it("retries a cancelled script, which never got to run", async () => {
+    const onRegenerate = vi.fn()
+    const user = userEvent.setup()
+    const v4 = proposal(33, 4, { status: "cancelled" })
+    renderList({ artifacts: [v4, v3, v2, v1], onRegenerate })
+
+    await user.click(screen.getByLabelText("Cancelled. Retry Client proposal"))
+    expect(onRegenerate).toHaveBeenCalledExactlyOnceWith(33)
+  })
+})
+
+describe.each([
+  { format: "pptx", title: "Board deck" },
+  { format: "xlsx", title: "Budget workbook" },
+])("artifact list versions of an agent's $format", ({ format, title }) => {
+  // A deck or workbook the agent rendered is a script document like a Word one.
+  function made(id: number, number: number, extra: Partial<Artifact> = {}) {
+    return {
+      ...artifact,
+      id,
+      format,
+      title,
+      created_at: `2026-10-0${number}T00:00:00Z`,
+      version: { root_id: 50, number, parent_id: number > 1 ? id - 1 : null },
+      spec_kind: "python",
+      ...extra,
+    } satisfies Artifact
+  }
+
+  it("lists it once, as its newest version, and opens the newest ready one", async () => {
+    const onOpen = vi.fn()
+    const user = userEvent.setup()
+    const v3 = made(52, 3, { status: "pending" })
+    renderList({ artifacts: [v3, made(51, 2), made(50, 1)], onOpen })
+
+    const rows = screen.getAllByRole("listitem")
+    expect(rows).toHaveLength(1)
+    expect(rows[0].textContent).toContain("v3")
+    await user.click(screen.getByRole("button", { name: title }))
+    expect(onOpen).toHaveBeenCalledWith(51)
+  })
+
+  it("offers no retry for a version its script failed", async () => {
+    const user = userEvent.setup()
+    const v2 = made(51, 2, {
+      status: "failed",
+      error_message: "Script error: KeyError: 'Title Slide'",
+    })
+    renderList({ artifacts: [v2, made(50, 1)] })
+
+    expect(screen.queryByLabelText(new RegExp(`Retry ${title}`))).toBeNull()
+    await user.click(
+      screen.getByRole("button", { name: `Actions for ${title}` })
+    )
+    expect(await screen.findByRole("menuitem", { name: "Open" })).toBeTruthy()
+    expect(screen.queryByRole("menuitem", { name: /Retry/ })).toBeNull()
   })
 })

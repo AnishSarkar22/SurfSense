@@ -2,6 +2,8 @@ node_modules/
 out/
 dist/
 release/
-ollama/
-llmfit/
-sdcpp/
+/llamacpp/
+/sdcpp/
+/audiocpp/
+/opencode/
+/licenses/

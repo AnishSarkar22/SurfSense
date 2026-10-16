@@ -31,8 +31,12 @@ const ACTIVE: LicenseStatus = {
 const CERTIFICATE =
   "-----BEGIN LICENSE FILE-----\neyJlbmMiOiJ4In0=\n-----END LICENSE FILE-----\n"
 
+/** Each time the paid plugins' license verdict was asked for, by its URL. */
+let licenseChecks: string[] = []
+
 function stubApi(initial: LicenseStatus, onPut: () => Response) {
   let current = initial
+  licenseChecks = []
   const calls: { method: string; body: unknown }[] = []
   vi.stubGlobal(
     "fetch",
@@ -40,6 +44,10 @@ function stubApi(initial: LicenseStatus, onPut: () => Response) {
       const path = String(input)
       const method = init?.method ?? "GET"
       if (path === "/license/status") return Response.json(current)
+      if (path.startsWith("/plugins/license/check") && method === "POST") {
+        licenseChecks.push(path)
+        return new Response(null, { status: 204 })
+      }
       if (path === "/license" && method === "PUT") {
         calls.push({ method, body: JSON.parse(String(init?.body)) })
         const response = onPut()
@@ -58,9 +66,15 @@ function stubApi(initial: LicenseStatus, onPut: () => Response) {
   return calls
 }
 
-async function openAddDialog(
-  user: ReturnType<typeof userEvent.setup>
-) {
+function stubBridge() {
+  const openExternal = vi.fn<(url: string) => Promise<void>>(
+    async () => undefined
+  )
+  window.surfsense = { ...window.surfsense!, openExternal }
+  return { openExternal }
+}
+
+async function openAddDialog(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: "Add license" }))
   return screen.getByRole("dialog", { name: /Add license/ })
 }
@@ -97,6 +111,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  delete window.surfsense
   vi.useRealTimers()
   vi.restoreAllMocks()
 })
@@ -123,6 +138,22 @@ describe("License settings", () => {
     expect(calls).toEqual([
       { method: "PUT", body: { certificate: CERTIFICATE } },
     ])
+  })
+
+  it("asks at once whether the new license unlocks the paid plugins", async () => {
+    stubApi(NONE, () => Response.json(ACTIVE))
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    const dialog = await openAddDialog(user)
+    await user.upload(
+      within(dialog).getByLabelText("Choose license file"),
+      new File([CERTIFICATE], "individual.lic", { type: "text/plain" })
+    )
+
+    await waitFor(() =>
+      expect(licenseChecks).toEqual(["/plugins/license/check"])
+    )
   })
 
   it("accepts a pasted certificate", async () => {
@@ -182,6 +213,41 @@ describe("License settings", () => {
     expect(screen.getByRole("status").textContent).toContain("9 days")
   })
 
+  it("offers the trial and the pricing page when there is no license", async () => {
+    stubApi(NONE, () => Response.json(ACTIVE))
+    const bridge = stubBridge()
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    await screen.findByText("No license on this device")
+    await user.click(screen.getByRole("link", { name: "Start a free trial" }))
+    await user.click(screen.getByRole("link", { name: "See pricing" }))
+
+    expect(bridge.openExternal.mock.calls).toEqual([
+      ["https://www.surfsense.com/downloads"],
+      ["https://www.surfsense.com/pricing"],
+    ])
+  })
+
+  it("sends an expired license to pricing, not to an account", async () => {
+    stubApi({ ...ACTIVE, state: "license_expired" }, () =>
+      Response.json(ACTIVE)
+    )
+    const bridge = stubBridge()
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    const status = await screen.findByRole("status")
+    expect(status.textContent).not.toContain("account")
+    await user.click(
+      within(status).getByRole("link", { name: "Renew license" })
+    )
+
+    expect(bridge.openExternal).toHaveBeenCalledExactlyOnceWith(
+      "https://www.surfsense.com/pricing"
+    )
+  })
+
   it("tells an expired license from an untrusted clock", async () => {
     stubApi({ ...ACTIVE, state: "license_expired" }, () =>
       Response.json(ACTIVE)
@@ -200,9 +266,7 @@ describe("License settings", () => {
       await screen.findByRole("button", { name: "Replace license" })
     )
 
-    expect(
-      screen.getByRole("dialog", { name: /Replace license/ })
-    ).toBeTruthy()
+    expect(screen.getByRole("dialog", { name: /Replace license/ })).toBeTruthy()
   })
 
   it("removes the license from this device", async () => {

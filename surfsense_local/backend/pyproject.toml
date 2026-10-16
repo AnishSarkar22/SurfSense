@@ -1,6 +1,6 @@
 [project]
 name = "surfsense-local-backend"
-version = "2.0.0"
+version = "2.2.1"
 description = "SurfSense Community Local backend"
 requires-python = ">=3.12"
 dependencies = [
@@ -9,13 +9,44 @@ dependencies = [
     "cryptography>=43",
     "docling>=2.125.0",
     "fastapi>=0.115.8",
+    # llama.cpp's own GGUF parser. Pinned exactly, not ranged: the prefix reader
+    # in modules/llm/gguf/header_prefix.py overrides two private methods, so a
+    # version bump is a deliberate act with a test that re-checks them.
+    "gguf==0.19.0",
     "httpx>=0.28.1",
     "huey>=3.3.4",
-    # The offline podcast voice (Studio). Rides the bundled onnxruntime; its ~340MB
-    # model is staged by scripts/fetch_kokoro_model.py, not carried in the wheel.
-    "kokoro-onnx>=0.4.9",
+    # Parses the Markdown a small model writes for Studio's Word and PDF builders
+    # (worker/studio/office/markdown). rich brings it too; named so it cannot vanish.
+    "markdown-it-py>=4.0",
+    # Charts in document scripts (worker/document_script/), which draw one and
+    # place the PNG, and in Studio's Markdown builders' chart blocks.
+    "matplotlib>=3.11.2",
+    # Decodes a recording (WAV, MP3, FLAC, Ogg Vorbis) to 16 kHz mono in the
+    # worker's decode child (worker/audio_decode). MIT, with its decoders'
+    # public-domain or MIT-0 code; no FFmpeg.
+    "miniaudio>=1.71",
     "onnxruntime>=1.20",
+    # Reads back the workbook a document script wrote
+    # (worker/studio/script_document/workbook_summary.py). Docling brings it
+    # too; named so it cannot vanish.
+    "openpyxl>=3.1.5",
+    # Chat images are normalised before they are stored or sent
+    # (modules/chat/images). Docling brings it too; named so it cannot vanish.
+    "pillow>=12",
+    # Data analysis scripts read ticked spreadsheets and CSVs with it
+    # (worker/document_script). Docling brings it too; named so it cannot vanish.
+    "pandas>=3.0",
+    "pathvalidate>=3.2",
     "pydantic-settings>=2.7.0",
+    # PDF utilities: merge, split, rotate, stamp and fill form fields
+    # (modules/agent/tool_endpoint). pypdfium2 renders; pypdf writes.
+    "pypdf>=6",
+    # Reads the text of a PDF a document script wrote
+    # (worker/studio/script_document). Docling brings it too; named so it
+    # cannot vanish.
+    "pypdfium2>=5.13.0",
+    # Stops a plugin and every process it started (modules/plugins/bundles/runner).
+    "psutil>=7",
     "python-docx>=1.2.0",
     "python-multipart>=0.0.32",
     "python-pptx>=1.0.2",
@@ -25,12 +56,15 @@ dependencies = [
     "reportlab>=4.2",
     "sqlalchemy>=2.0",
     "sqlite-vec>=0.1.9",
+    "surfsense-plugin-manifest",
     # Docling's, named here only so the CPU build below can be chosen: a source
     # applies to a dependency this project declares, not to one it inherits.
     "torch>=2.2",
     "torchvision>=0.17",
     "uvicorn[standard]>=0.34.0",
     "xlsxwriter>=3.2.9",
+    "lameenc>=1.8.4",
+    "mcp>=2.3,<2.4",
 ]
 
 [dependency-groups]
@@ -45,6 +79,8 @@ dev = [
 # an installer would carry to machines that cannot use them. Elsewhere the
 # published wheels are already CPU-only.
 [tool.uv.sources]
+# The rules a plugin's manifest.json follows, shared with the plugin tooling.
+surfsense-plugin-manifest = { path = "../../plugins/bundles/core/manifest", editable = true }
 torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
 
@@ -109,5 +145,7 @@ addopts = "-v --tb=short -ra --strict-markers --import-mode=importlib -m 'not pa
 markers = [
     "unit: pure logic tests, no database or external services",
     "integration: tests that run against a real SQLite database built by migrations",
-    "packaging: freezes a binary to prove the packaged app boots; slow, opt-in",
+    "packaging: freezes or runs the binaries the app ships; slow, opt-in",
+    "office: runs a real LibreOffice through the test seam (SURFSENSE_TEST_LIBREOFFICE, else a standard install path); skipped when none is found",
+    "live: calls a paid model (Claude Sonnet unless SURFSENSE_LIVE_MODEL says otherwise) through the real agent path; skipped unless SURFSENSE_LIVE_TESTS=1 and the provider's key are set, costs money",
 ]
