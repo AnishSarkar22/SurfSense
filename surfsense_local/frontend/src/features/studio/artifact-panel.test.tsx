@@ -221,6 +221,7 @@ describe("artifact panel versions", () => {
       version: { root_id: 30, number, parent_id: number > 1 ? id - 1 : null },
       spec_kind: "python",
       refinable: false,
+      image_editable: false,
       ...extra,
     } satisfies Artifact
   }
@@ -347,6 +348,7 @@ describe("artifact panel versions", () => {
           version: null,
           spec_kind: null,
           refinable: false,
+          image_editable: false,
         })
       )
     )
@@ -368,6 +370,7 @@ describe("artifact panel versions", () => {
             version: null,
             spec_kind: null,
             refinable: false,
+            image_editable: false,
           },
         ]}
         onOpenVersion={vi.fn()}
@@ -398,6 +401,7 @@ describe("artifact panel refine", () => {
       version: { root_id: 40, number, parent_id: number > 1 ? id - 1 : null },
       spec_kind: "markdown",
       refinable: true,
+      image_editable: false,
       ...extra,
     } satisfies Artifact
   }
@@ -704,6 +708,7 @@ describe("artifact panel refine", () => {
       format: "summary",
       spec_kind: null,
       refinable: false,
+      image_editable: false,
     })
     serveDetail(summary)
 
@@ -716,6 +721,7 @@ describe("artifact panel refine", () => {
       spec_kind: null,
       version: null,
       refinable: false,
+      image_editable: false,
     })
     serveDetail(drafted)
     render(panel([drafted], vi.fn()))
@@ -744,6 +750,93 @@ describe("artifact panel refine", () => {
   })
 })
 
+describe("artifact panel image edit", () => {
+  function picture(extra: Partial<Artifact> = {}) {
+    return {
+      id: 40,
+      document_id: 140,
+      format: "image",
+      generation: 1,
+      title: "Lighthouse",
+      status: "ready",
+      error_message: null,
+      created_at: "2026-10-01T00:00:00Z",
+      updated_at: "2026-10-01T00:00:00Z",
+      version: { root_id: 40, number: 1, parent_id: null },
+      spec_kind: null,
+      refinable: false,
+      image_editable: true,
+      ...extra,
+    } satisfies Artifact
+  }
+
+  // Served as a summary so the test needs no picture; the list entry is what
+  // says it is an image.
+  function serveDetail(artifact: Artifact) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          ...artifact,
+          format: "summary",
+          content: "A lighthouse at dusk",
+          files: [],
+          quiz_state: null,
+          flashcard_state: null,
+        })
+      )
+    )
+  }
+
+  function panel(
+    artifacts: Artifact[],
+    onRefine: (artifactId: number, instruction: string) => Promise<void>,
+    onImageEdit: (artifactId: number, instruction: string) => Promise<void>
+  ) {
+    return (
+      <ArtifactPanel
+        artifactId={40}
+        artifacts={artifacts}
+        onOpenVersion={vi.fn()}
+        onRefine={onRefine}
+        onImageEdit={onImageEdit}
+        onClose={vi.fn()}
+      />
+    )
+  }
+
+  it("sends the instruction to the edit model, not to Refine", async () => {
+    const v1 = picture()
+    serveDetail(v1)
+    const onRefine = vi.fn(async () => {})
+    const onImageEdit = vi.fn(async () => {})
+    const user = userEvent.setup()
+
+    render(panel([v1], onRefine, onImageEdit))
+
+    await user.click(
+      await screen.findByRole("button", { name: "Edit this image" })
+    )
+    await user.type(
+      screen.getByRole("textbox", { name: "How to change this image" }),
+      "Make it night{Enter}"
+    )
+
+    expect(onImageEdit).toHaveBeenCalledExactlyOnceWith(40, "Make it night")
+    expect(onRefine).not.toHaveBeenCalled()
+  })
+
+  it("offers no edit on a picture that is not ready", async () => {
+    const failed = picture({ status: "failed", image_editable: false })
+    serveDetail(failed)
+
+    render(panel([failed], vi.fn(), vi.fn()))
+
+    expect(await screen.findByText("A lighthouse at dusk")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Edit this image" })).toBeNull()
+  })
+})
+
 describe("artifact panel revised copy", () => {
   function copy(id: number, number: number, extra: Partial<Artifact> = {}) {
     return {
@@ -759,6 +852,7 @@ describe("artifact panel revised copy", () => {
       version: { root_id: 50, number, parent_id: number > 1 ? id - 1 : null },
       spec_kind: null,
       refinable: false,
+      image_editable: false,
       ...extra,
     } satisfies Artifact
   }

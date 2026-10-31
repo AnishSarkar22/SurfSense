@@ -6,7 +6,8 @@ import { ApiError } from "@/lib/api"
 // regenerate (a refine's `needs_chat` comes from studio_documents/fits.py),
 // and the sentences `refused()` sends for a job that cannot start, be run
 // again or be stopped, and for a document that cannot be refined
-// (studio_documents/service.py) or is too long to rewrite (fits.py);
+// (studio_documents/service.py) or is too long to rewrite (fits.py), and for a
+// picture that cannot be edited or has no model to edit it (image_edits/);
 // the backend's own text stays the fallback for a code that has no line here,
 // and for one whose values did not come with it.
 type Detail = Record<string, unknown>
@@ -42,6 +43,12 @@ const studioErrorText: Record<string, (detail: Detail) => string | null> = {
       id: "studio_error_not_refinable",
       defaultMessage:
         "Only a Word document, PDF or web page made in Studio can be refined.",
+    }),
+  not_editable: () =>
+    intl.formatMessage({
+      id: "studio_error_not_editable",
+      defaultMessage:
+        "Only an image or infographic made in Studio can be edited.",
     }),
   agent_made: () =>
     intl.formatMessage({
@@ -84,6 +91,11 @@ const studioErrorText: Record<string, (detail: Detail) => string | null> = {
     intl.formatMessage({
       id: "studio_error_needs_image",
       defaultMessage: "Needs an image model.",
+    }),
+  needs_image_edit: () =>
+    intl.formatMessage({
+      id: "studio_error_needs_image_edit",
+      defaultMessage: "Needs an image editing model.",
     }),
   needs_audio: () =>
     intl.formatMessage({

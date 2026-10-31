@@ -530,6 +530,7 @@ function WorkspaceDashboard({
                       artifacts={studio.artifacts}
                       onOpenVersion={openArtifact}
                       onRefine={studio.refine}
+                      onImageEdit={studio.editImage}
                       onDecideAll={studio.decideAll}
                       onClose={closeInspect}
                     />

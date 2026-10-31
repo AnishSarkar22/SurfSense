@@ -26,19 +26,24 @@ import { intl } from "@/i18n/intl"
 
 import { messageFrom } from "./use-studio"
 
-// The longest instruction POST /artifacts/{id}/refine accepts.
+// The longest instruction POST /artifacts/{id}/refine and /image-edit accept.
 const INSTRUCTION_CHARS = 2000
 
-/** Asks for the next version of the open document, rewritten to an
+/** What the box changes: a document's spec, or a picture. */
+export type RefineSubject = "document" | "image"
+
+/** Asks for the next version of the open document, rewritten or edited to an
  *  instruction in one model call. A round button until opened, so the
  *  document keeps the panel; the version being made shows in its place. */
 export function RefineBox({
   artifactId,
+  subject = "document",
   versionShown,
   writingVersion,
   onRefine,
 }: {
   artifactId: number
+  subject?: RefineSubject
   /** Whether that version's body is on screen; until then nothing is sent. */
   versionShown: boolean
   /** The number of a version of this document being made; the next waits. */
@@ -140,10 +145,8 @@ export function RefineBox({
     if (width) box.current?.style.setProperty("--pill-width", `${width + 2}px`)
   }, [shownVersion])
 
-  const openLabel = intl.formatMessage({
-    id: "studio_refine_open_aria",
-    defaultMessage: "Refine this document",
-  })
+  const labels = subject === "image" ? imageLabels() : documentLabels()
+  const openLabel = labels.open
 
   const makingLabel = (version: number) =>
     intl.formatMessage(
@@ -196,17 +199,10 @@ export function RefineBox({
               setRefused(null)
             }}
             onKeyDown={onKeyDown}
-            aria-label={intl.formatMessage({
-              id: "studio_refine_instruction_aria",
-              defaultMessage: "How to change this document",
-            })}
+            aria-label={labels.instruction}
             aria-invalid={refusal ? true : undefined}
             aria-describedby={refusal ? errorId : undefined}
-            placeholder={intl.formatMessage({
-              id: "studio_refine_instruction_placeholder",
-              defaultMessage:
-                "Describe a change, such as a shorter introduction",
-            })}
+            placeholder={labels.placeholder}
           />
           {/* Held at the last line as the instruction grows, as in the chat
               composer; the addon's own stretch would centre it instead. */}
@@ -220,10 +216,7 @@ export function RefineBox({
               size="icon-lg"
               className="rounded-full"
               disabled={blocked}
-              aria-label={intl.formatMessage({
-                id: "studio_refine_submit_button",
-                defaultMessage: "Refine",
-              })}
+              aria-label={labels.submit}
             >
               {isSending ? <Spinner /> : <ArrowUp02Icon />}
             </Button>
@@ -283,4 +276,46 @@ export function RefineBox({
       </Tooltip>
     </form>
   )
+}
+
+function documentLabels() {
+  return {
+    open: intl.formatMessage({
+      id: "studio_refine_open_aria",
+      defaultMessage: "Refine this document",
+    }),
+    instruction: intl.formatMessage({
+      id: "studio_refine_instruction_aria",
+      defaultMessage: "How to change this document",
+    }),
+    placeholder: intl.formatMessage({
+      id: "studio_refine_instruction_placeholder",
+      defaultMessage: "Describe a change, such as a shorter introduction",
+    }),
+    submit: intl.formatMessage({
+      id: "studio_refine_submit_button",
+      defaultMessage: "Refine",
+    }),
+  }
+}
+
+function imageLabels() {
+  return {
+    open: intl.formatMessage({
+      id: "studio_image_edit_open_aria",
+      defaultMessage: "Edit this image",
+    }),
+    instruction: intl.formatMessage({
+      id: "studio_image_edit_instruction_aria",
+      defaultMessage: "How to change this image",
+    }),
+    placeholder: intl.formatMessage({
+      id: "studio_image_edit_instruction_placeholder",
+      defaultMessage: "Describe a change, such as a darker background",
+    }),
+    submit: intl.formatMessage({
+      id: "studio_image_edit_submit_button",
+      defaultMessage: "Edit",
+    }),
+  }
 }
