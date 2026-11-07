@@ -26,9 +26,9 @@ def _free_port() -> int:
 
 
 @asynccontextmanager
-async def serving_app(app: ASGIApp) -> AsyncIterator[str]:
-    """Yields the app's address."""
-    port = _free_port()
+async def serving_app(app: ASGIApp, port: int | None = None) -> AsyncIterator[str]:
+    """Yields the app's address, on `port` when the app must know it beforehand."""
+    port = port or _free_port()
     server = uvicorn.Server(
         uvicorn.Config(
             app,

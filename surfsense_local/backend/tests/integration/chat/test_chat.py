@@ -1,13 +1,10 @@
 """Chat end to end: retrieve, stream a cited reply, and persist both turns."""
 
 import asyncio
-import contextlib
 import json
 import threading
-from collections.abc import AsyncIterator
 
 import pytest
-import uvicorn
 from httpx import AsyncClient
 from sqlalchemy import Engine
 
@@ -36,6 +33,7 @@ from tests.integration.chat.conftest import (
     set_tokens_per_word,
     stall_after_answer,
 )
+from tests.integration.serving_app import serving_app
 from worker.ingestion import run
 
 pytestmark = pytest.mark.integration
@@ -1180,7 +1178,7 @@ async def test_a_reply_cut_off_by_a_crash_is_settled_when_the_app_starts(
         thread_id = thread.id
 
     # Booted only now, so its startup finds what the crash left.
-    async with _booted_app() as url, AsyncClient(base_url=url) as client:
+    async with serving_app(create_app()) as url, AsyncClient(base_url=url) as client:
         stored = (await client.get(f"/chat/threads/{thread_id}/messages")).json()
 
     replies = [m for m in stored if m["role"] == "assistant"]
@@ -1188,23 +1186,6 @@ async def test_a_reply_cut_off_by_a_crash_is_settled_when_the_app_starts(
     assert all(m["content"]["ending"] == {"type": "interrupted"} for m in replies)
     assert all(m["completed_at"] for m in replies)
     assert len(stored) == 4
-
-
-@contextlib.asynccontextmanager
-async def _booted_app() -> AsyncIterator[str]:
-    """The app on a real port with its startup run, over this test's database."""
-    server = uvicorn.Server(
-        uvicorn.Config(create_app(), host="127.0.0.1", port=0, log_level="warning")
-    )
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    try:
-        while not server.started:
-            await asyncio.sleep(0.01)
-        yield f"http://127.0.0.1:{server.servers[0].sockets[0].getsockname()[1]}"
-    finally:
-        server.should_exit = True
-        thread.join(timeout=5)
 
 
 async def test_a_running_reply_saves_its_text_as_it_goes(
